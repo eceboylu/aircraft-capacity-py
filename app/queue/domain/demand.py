@@ -1,0 +1,117 @@
+"""
+AŞAMA 3 + AŞAMA 4 - Yolcu talebi ve zaman penceresi toplama.
+
+Kapasite çözümlemesi Madde 1'in servisinden gelir; o kod BURADA
+DEĞİŞTİRİLMEZ, sadece enjekte edilip kullanılır. Enjeksiyon sayesinde
+bu katman mock bir çözümleyiciyle veritabanısız test edilebilir.
+"""
+
+from datetime import datetime, timedelta
+from typing import Sequence
+
+from .flight_rules import (
+    route_based_load_factor,
+    security_arrival_buffer_minutes,
+)
+from ..constants import (
+    DEMAND_WINDOW_MINUTES,
+    DIRECTION_DEPARTURE,
+    EXCLUDED_STATUSES,
+    PASSPORT_RELEASE_BUFFER_MINUTES,
+)
+
+
+class DemandCalculator:
+    """
+    Madde 1'in AircraftCapacityService'ini sarmalar.
+
+    resolver: .resolve(aircraft_icao, airline_iata) -> CapacityResult
+              (.capacity, .counts_toward_passenger_total)
+    """
+
+    def __init__(self, resolver):
+        self._resolver = resolver
+        self._cache: dict[tuple[str | None, str | None], object] = {}
+
+    def _resolve(self, flight):
+        key = (flight.aircraft_icao, flight.airline_iata)
+        if key not in self._cache:
+            self._cache[key] = self._resolver.resolve(
+                flight.aircraft_icao, flight.airline_iata
+            )
+        return self._cache[key]
+
+    def seat_capacity(self, flight) -> int:
+        """
+        Uçağın koltuk kapasitesi (doluluk uygulanmadan).
+        Genel havacılık uçuşlarında 0 döner.
+        """
+        result = self._resolve(flight)
+        if not result.counts_toward_passenger_total:
+            return 0
+        return result.capacity
+
+    def passenger_demand(self, flight) -> int:
+        """
+        Bu uçuşun kuyruğa getireceği tahmini yolcu sayısı.
+
+        counts_toward_passenger_total False ise (genel havacılık)
+        talep hesabına HİÇ girmez.
+        """
+        result = self._resolve(flight)
+        if not result.counts_toward_passenger_total:
+            return 0
+        return round(result.capacity * route_based_load_factor(flight))
+
+
+def effective_time(flight) -> datetime | None:
+    """
+    Uçuşun kuyruğa yansıdığı an.
+
+    Departure : actual (varsa) veya scheduled, EKSİ dinamik security buffer
+    Arrival   : actual (varsa) veya scheduled, ARTI sabit passport buffer
+
+    Gecikmiş uçuşlarda actual saat kullanıldığı için, birden fazla
+    gecikmiş uçuşun aynı yeni pencerede toplanması (schedule
+    compression) ayrı bir dedektöre gerek kalmadan otomatik yakalanır.
+    """
+    if flight.direction == DIRECTION_DEPARTURE:
+        base = flight.dep_actual_utc or flight.dep_scheduled_utc
+        if base is None:
+            return None
+        return base - timedelta(minutes=security_arrival_buffer_minutes(flight))
+
+    base = flight.arr_actual_utc or flight.arr_scheduled_utc
+    if base is None:
+        return None
+    return base + timedelta(minutes=PASSPORT_RELEASE_BUFFER_MINUTES)
+
+
+def flights_in_window(
+    all_flights: Sequence,
+    window_start: datetime,
+    window_minutes: int = DEMAND_WINDOW_MINUTES,
+    include_excluded: bool = False,
+) -> list:
+    """
+    Pencereye düşen uçuşlar.
+
+    Varsayılan davranışta iptal ve yönlendirilmiş uçuşlar talep
+    hesabına GİRMEZ.
+
+    include_excluded=True ise bu uçuşlar da döner; AŞAMA 6'daki
+    iptal (Neden 7) ve yönlendirme (Neden 9) notlarının hangi
+    pencereye ait olduğunu belirlemek için kullanılır - talep
+    toplamına yine de eklenmezler.
+    """
+    window_end = window_start + timedelta(minutes=window_minutes)
+    selected = []
+    for flight in all_flights:
+        if not include_excluded and flight.status in EXCLUDED_STATUSES:
+            continue
+        moment = effective_time(flight)
+        if moment is None:
+            continue
+        if window_start <= moment < window_end:
+            selected.append(flight)
+    return selected

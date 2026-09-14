@@ -1,0 +1,15 @@
+[
+  {"icao": "A346", "capacity": 380},
+  {"icao": "B778", "capacity": 384},
+  {"icao": "B779", "capacity": 426},
+  {"icao": "MD11", "capacity": 293},
+  {"icao": "B190", "capacity": 19},
+  {"icao": "RJ1H", "capacity": 100},
+  {"icao": "B77W", "capacity": 365},
+  {"icao": "A332", "capacity": 278},
+  {"icao": "AT76", "capacity": 72},
+  {"icao": "E295", "capacity": 132},
+  {"icao": "AT46", "capacity": 70},
+  {"icao": "E290", "capacity": 106},
+  {"icao": "A330", "capacity": 278}
+]

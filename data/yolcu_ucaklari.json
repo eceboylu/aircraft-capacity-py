@@ -1,0 +1,608 @@
+[
+  {
+    "icao": "A306",
+    "name": "A-300-600",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 266
+  },
+  {
+    "icao": "A310",
+    "name": "A-310",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 220
+  },
+  {
+    "icao": "A333",
+    "name": "A330-300",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 295
+  },
+  {
+    "icao": "A338",
+    "name": "A330-800",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 260
+  },
+  {
+    "icao": "A339",
+    "name": "A330-900",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 300
+  },
+  {
+    "icao": "A342",
+    "name": "A340-200",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 239
+  },
+  {
+    "icao": "A343",
+    "name": "A340-300",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 295
+  },
+  {
+    "icao": "A345",
+    "name": "A340-500",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 313
+  },
+  {
+    "icao": "A346",
+    "name": "A340-600",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 380
+  },
+  {
+    "icao": "A359",
+    "name": "A350-900 XWB",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 475
+  },
+  {
+    "icao": "A35K",
+    "name": "A350-1000 XWB",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 480
+  },
+  {
+    "icao": "A388",
+    "name": "A-380-800",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 555
+  },
+  {
+    "icao": "B742",
+    "name": "747-200",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 366
+  },
+  {
+    "icao": "B743",
+    "name": "747-300",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 412
+  },
+  {
+    "icao": "B744",
+    "name": "747-400",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 416
+  },
+  {
+    "icao": "B74R",
+    "name": "747SR",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 452
+  },
+  {
+    "icao": "B74S",
+    "name": "747SP",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 316
+  },
+  {
+    "icao": "B762",
+    "name": "767-200ER",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 224
+  },
+  {
+    "icao": "B763",
+    "name": "767-300ER",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 269
+  },
+  {
+    "icao": "B764",
+    "name": "767-400",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 304
+  },
+  {
+    "icao": "B772",
+    "name": "BOEING 777-200",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 305
+  },
+  {
+    "icao": "B773",
+    "name": "BOEING 777-300",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 368
+  },
+  {
+    "icao": "B788",
+    "name": "787-8 Dreamliner",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 250
+  },
+  {
+    "icao": "B789",
+    "name": "787-9 Dreamliner",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 296
+  },
+  {
+    "icao": "B78X",
+    "name": "787-10 Dreamliner",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 336
+  },
+  {
+    "icao": "IL62",
+    "name": "Il-62",
+    "category": "Long range/wide-body jet aircraft",
+    "typicalCapacity": 174
+  },
+  {
+    "icao": "A19N",
+    "name": "A319neo",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 150
+  },
+  {
+    "icao": "A20N",
+    "name": "A320neo",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 180
+  },
+  {
+    "icao": "A21N",
+    "name": "A321neo",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 220
+  },
+  {
+    "icao": "A318",
+    "name": "A318",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 107
+  },
+  {
+    "icao": "A319",
+    "name": "A319",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 124
+  },
+  {
+    "icao": "A320",
+    "name": "A320",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 150
+  },
+  {
+    "icao": "A321",
+    "name": "A321",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 185
+  },
+  {
+    "icao": "B37M",
+    "name": "BOEING 737 MAX 7",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 153
+  },
+  {
+    "icao": "B38M",
+    "name": "BOEING 737 MAX 8",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 178
+  },
+  {
+    "icao": "B39M",
+    "name": "BOEING 737 MAX 9",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 193
+  },
+  {
+    "icao": "B3XM",
+    "name": "BOEING 737 MAX 10",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 204
+  },
+  {
+    "icao": "B462",
+    "name": "BAe-146-200",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 85
+  },
+  {
+    "icao": "B463",
+    "name": "BAe-146-300",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 100
+  },
+  {
+    "icao": "B712",
+    "name": "717-200",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 106
+  },
+  {
+    "icao": "B722",
+    "name": "727-200",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 145
+  },
+  {
+    "icao": "B732",
+    "name": "737-200",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 115
+  },
+  {
+    "icao": "B733",
+    "name": "737-300",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 128
+  },
+  {
+    "icao": "B734",
+    "name": "737-400",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 146
+  },
+  {
+    "icao": "B735",
+    "name": "737-500",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 108
+  },
+  {
+    "icao": "B736",
+    "name": "737-600",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 108
+  },
+  {
+    "icao": "B737",
+    "name": "737-700",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 128
+  },
+  {
+    "icao": "B738",
+    "name": "737-800",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 162
+  },
+  {
+    "icao": "B739",
+    "name": "737-900",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 177
+  },
+  {
+    "icao": "B74D",
+    "name": "BOEING 747-400 Domestic",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 568
+  },
+  {
+    "icao": "B752",
+    "name": "757-200",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 200
+  },
+  {
+    "icao": "B753",
+    "name": "757-300",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 243
+  },
+  {
+    "icao": "BCS1",
+    "name": "Airbus A220-100",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 120
+  },
+  {
+    "icao": "BCS3",
+    "name": "AIRBUS A-220-300",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 150
+  },
+  {
+    "icao": "CRJ1",
+    "name": "CANADAIR RJ-100 Regional Jet",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 50
+  },
+  {
+    "icao": "CRJ2",
+    "name": "CANADAIR RJ-200 Regional Jet",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 50
+  },
+  {
+    "icao": "CRJ7",
+    "name": "CANADAIR RJ-700 Regional Jet",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 70
+  },
+  {
+    "icao": "CRJ9",
+    "name": "CRJ Series CRJ900",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 90
+  },
+  {
+    "icao": "CRJX",
+    "name": "CRJ 1000",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 104
+  },
+  {
+    "icao": "DC91",
+    "name": "DC9-10 , DC9-15",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 90
+  },
+  {
+    "icao": "DC94",
+    "name": "DC9-40",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 125
+  },
+  {
+    "icao": "E135",
+    "name": "EMBRAER ERJ-135",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 35
+  },
+  {
+    "icao": "E145",
+    "name": "EMB-145",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 49
+  },
+  {
+    "icao": "E170",
+    "name": "Embraer 170",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 70
+  },
+  {
+    "icao": "E190",
+    "name": "Embraer 190",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 114
+  },
+  {
+    "icao": "E195",
+    "name": "Embraer 195",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 124
+  },
+  {
+    "icao": "F100",
+    "name": "100 (FOKKER)",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 100
+  },
+  {
+    "icao": "F70",
+    "name": "70 (FOKKER)",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 79
+  },
+  {
+    "icao": "J328",
+    "name": "328JET",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 32
+  },
+  {
+    "icao": "MD82",
+    "name": "MD-82",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 152
+  },
+  {
+    "icao": "MD83",
+    "name": "MD-83",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 155
+  },
+  {
+    "icao": "MD87",
+    "name": "MD-87",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 117
+  },
+  {
+    "icao": "MD88",
+    "name": "MD-88",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 172
+  },
+  {
+    "icao": "MD90",
+    "name": "BOEING MD-90",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 153
+  },
+  {
+    "icao": "RJ1H",
+    "name": "AVRO RJ-100 Avroliner",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 100
+  },
+  {
+    "icao": "RJ70",
+    "name": "AVRO RJ-70 Avroliner",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 70
+  },
+  {
+    "icao": "RJ85",
+    "name": "AVRO RJ-85 Avroliner",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 85
+  },
+  {
+    "icao": "SU95",
+    "name": "Superjet 100",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 103
+  },
+  {
+    "icao": "YK40",
+    "name": "Yak-40",
+    "category": "Medium/short range jet aircraft",
+    "typicalCapacity": 27
+  },
+  {
+    "icao": "A748",
+    "name": "748",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 48
+  },
+  {
+    "icao": "AN30",
+    "name": "An-30",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 50
+  },
+  {
+    "icao": "AN38",
+    "name": "An-38",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 27
+  },
+  {
+    "icao": "AT43",
+    "name": "ALENIA ATR-42-300/320",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 42
+  },
+  {
+    "icao": "AT45",
+    "name": "ALENIA ATR-42-500",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 42
+  },
+  {
+    "icao": "AT72",
+    "name": "ALENIA ATR-72",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 72
+  },
+  {
+    "icao": "AT75",
+    "name": "ATR-72-500",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 78
+  },
+  {
+    "icao": "C212",
+    "name": "Aviocar",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 26
+  },
+  {
+    "icao": "CL2T",
+    "name": "CANADAIR CL-415 SuperScooper",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 30
+  },
+  {
+    "icao": "CN35",
+    "name": "AIRTECH CN-235 MP Persuader",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 45
+  },
+  {
+    "icao": "D328",
+    "name": "328 (DORNIER)",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 30
+  },
+  {
+    "icao": "DH8A",
+    "name": "CC-142",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 37
+  },
+  {
+    "icao": "DH8C",
+    "name": "Dash 8 Q300",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 50
+  },
+  {
+    "icao": "DH8D",
+    "name": "Dash 8 Q400",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 78
+  },
+  {
+    "icao": "DHC6",
+    "name": "CC-138",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 19
+  },
+  {
+    "icao": "F50",
+    "name": "FOKKER 50,Maritime Enforcer",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 50
+  },
+  {
+    "icao": "IL18",
+    "name": "Il-18/20/22/24",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 75
+  },
+  {
+    "icao": "L410",
+    "name": "AYRES L-410/420 Turbolet",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 19
+  },
+  {
+    "icao": "L610",
+    "name": "700 (AYRES)",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 40
+  },
+  {
+    "icao": "N262",
+    "name": "FRAKES Mohawk 298",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 26
+  },
+  {
+    "icao": "SB20",
+    "name": "2000 (SAAB)",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 50
+  },
+  {
+    "icao": "SF34",
+    "name": "340 (SAAB)",
+    "category": "Turbo-prop airliner/freighter",
+    "typicalCapacity": 34
+  }
+]
