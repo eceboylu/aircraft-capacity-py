@@ -293,37 +293,48 @@ def detect_cancellation(all_period_flights: Sequence) -> DetectedReason | None:
 # --------------------------------------------------------------------
 
 def detect_aircraft_changes(
-    aircraft_changes: dict[str, tuple[str | None, str | None]] | None,
+    aircraft_changes: dict[str, list[tuple[str | None, str | None]]] | None,
     capacity_of_icao: Callable[[str | None], int] | None,
 ) -> list[DetectedReason]:
     """
-    aircraft_changes : {flight_key: (old_icao, new_icao)} - FlightEvent
-                       tablosundaki AIRCRAFT_CHANGED kayıtlarından gelir.
+    aircraft_changes : {flight_key: [(old_icao, new_icao), ...]} -
+                       FlightEvent tablosundaki AIRCRAFT_CHANGED
+                       kayıtlarından gelir.
 
-    capacity_delta > 0 risk artırıcı, < 0 risk azaltıcı nottur.
-    delta == 0 ise tetiklenmez.
+    MADDE 8: aynı uçuşun aynı pencerede birden fazla değişimi varsa
+    (ör. A320→A321, sonra A321→A330) HER İKİSİ de ayrı bir
+    DetectedReason olarak döner - sadece son değişiklik değil. Liste
+    içindeki sıra KORUNUR (çağıran taraf kronolojik sırayla verir),
+    böylece mesajlar da kronolojik çıkar.
+
+    Her değişiklik AYRI değerlendirilir: capacity_delta > 0 risk
+    artırıcı, < 0 risk azaltıcı nottur (severity ile taşınır), delta
+    == 0 olan tek tek değişiklikler atlanır - flight'ın DİĞER gerçek
+    değişiklikleri bundan etkilenmez. Bu notlar risk skorunu (rho,
+    baseline_ratio) DOĞRUDAN değiştirmez; yalnızca açıklama/context'tir.
     """
     if not aircraft_changes or capacity_of_icao is None:
         return []
 
     found = []
-    for flight_key, (old_icao, new_icao) in sorted(aircraft_changes.items()):
-        if not old_icao or not new_icao or old_icao == new_icao:
-            continue
+    for flight_key in sorted(aircraft_changes):
+        for old_icao, new_icao in aircraft_changes[flight_key]:
+            if not old_icao or not new_icao or old_icao == new_icao:
+                continue
 
-        delta = capacity_of_icao(new_icao) - capacity_of_icao(old_icao)
-        if delta == 0:
-            continue
+            delta = capacity_of_icao(new_icao) - capacity_of_icao(old_icao)
+            if delta == 0:
+                continue
 
-        found.append(DetectedReason(
-            code=REASON_AIRCRAFT_CHANGE,
-            severity=SEVERITY_WARNING if delta > 0 else SEVERITY_INFO,
-            message=(
-                f"{flight_key}: {old_icao}→{new_icao}, "
-                f"kapasite {delta:+d} yolcu"
-            ),
-            metric_value=float(delta),
-        ))
+            found.append(DetectedReason(
+                code=REASON_AIRCRAFT_CHANGE,
+                severity=SEVERITY_WARNING if delta > 0 else SEVERITY_INFO,
+                message=(
+                    f"{flight_key}: {old_icao}→{new_icao}, "
+                    f"kapasite {delta:+d} yolcu"
+                ),
+                metric_value=float(delta),
+            ))
     return found
 
 

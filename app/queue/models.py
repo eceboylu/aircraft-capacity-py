@@ -97,6 +97,26 @@ class FlightEvent(Base):
     """
     SADECE değişiklik olduğunda satır açılır (YASAK 4).
     30 dakikalık refresh'te otomatik kayıt YAZILMAZ.
+
+    Her gerçek değişiklik AYRI bir satırdır (MADDE 8) - aynı uçuşun
+    aynı pencerede birden fazla aircraft change'i varsa (A320->A321,
+    sonra A321->A330) her ikisi de burada AYRI satır olarak durur,
+    hiçbiri üzerine yazılmaz.
+
+    flight_effective_time (additive/nullable kolon): SADECE
+    AIRCRAFT_CHANGED event'lerinde doldurulur - değişikliğin ait
+    olduğu uçuşun o anki effective_time()'ıdır (dep/arr scheduled
+    değil, mevcut sistemin pencere-atama kuralıyla AYNI fonksiyon).
+    Bu, event'in hangi 15 dk prediction window'una düştüğünü ve
+    duplicate event tespitini (aynı flight+aynı eski/yeni tip+aynı
+    effective_time) belirler. Diğer event tiplerinde (CANCELLED,
+    DIVERTED, DELAYED) None kalır - MADDE 8 kapsamı sadece aircraft
+    change'dir, bu alan onları etkilemez.
+
+    Şema notu: bu kolon sonradan eklendi, nullable'dır - var olan bir
+    production dosyasına ALTER TABLE gerekir (create_all() var olan
+    tabloyu değiştirmez); bu repo'daki database.sqlite'ta flight_events
+    tablosu hiç oluşturulmamıştı, taşınacak veri yok.
     """
 
     __tablename__ = "flight_events"
@@ -107,6 +127,9 @@ class FlightEvent(Base):
     event_type: Mapped[str] = mapped_column(String(32))
     old_value: Mapped[str | None] = mapped_column(String(64), nullable=True)
     new_value: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    flight_effective_time: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, index=True
+    )
     detected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
@@ -151,7 +174,13 @@ class QueuePrediction(Base):
 
     flight_count: Mapped[int] = mapped_column(Integer, default=0)
     expected_passengers: Mapped[int] = mapped_column(Integer, default=0)
+    # MADDE 7: security'de baseline_ratio, flight_ratio ile
+    # passenger_ratio'nun ağırlıklı ortalamasıdır. Bileşenler ayrıca
+    # saklanır - raporlamada hangi sinyalin tetiklediği görülebilsin.
+    # passenger_ratio, geçmiş yolcu verisi yoksa None kalır.
     baseline_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    flight_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    passenger_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Aşağıdaki iki alan SADECE passport için doldurulur.
     # Security'de her ikisi de None kalır (YASAK 1).
@@ -174,8 +203,16 @@ class QueuePrediction(Base):
 
 class HistoricalFlightCount(Base):
     """
-    Neden 1 (clustering) baseline'ı. Geçmiş veri birikmediyse satır
-    yoktur ve sahte baseline ÜRETİLMEZ.
+    Neden 1 (clustering) ve MADDE 7 (security flight/passenger ratio)
+    baseline'ı. Geçmiş veri birikmediyse satır yoktur ve sahte baseline
+    ÜRETİLMEZ.
+
+    Yolcu ortalaması AYRI bir örneklem sayacıyla (passenger_sample_size)
+    tutulur: bu sütunlar sonradan eklendiği için eski satırlarda yolcu
+    verisi YOKTUR. Uçuş örneklemi ile yolcu örneklemini aynı sayaca
+    bağlamak, olmayan yolcu gözlemlerini varmış gibi göstererek
+    ortalamayı bozardı. passenger_sample_size == 0 iken yolcu baseline'ı
+    None'dır ve passenger_ratio hesaplanmaz (uydurulmaz).
     """
 
     __tablename__ = "historical_flight_counts"
@@ -187,11 +224,47 @@ class HistoricalFlightCount(Base):
     day_of_week: Mapped[int] = mapped_column(Integer)   # 0-6
     average_flight_count: Mapped[float] = mapped_column(Float)
     sample_size: Mapped[int] = mapped_column(Integer, default=0)
+    average_expected_passengers: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+    passenger_sample_size: Mapped[int] = mapped_column(Integer, default=0)
     last_updated: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     __table_args__ = (
         UniqueConstraint(
             "airport_iata", "process", "hour_of_day", "day_of_week",
             name="uq_historical_flight_count",
+        ),
+    )
+
+
+class BaselineObservation(Base):
+    """
+    AŞAMA 3 (MADDE 3) - idempotency defteri.
+
+    HistoricalFlightCount (hour_of_day, day_of_week) bazlı bir HAVUZ
+    tutar - aynı saat dilimine düşen birçok farklı tarihin ortalamasını
+    biriktirir. Bu tablo ise tek bir somut pencere örneğinin (belirli
+    bir airport + process + window_start) o havuza DAHA ÖNCE eklenip
+    eklenmediğini tutar.
+
+    UNIQUE constraint bu üçlü üzerindedir - aynı pencere ikinci kez
+    kaydedilmeye çalışıldığında DB seviyesinde reddedilir (race/duplicate
+    refresh'lere karşı da güvenlidir, sadece application-level kontrol
+    değildir).
+    """
+
+    __tablename__ = "baseline_observations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    airport_iata: Mapped[str] = mapped_column(String(10), index=True)
+    process: Mapped[str] = mapped_column(String(16))
+    window_start: Mapped[datetime] = mapped_column(DateTime, index=True)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "airport_iata", "process", "window_start",
+            name="uq_baseline_observation_window",
         ),
     )

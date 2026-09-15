@@ -19,6 +19,7 @@ UYARI:
 
 import argparse
 import json
+import logging
 import os
 from datetime import datetime, timezone
 
@@ -30,6 +31,7 @@ from .models import (
     AircraftCapacityFamily,
 )
 
+logger = logging.getLogger(__name__)
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 
@@ -67,10 +69,7 @@ def seed_verified_dataset(session):
 
     session.commit()
 
-    print(
-        f"aircraft_capacity (verified_dataset): "
-        f"{count} satır"
-    )
+    logger.info("aircraft_capacity (verified_dataset): %d satır", count)
 
 
 def seed_curated_fallback(session):
@@ -112,10 +111,7 @@ def seed_curated_fallback(session):
 
     session.commit()
 
-    print(
-        f"aircraft_capacity (curated_fallback, ek): "
-        f"{added} satır"
-    )
+    logger.info("aircraft_capacity (curated_fallback, ek): %d satır", added)
 
 
 def seed_family_and_ga(session):
@@ -224,9 +220,9 @@ def seed_family_and_ga(session):
 
     session.commit()
 
-    print(
-        f"aircraft_capacity_family: "
-        f"{len(commercial) + len(general_aviation)} satır"
+    logger.info(
+        "aircraft_capacity_family: %d satır",
+        len(commercial) + len(general_aviation),
     )
 
 
@@ -242,9 +238,9 @@ def run(reset: bool = False):
     """
 
     if reset:
-        print(
-            "\nUYARI: --reset kullanıldı."
-            "\nMevcut veritabanı tabloları silinip yeniden oluşturulacak.\n"
+        logger.warning(
+            "--reset kullanıldı: mevcut veritabanı tabloları silinip "
+            "yeniden oluşturulacak."
         )
 
     # Normal çalışmada drop_first=False.
@@ -261,7 +257,7 @@ def run(reset: bool = False):
     finally:
         session.close()
 
-    print("\nSeed tamamlandı.")
+    logger.info("Seed tamamlandı.")
 
 
 def parse_args():
@@ -282,5 +278,8 @@ def parse_args():
 
 
 if __name__ == "__main__":
+    from .logging_config import configure_logging
+
+    configure_logging()
     args = parse_args()
     run(reset=args.reset)

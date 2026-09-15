@@ -28,6 +28,7 @@ gerekmez; her çalıştırma mevcut satırları upsert eder, yeni satır
 açmaz.
 """
 
+import logging
 import os
 
 from ..db import get_session, init_db
@@ -43,6 +44,8 @@ from .ingestion.sources import (
     parse_source_a,
 )
 from .models import Airport
+
+logger = logging.getLogger(__name__)
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
 
@@ -108,7 +111,13 @@ def load_flight_rows(
 
     try:
         aircraft_index = build_aircraft_index(source_b())
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        logger.warning(
+            "Kaynak B (canlı uçuş / aircraft_icao beslemesi) okunamadı "
+            "(%s); fallback olarak boş enrichment index kullanılıyor - "
+            "bu turda aircraft_icao eşleşmesi eksik kalabilir.",
+            type(exc).__name__,
+        )
         aircraft_index = {}
 
     rows: list[dict] = []
@@ -161,6 +170,9 @@ def run(
 
 
 if __name__ == "__main__":
+    from ..logging_config import configure_logging
+
+    configure_logging()
     summary = run()
     for key, value in summary.items():
         print(f"{key}: {value}")

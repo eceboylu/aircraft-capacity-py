@@ -314,11 +314,17 @@ def test_scenario_07_diverted_flight_leaves_demand_but_is_noted():
 # --------------------------------------------------------------------
 
 def test_scenario_08_aircraft_change_reports_capacity_delta():
+    """
+    intl_departure(9,0) -> kısa mesafe uluslararası, buffer 45 dk ->
+    effective_time 08:15 -> pencere 08:15-08:30. Event zamanı bu
+    pencerenin İÇİNDE verilir (MADDE 8: event window'a kendi
+    flight_effective_time'ına göre atanır).
+    """
     flight = intl_departure(9, 0, key="CH1", number="701", aircraft="B77W")
     passport = run_window(
         [flight],
         PROCESS_PASSPORT,
-        aircraft_changes={"CH1": ("A320", "B77W")},
+        aircraft_changes={"CH1": [("A320", "B77W", at(8, 15))]},
     )
 
     assert REASON_AIRCRAFT_CHANGE in codes(passport)
@@ -330,12 +336,16 @@ def test_scenario_08_aircraft_change_reports_capacity_delta():
 
 
 def test_scenario_08_change_of_other_window_is_not_reported():
-    """Uçak değişikliği sadece kendi penceresinde görünür."""
+    """
+    Uçak değişikliği sadece KENDİ pencerine (kendi event zamanına)
+    göre görünür - event zamanı bu penceredeki (08:15-08:30) sınırın
+    dışındaysa (06:00) hiç raporlanmaz.
+    """
     flight = intl_departure(9, 0, key="CH1", number="701")
     passport = run_window(
         [flight],
         PROCESS_PASSPORT,
-        aircraft_changes={"BASKA_UCUS": ("A320", "B77W")},
+        aircraft_changes={"CH1": [("A320", "B77W", at(6, 0))]},
     )
     assert REASON_AIRCRAFT_CHANGE not in codes(passport)
 

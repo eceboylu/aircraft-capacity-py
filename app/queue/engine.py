@@ -25,10 +25,11 @@ Veritabanı bağlantısı sadece `run_predictions` ve yardımcılarındadır.
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 import json
+import logging
 
 from sqlalchemy import select
 
-from .baseline import get_baseline, record_observation
+from .baseline import get_baseline, get_passenger_baseline, record_observation
 from .config import AirportConfigView, get_configs
 from .constants import (
     DEMAND_WINDOW_MINUTES,
@@ -50,6 +51,8 @@ from .domain.demand import DemandCalculator, effective_time, flights_in_window
 from .domain.flows import passport_flights, security_flights
 from .models import Flight, QueuePrediction
 from .reasons.detector import DetectedReason, detect_reasons
+
+logger = logging.getLogger(__name__)
 
 PROCESSES = (PROCESS_SECURITY, PROCESS_PASSPORT)
 
@@ -75,6 +78,10 @@ class WindowPrediction:
     estimated_wait_minutes: float | None
     risk: str
     confidence: float
+    # MADDE 7 - security'de baseline_ratio bu iki bileşenin ağırlıklı
+    # ortalamasıdır. Passport'ta ikisi de None kalır.
+    flight_ratio: float | None = None
+    passenger_ratio: float | None = None
     reasons: list[DetectedReason] = field(default_factory=list)
 
     def reasons_as_dicts(self) -> list[dict]:
@@ -82,6 +89,22 @@ class WindowPrediction:
 
     def reasons_json(self) -> str:
         return json.dumps(self.reasons_as_dicts(), ensure_ascii=False)
+
+
+def domain_now() -> datetime:
+    """
+    Uçuş alanlarıyla (dep/arr_*_utc, window_start/end) AYNI birimde:
+    naive UTC.
+
+    models.utcnow() tz-aware döner - last_refreshed_at/detected_at gibi
+    audit kolonları için doğrudur. Ama pencere sınırları Kaynak A'dan
+    gelen naive UTC zamanlardan türediği için (bkz. ingestion/sources.py:
+    parse_utc) tz-aware bir değerle karşılaştırmak TypeError verir.
+    Bu fonksiyon SADECE "pencere kapandı mı" gibi domain zaman
+    karşılaştırmaları için kullanılır; test edilebilirlik için çağıran
+    taraflarda `now` parametresiyle override edilebilir.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def floor_to_window(
@@ -151,12 +174,17 @@ def predict_window(
     aircraft_match_rate: float,
     aircraft_changes: dict[str, tuple[str | None, str | None]] | None = None,
     window_minutes: int = DEMAND_WINDOW_MINUTES,
+    historical_passenger_baseline: float | None = None,
 ) -> WindowPrediction:
     """
     Tek pencere hesabı. Veritabanına dokunmaz.
 
     process_flights : bu havalimanının, bu süreci besleyen uçuşları
                       (AŞAMA 2 filtresinden geçmiş)
+    historical_passenger_baseline
+                    : MADDE 7 - security'nin yolcu oranı için geçmiş
+                      ortalama yolcu talebi. Yoksa None; passenger_ratio
+                      hesaplanmaz, uydurulmaz.
     """
     window_end = window_start + timedelta(minutes=window_minutes)
 
@@ -176,19 +204,33 @@ def predict_window(
         rho = score["utilization"]
     else:
         score = security_density_score(
-            window_flights, historical_baseline, demand.passenger_demand
+            window_flights,
+            historical_baseline,
+            demand.passenger_demand,
+            historical_passenger_baseline,
         )
         # Security'de kapasite verisi yok; utilization da dakika da üretilmez.
         rho = None
 
-    window_changes = None
+    # MADDE 8: her aircraft-change event'i, FLIGHT'ın şu anki konumuna
+    # göre değil, KENDİ flight_effective_time'ına göre bu pencereye
+    # aitse dahil edilir. Bir uçuşun aynı pencerede birden fazla
+    # değişimi varsa (A320->A321, sonra A321->A330) HER İKİSİ de aynı
+    # anda burada kalabilir; window sınırı [window_start, window_end)
+    # yarı-açık aralığıyla, sistemin geri kalanıyla AYNI kuralla
+    # uygulanır (bkz. flights_in_window).
+    window_changes: dict[str, list[tuple[str | None, str | None]]] | None = None
     if aircraft_changes:
-        keys = {getattr(f, "flight_key", None) for f in window_all}
-        window_changes = {
-            key: value
-            for key, value in aircraft_changes.items()
-            if key in keys
-        }
+        window_changes = {}
+        for key, change_list in aircraft_changes.items():
+            matching = [
+                (old_icao, new_icao)
+                for old_icao, new_icao, event_time in change_list
+                if event_time is not None
+                and window_start <= event_time < window_end
+            ]
+            if matching:
+                window_changes[key] = matching
 
     reasons = _scoring_notes(score)
     reasons.extend(detect_reasons(
@@ -225,6 +267,8 @@ def predict_window(
         estimated_wait_minutes=score["estimated_wait_minutes"],
         risk=score["risk"],
         confidence=confidence,
+        flight_ratio=score.get("flight_ratio"),
+        passenger_ratio=score.get("passenger_ratio"),
         reasons=reasons,
     )
 
@@ -238,13 +282,19 @@ def predict_airport(
     aircraft_match_rate: float | None = None,
     aircraft_changes: dict[str, tuple[str | None, str | None]] | None = None,
     window_minutes: int = DEMAND_WINDOW_MINUTES,
+    passenger_baseline_fn=None,
 ) -> list[WindowPrediction]:
     """
     Bir havalimanının iki süreci için tüm pencereler.
 
     baseline_fn : (process, window_start) -> float | None
-                  Geçmiş veri yoksa None döndürmeli; SAHTE BASELINE
-                  ÜRETİLMEZ.
+                  Geçmiş ortalama UÇUŞ sayısı. Geçmiş veri yoksa None
+                  döndürmeli; SAHTE BASELINE ÜRETİLMEZ.
+    passenger_baseline_fn
+                : (process, window_start) -> float | None
+                  MADDE 7 - geçmiş ortalama YOLCU talebi. Ayrı bir
+                  fonksiyondur çünkü yolcu örneklemi uçuş örnekleminden
+                  bağımsız birikir; biri varken diğeri henüz olmayabilir.
     """
     if aircraft_match_rate is None:
         aircraft_match_rate = flight_match_rate(flights)
@@ -255,6 +305,10 @@ def predict_airport(
         relevant = _PROCESS_FLIGHTS[process](flights)
         for start in window_starts(relevant, window_minutes):
             baseline = baseline_fn(process, start) if baseline_fn else None
+            passenger_baseline = (
+                passenger_baseline_fn(process, start)
+                if passenger_baseline_fn else None
+            )
             predictions.append(predict_window(
                 airport_iata=airport_iata,
                 process=process,
@@ -266,6 +320,7 @@ def predict_airport(
                 aircraft_match_rate=aircraft_match_rate,
                 aircraft_changes=aircraft_changes,
                 window_minutes=window_minutes,
+                historical_passenger_baseline=passenger_baseline,
             ))
 
     return predictions
@@ -304,9 +359,22 @@ def flights_of_airport(session, airport_iata: str) -> list[Flight]:
 
 
 def _db_baseline_fn(session, airport_iata: str):
-    """Baseline okumasını (süreç, pencere) çiftine bağlar."""
+    """Uçuş baseline okumasını (süreç, pencere) çiftine bağlar."""
     def lookup(process: str, window_start: datetime) -> float | None:
         return get_baseline(
+            session,
+            airport_iata=airport_iata,
+            process=process,
+            hour_of_day=window_start.hour,
+            day_of_week=window_start.weekday(),
+        )
+    return lookup
+
+
+def _db_passenger_baseline_fn(session, airport_iata: str):
+    """MADDE 7 - yolcu baseline okumasını (süreç, pencere) çiftine bağlar."""
+    def lookup(process: str, window_start: datetime) -> float | None:
+        return get_passenger_baseline(
             session,
             airport_iata=airport_iata,
             process=process,
@@ -350,6 +418,8 @@ def persist_predictions(session, predictions: list[WindowPrediction]) -> dict:
         existing.flight_count = prediction.flight_count
         existing.expected_passengers = prediction.expected_passengers
         existing.baseline_ratio = prediction.baseline_ratio
+        existing.flight_ratio = prediction.flight_ratio
+        existing.passenger_ratio = prediction.passenger_ratio
         existing.utilization = prediction.utilization
         existing.estimated_wait_minutes = prediction.estimated_wait_minutes
         existing.risk = prediction.risk
@@ -396,7 +466,7 @@ def prune_stale_predictions(
 
 
 def record_baseline_observations(
-    session, predictions: list[WindowPrediction]
+    session, predictions: list[WindowPrediction], now: datetime | None = None
 ) -> int:
     """
     Pencere uçuş sayılarını clustering baseline'ına ekler.
@@ -405,17 +475,34 @@ def record_baseline_observations(
     kendi baseline'ını beslemiş olur. Baseline birimi bu yüzden
     "o saat/gün için bir 15 dk penceredeki ortalama uçuş sayısı"dır -
     security ratio'su da aynı birimle karşılaştırılır.
+
+    MADDE 3: SADECE kapanmış pencereler (window_end <= now) baseline'a
+    girer. Açık pencere - o an hâlâ uçuş kazanıp kaybedebilir, nihai
+    flight_count'u henüz belli değildir - baseline'a hiç yazılmaz.
+    Kapanmış bir pencere tekrar tekrar refresh edilse bile
+    record_observation() idempotent olduğu için havuz bir daha
+    güncellenmez (bkz. baseline.py).
+
+    `now` test edilebilirlik için enjekte edilebilir; verilmezse
+    domain_now() (gerçek saat) kullanılır.
     """
+    now = now if now is not None else domain_now()
+    recorded = 0
     for prediction in predictions:
+        if now < prediction.window_end:
+            continue  # açık pencere - baseline'a yazma
         record_observation(
             session,
             airport_iata=prediction.airport_iata,
             process=prediction.process,
+            window_start=prediction.window_start,
             hour_of_day=prediction.window_start.hour,
             day_of_week=prediction.window_start.weekday(),
             flight_count=prediction.flight_count,
+            expected_passengers=prediction.expected_passengers,
         )
-    return len(predictions)
+        recorded += 1
+    return recorded
 
 
 def run_predictions(
@@ -424,12 +511,25 @@ def run_predictions(
     airports: list[str] | None = None,
     window_minutes: int = DEMAND_WINDOW_MINUTES,
     update_baseline: bool = True,
+    now: datetime | None = None,
 ) -> dict:
     """
     Sistemdeki HER havalimanı için tahminleri üretir ve kaydeder.
 
     resolver : Madde 1'in AircraftCapacityService örneği. Bu servis
                burada DEĞİŞTİRİLMEZ, sadece kullanılır.
+    now      : MADDE 3 - açık/kapalı pencere kontrolü için "şu an".
+               Test edilebilirlik için enjekte edilebilir; verilmezse
+               domain_now() (gerçek saat) kullanılır.
+
+    Hata izolasyonu (production hardening): her havalimanı KENDİ
+    try/except bloğunda hesaplanır. Bir havalimanının tahmini
+    üretilirken hata oluşursa (bozuk config, beklenmeyen uçuş verisi
+    vb.) SADECE o havalimanı atlanır - session.rollback() ile o
+    havalimanının yarım kalan işlemi geri alınır, hata loglanır,
+    diğer havalimanlarının hesabı ETKİLENMEDEN devam eder. Başarısız
+    havalimanları `failed_airports` listesinde döner; mevcut dönüş
+    sözleşmesindeki hiçbir alan kaldırılmadı/yeniden adlandırılmadı.
     """
     from .ingestion.refresh import aircraft_changes_for_airport
 
@@ -438,40 +538,55 @@ def run_predictions(
 
     total: list[WindowPrediction] = []
     per_airport: dict[str, int] = {}
+    failed_airports: list[str] = []
     pruned = 0
 
     for code in codes:
-        flights = flights_of_airport(session, code)
-        if not flights:
-            per_airport[code] = 0
+        try:
+            flights = flights_of_airport(session, code)
+            if not flights:
+                per_airport[code] = 0
+                continue
+
+            predictions = predict_airport(
+                airport_iata=code,
+                flights=flights,
+                config=configs[code],
+                demand=DemandCalculator(resolver),
+                baseline_fn=_db_baseline_fn(session, code),
+                passenger_baseline_fn=_db_passenger_baseline_fn(session, code),
+                aircraft_changes=aircraft_changes_for_airport(session, code),
+                window_minutes=window_minutes,
+            )
+            per_airport[code] = len(predictions)
+            total.extend(predictions)
+
+            pruned += prune_stale_predictions(
+                session,
+                code,
+                {(p.process, p.window_start) for p in predictions},
+            )
+        except Exception:
+            # Bilinçli geniş except: havalimanı-bazlı izolasyon sınırı
+            # (bkz. ingestion/refresh.py aynı desen). Hata türü önceden
+            # bilinemez; loglanır + sayılır, sessizce yutulmaz.
+            session.rollback()
+            failed_airports.append(code)
+            logger.exception(
+                "Havalimanı için tahmin üretilemedi, atlanıyor (airport=%s)",
+                code,
+            )
             continue
-
-        predictions = predict_airport(
-            airport_iata=code,
-            flights=flights,
-            config=configs[code],
-            demand=DemandCalculator(resolver),
-            baseline_fn=_db_baseline_fn(session, code),
-            aircraft_changes=aircraft_changes_for_airport(session, code),
-            window_minutes=window_minutes,
-        )
-        per_airport[code] = len(predictions)
-        total.extend(predictions)
-
-        pruned += prune_stale_predictions(
-            session,
-            code,
-            {(p.process, p.window_start) for p in predictions},
-        )
 
     written = persist_predictions(session, total)
 
     if update_baseline:
-        record_baseline_observations(session, total)
+        record_baseline_observations(session, total, now=now)
 
     return {
         "airports": per_airport,
         "predictions": len(total),
         "pruned": pruned,
+        "failed_airports": failed_airports,
         **written,
     }

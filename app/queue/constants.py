@@ -43,6 +43,19 @@ SECURITY_RATIO_LOW = 1.2
 SECURITY_RATIO_MEDIUM = 1.4
 SECURITY_RATIO_HIGH = 1.8
 
+# MADDE 7 - Security risk iki sinyalin ağırlıklı ortalamasıdır:
+#   flight_ratio    : pencere uçuş sayısı / geçmiş ortalama uçuş sayısı
+#   passenger_ratio : pencere yolcu talebi / geçmiş ortalama yolcu talebi
+#
+# Ağırlıklar EŞİTTİR: dokümanda (TASK_QUEUE_FINAL.md) kesin bir ağırlık
+# verilmemiştir, bu yüzden iki sinyalden birini diğerine üstün kılacak
+# bir varsayım yapılmaz. Ağırlıklar toplamlarına bölünerek normalize
+# edilir; böylece birleşik oran tek tek oranlarla AYNI ölçekte kalır ve
+# yukarıdaki mevcut risk bantları (1.2 / 1.4 / 1.8) değişmeden geçerli
+# olmaya devam eder.
+SECURITY_FLIGHT_RATIO_WEIGHT = 0.5
+SECURITY_PASSENGER_RATIO_WEIGHT = 0.5
+
 # Passport Erlang-C bantları (utilization / rho üzerinden)
 PASSPORT_RHO_LOW = 0.7
 PASSPORT_RHO_MEDIUM = 0.9

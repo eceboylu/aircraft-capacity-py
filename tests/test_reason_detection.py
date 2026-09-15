@@ -289,7 +289,7 @@ def capacity_lookup(icao):
 
 
 def test_aircraft_change_positive_delta():
-    changes = {"XX_100_2026-09-14": ("A320", "B77W")}   # 180 -> 350
+    changes = {"XX_100_2026-09-14": [("A320", "B77W")]}   # 180 -> 350
     found = detect_aircraft_changes(changes, capacity_lookup)
     assert len(found) == 1
     assert found[0].code == "aircraft_change"
@@ -299,7 +299,7 @@ def test_aircraft_change_positive_delta():
 
 
 def test_aircraft_change_negative_delta_is_info():
-    changes = {"XX_100_2026-09-14": ("B77W", "A320")}   # 350 -> 180
+    changes = {"XX_100_2026-09-14": [("B77W", "A320")]}   # 350 -> 180
     found = detect_aircraft_changes(changes, capacity_lookup)
     assert found[0].metric_value == -170.0
     assert found[0].severity == "info"
@@ -308,20 +308,51 @@ def test_aircraft_change_negative_delta_is_info():
 
 def test_aircraft_change_zero_delta_not_triggered():
     """Aynı kapasiteye sahip farklı tip -> delta 0, tetiklenmez."""
-    changes = {"K": ("EQ1", "EQ2")}
+    changes = {"K": [("EQ1", "EQ2")]}
     lookup = MockCapacityResolver(capacities={"EQ1": 200, "EQ2": 200}).resolve
     assert detect_aircraft_changes(changes, lambda i: lookup(i).capacity) == []
 
 
 def test_aircraft_change_ignores_missing_sides():
-    assert detect_aircraft_changes({"K": (None, "A320")}, capacity_lookup) == []
-    assert detect_aircraft_changes({"K": ("A320", None)}, capacity_lookup) == []
-    assert detect_aircraft_changes({"K": ("A320", "A320")}, capacity_lookup) == []
+    assert detect_aircraft_changes({"K": [(None, "A320")]}, capacity_lookup) == []
+    assert detect_aircraft_changes({"K": [("A320", None)]}, capacity_lookup) == []
+    assert detect_aircraft_changes({"K": [("A320", "A320")]}, capacity_lookup) == []
 
 
 def test_aircraft_change_empty_input():
     assert detect_aircraft_changes(None, capacity_lookup) == []
     assert detect_aircraft_changes({}, capacity_lookup) == []
+
+
+def test_aircraft_change_multiple_changes_same_flight_all_preserved():
+    """MADDE 8: A320->A321->B77W, İKİSİ de ayrı reason olarak dönmeli."""
+    changes = {"K": [("A320", "A321"), ("A321", "B77W")]}   # 180->220->350
+    found = detect_aircraft_changes(changes, capacity_lookup)
+
+    assert len(found) == 2
+    assert found[0].metric_value == 40.0    # 220-180
+    assert found[1].metric_value == 130.0   # 350-220
+
+
+def test_aircraft_change_multiple_changes_preserve_chronological_order():
+    changes = {"K": [("A320", "A321"), ("A321", "B77W"), ("B77W", "B738")]}
+    found = detect_aircraft_changes(changes, capacity_lookup)
+
+    assert [f.message for f in found] == [
+        "K: A320→A321, kapasite +40 yolcu",
+        "K: A321→B77W, kapasite +130 yolcu",
+        "K: B77W→B738, kapasite -161 yolcu",
+    ]
+
+
+def test_aircraft_change_one_zero_delta_does_not_hide_other_changes():
+    """Bir değişiklik delta=0 olsa bile flight'ın DİĞER değişikliği kaybolmamalı."""
+    changes = {"K": [("EQ1", "EQ2"), ("EQ2", "B77W")]}
+    lookup = MockCapacityResolver(capacities={"EQ1": 200, "EQ2": 200}).resolve
+    found = detect_aircraft_changes(changes, lambda i: lookup(i).capacity)
+
+    assert len(found) == 1
+    assert "EQ2→B77W" in found[0].message
 
 
 # --------------------------------------------------------------------
@@ -361,8 +392,6 @@ def test_all_codes_are_from_the_nine_detectors(calc):
         arrival(8, 6, location="international", key="C"),
         arrival(8, 7, location="international", key="D"),
         arrival(8, 8, location="international", key="E"),
-        arrival(8, 9, location="international", key="F"),
-        arrival(8, 10, location="international", key="G"),
     ]
     period = flights + [
         departure(8, 9, status="cancelled", key="CX"),
@@ -373,7 +402,7 @@ def test_all_codes_are_from_the_nine_detectors(calc):
         all_period_flights=period,
         historical_baseline=2,
         rho=0.95,
-        aircraft_changes={"A": ("A320", "B77W")},
+        aircraft_changes={"A": [("A320", "B77W")]},
         capacity_of_icao=capacity_lookup,
     )
     codes = {r.code for r in reasons}

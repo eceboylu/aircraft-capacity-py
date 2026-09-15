@@ -159,18 +159,30 @@ def build_aircraft_index(source_b_records: list[dict]) -> dict[str, str]:
 def build_flight_key(
     airline_iata: str | None,
     flight_number: str | None,
-    dep_scheduled_utc: datetime | None,
+    operational_scheduled_utc: datetime | None,
 ) -> str:
     """
-    "{airline_iata}_{flight_number}_{dep_scheduled_date_utc}"
+    "{airline_iata}_{flight_number}_{operational_scheduled_date_utc}"
 
-    Aynı uçuş tekrar geldiğinde aynı anahtarı üretir; böylece her
-    refresh'te yeni satır açılmaz (YASAK 4).
+    MADDE 5: operational_scheduled_utc, yöne göre çağıran tarafından
+    seçilir - departure için dep_scheduled_utc, arrival için
+    arr_scheduled_utc (bkz. parse_source_a_record). Bu fonksiyon
+    yönden habersizdir, sadece kendisine verilen tarihi kullanır.
+
+    estimated/actual zaman değişiklikleri bu anahtarı ETKİLEMEZ -
+    sadece scheduled kullanılır; böylece bir uçuş gecikse/erken kalksa
+    bile aynı flight_key'e sahip olmaya devam eder ve refresh UPSERT
+    yapar (YASAK 4), yeni satır açmaz.
+
+    operational_scheduled_utc None ise (kaynakta scheduled zaman hiç
+    yoksa) tarih kısmı "UNKDATE" - bu SESSİZ bir yanlış tarihe düşme
+    değil, açıkça işaretli bir controlled fallback'tır.
     """
     airline = (airline_iata or "UNK").upper()
     number = flight_number or "UNK"
     date_part = (
-        dep_scheduled_utc.date().isoformat() if dep_scheduled_utc else "UNKDATE"
+        operational_scheduled_utc.date().isoformat()
+        if operational_scheduled_utc else "UNKDATE"
     )
     return f"{airline}_{number}_{date_part}"
 
@@ -261,6 +273,16 @@ def parse_source_a_record(
     dep_scheduled = parse_utc(
         field(record, "dep_time_utc", "depScheduledUtc")
     )
+    arr_scheduled = parse_utc(
+        field(record, "arr_time_utc", "arrScheduledUtc")
+    )
+    # MADDE 5: operasyonel tarih yöne göre seçilir - departure için
+    # dep_scheduled_utc, arrival için arr_scheduled_utc. Arrival
+    # kaydında dep_scheduled boş olsa bile (arr_scheduled doluysa)
+    # key artık UNKDATE'e düşmez.
+    operational_scheduled = (
+        dep_scheduled if direction == DIRECTION_DEPARTURE else arr_scheduled
+    )
     airline_iata = (
         field(record, "airline_iata", "airlineIata", "airline") or ""
     ).upper() or None
@@ -283,7 +305,9 @@ def parse_source_a_record(
     aircraft_icao = own_icao or matched_icao
 
     return {
-        "flight_key": build_flight_key(airline_iata, flight_number, dep_scheduled),
+        "flight_key": build_flight_key(
+            airline_iata, flight_number, operational_scheduled
+        ),
         "airport_iata": airport_iata,
         "direction": direction,
         "location": read_location(
@@ -303,9 +327,7 @@ def parse_source_a_record(
         "dep_actual_utc": parse_utc(
             field(record, "dep_actual_utc", "depActualUtc")
         ),
-        "arr_scheduled_utc": parse_utc(
-            field(record, "arr_time_utc", "arrScheduledUtc")
-        ),
+        "arr_scheduled_utc": arr_scheduled,
         "arr_estimated_utc": parse_utc(
             field(record, "arr_estimated_utc", "arrEstimatedUtc")
         ),
