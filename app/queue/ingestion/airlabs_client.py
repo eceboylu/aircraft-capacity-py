@@ -332,11 +332,40 @@ def build_source_a(airports: list[str]) -> Callable[[str], list[dict]]:
     Verilen her havalimanı için ayrı `schedules` çağrısı yapıp
     birleştirir - mevcut `source_a(direction)` arayüzü DEĞİŞMEDEN
     gerçek API'ye bağlanmış olur.
+
+    ADIM 5G-1 - havalimanları birbirinden İZOLE edilir: bir
+    havalimanının `fetch_schedules()` çağrısı (retry'ler tükenip)
+    `AirLabsError` (401/403 dahil - `AirLabsAuthError` bunun alt
+    sınıfı) fırlatırsa, SADECE o havalimanı atlanır - önceki
+    havalimanlarından zaten toplanmış kayıtlar KORUNUR, döngü sonraki
+    havalimanına DEVAM eder. Tek bir havalimanının geçici hatası
+    yüzünden bu yöndeki (departure/arrival) TÜM havalimanlarının
+    verisi sıfırlanmaz (bkz. ADIM 5F audit - eski davranış tam olarak
+    buydu).
+
+    `AirLabsError` DIŞINDAKİ hatalar (ör. `AIRLABS_API_KEY` hiç
+    tanımlı değilse `_api_key()`'in fırlattığı `RuntimeError`) burada
+    YAKALANMAZ - bu havalimanına özel değil, sistemin genel bir
+    konfigürasyon hatasıdır ve her havalimanında AYNI şekilde
+    başarısız olacağı için erken ve açık biçimde yukarı taşınmalıdır.
+
+    Tüm havalimanları başarısız olsa bile bu fonksiyon exception
+    FIRLATMAZ - boş liste döner, her başarısızlık kendi ERROR logunu
+    üretir (sessiz kayıp YOK, ama process çökmez).
     """
     def provide(direction: str) -> list[dict]:
         records: list[dict] = []
         for airport_iata in airports:
-            records.extend(fetch_schedules(direction, airport_iata))
+            try:
+                records.extend(fetch_schedules(direction, airport_iata))
+            except AirLabsError:
+                logger.error(
+                    "AirLabs schedules fetch failed airport=%s direction=%s "
+                    "- bu havalimanı bu turda atlanıyor, diğer havalimanları "
+                    "etkilenmeden devam ediyor",
+                    airport_iata, direction,
+                )
+                continue
         return records
     return provide
 

@@ -33,6 +33,8 @@ import os
 import time
 
 from ..db import get_session, init_db
+from ..models import AircraftCapacity
+from ..seed import seed_curated_fallback, seed_family_and_ga, seed_verified_dataset
 from ..service import AircraftCapacityService
 from .constants import DIRECTION_ARRIVAL, DIRECTION_DEPARTURE
 from .engine import run_predictions
@@ -72,6 +74,71 @@ def ensure_airports(session, data_dir: str = DATA_DIR) -> int:
     if session.query(Airport).first() is not None:
         return 0
     return import_airports(session, _path(data_dir, AIRPORTS_SQL))
+
+
+class CapacitySeedError(RuntimeError):
+    """
+    `aircraft_capacity` boş olduğu halde resmi seed fonksiyonları
+    çalıştırılamadı - AÇIK bir hata; çağıran taraf bunu bir health
+    failure olarak ele almalı. Sessizce `unknown_default`e (150)
+    düşülmesi TERCİH EDİLMEZ - bu, ADIM 6C'de kanıtlanan gerçek bir
+    üretim riskidir (bkz. queue_prediction_spec.md / ADIM 6C raporu).
+    """
+
+
+def ensure_capacity_reference(session) -> bool:
+    """
+    ADIM 6C - Madde 1'in kapasite referans tablosu (`aircraft_capacity`)
+    BOŞSA, `AircraftCapacityService.resolve()` HER uçak tipi için
+    sessizce `unknown_default` (150) katmanına düşer - bu, gerçek
+    verinin bile yanlış hesaplanmasına yol açan KANITLANMIŞ bir
+    üretim riskidir (bir önceki DB dosyası silme/yeniden oluşturma
+    olayında bu sessizce oldu).
+
+    Bu fonksiyon `ensure_airports()` ile AYNI desendedir: tablo
+    doluysa HİÇBİR ŞEY yapmaz (gereksiz reseed YOK, idempotent).
+    Boşsa Madde 1'in KENDİ resmi seed fonksiyonlarını (ikinci bir
+    resolver/seed YAZILMADI) çağırır - `app.seed.run()` KULLANILMAZ,
+    çünkü o `init_db(drop_first=True)` ile TÜM tabloları (Flight,
+    QueuePrediction dahil) siler; burada production verisine
+    DOKUNULMAZ, sadece referans tablosu doldurulur.
+
+    Seed başarısız olursa (örn. `data/yolcu_ucaklari.json` bulunamadı)
+    hata YUTULMAZ - `CapacitySeedError` fırlatılır, `run()` bunu
+    kritik/top-level hata olarak yukarı taşır (bkz. `main()`'in
+    exit-code kararı) - sistem sessizce yanlış (150-varsayılan)
+    sonuçlar üretmeye BAŞLAMAZ.
+    """
+    if session.query(AircraftCapacity).first() is not None:
+        return False
+
+    logger.warning(
+        "aircraft_capacity referans tablosu BOŞ - Madde 1'in resmi seed "
+        "fonksiyonları (verified_dataset + curated_fallback + family/GA) "
+        "çalıştırılıyor. Bu, kapasite hesabının şu ana kadar sessizce "
+        "unknown_default'a (150) düştüğü anlamına gelir."
+    )
+    try:
+        seed_verified_dataset(session)
+        seed_curated_fallback(session)
+        seed_family_and_ga(session)
+    except Exception as exc:  # noqa: BLE001 - kasıtlı: her türlü seed
+        # hatası aşağıda AÇIK bir CapacitySeedError'a çevrilip yukarı
+        # taşınmalı; burada session.rollback() ile yarım kalan bir
+        # seed'in kısmi veri bırakması da önlenir.
+        session.rollback()
+        raise CapacitySeedError(
+            "aircraft_capacity seed edilemedi - pipeline DURDURULDU "
+            "(sessizce unknown_default'a düşülmedi)."
+        ) from exc
+
+    if session.query(AircraftCapacity).first() is None:
+        raise CapacitySeedError(
+            "aircraft_capacity seed sonrası HÂLÂ boş - beklenmeyen durum."
+        )
+
+    logger.info("aircraft_capacity referans tablosu seed edildi.")
+    return True
 
 
 def file_source_a(data_dir: str = DATA_DIR):
@@ -177,6 +244,7 @@ def run(
     session = get_session()
     try:
         airports_loaded = ensure_airports(session, data_dir)
+        capacity_seeded = ensure_capacity_reference(session)
         rows = load_flight_rows(session, data_dir, source_a, source_b)
         match_rate = aircraft_match_rate(rows)
         refreshed = refresh_flights(session, rows)
@@ -213,6 +281,7 @@ def run(
     elapsed = time.monotonic() - start
     summary = {
         "airports_loaded": airports_loaded,
+        "capacity_seeded": capacity_seeded,
         "flights_parsed": len(rows),
         "aircraft_match_rate": round(match_rate, 3),
         **refreshed,

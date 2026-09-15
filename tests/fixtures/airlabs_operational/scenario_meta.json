@@ -1,0 +1,57 @@
+{
+ "delay_targets": [
+  "TK101",
+  "TK102",
+  "TK103",
+  "TK104"
+ ],
+ "capacity_change_targets": [
+  "TK201",
+  "TK202"
+ ],
+ "cancelled_targets": [
+  "TK300",
+  "TK304",
+  "TK309"
+ ],
+ "security_surge_flights": [
+  "TK300",
+  "TK301",
+  "TK302",
+  "TK303",
+  "TK304",
+  "TK305",
+  "TK306",
+  "TK307",
+  "TK308",
+  "TK309",
+  "TK310",
+  "TK311",
+  "TK312",
+  "TK313"
+ ],
+ "passport_surge_flights": [
+  "TK400",
+  "BA401",
+  "TK402",
+  "BA403",
+  "TK404",
+  "BA405",
+  "TK406",
+  "BA407",
+  "TK408",
+  "BA409",
+  "TK410",
+  "BA411"
+ ],
+ "arrival_delay_targets": [
+  "TK601",
+  "TK602"
+ ],
+ "arrival_capacity_change_targets": [
+  "TK701"
+ ],
+ "arrival_cancelled_targets": [
+  "TK406"
+ ]
+}

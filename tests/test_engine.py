@@ -493,7 +493,11 @@ def test_scenario_12_security_never_produces_wait_minutes():
 # Senaryo 13 - Passport doygunluğu
 # --------------------------------------------------------------------
 
-def test_scenario_13_saturated_passport_returns_none_wait_and_critical():
+def test_scenario_13_saturated_passport_returns_finite_wait_and_critical():
+    """
+    ADIM 6D ile GÜNCELLENDİ: rho>=1 artık None DEĞİL, backlog tabanlı
+    sonlu bir dakika üretir - risk hâlâ CRITICAL (bağımsız çıktı).
+    """
     flights = [
         intl_departure(9, m, key=f"X{m}", number=str(m), aircraft="A388")
         for m in (0, 3, 6, 9)
@@ -503,7 +507,8 @@ def test_scenario_13_saturated_passport_returns_none_wait_and_critical():
     )
 
     assert passport.risk == RISK_CRITICAL
-    assert passport.estimated_wait_minutes is None
+    assert passport.estimated_wait_minutes is not None
+    assert passport.estimated_wait_minutes > 0
     assert passport.utilization >= 1.0
     assert REASON_CAPACITY_EXCEEDED in codes(passport)
 

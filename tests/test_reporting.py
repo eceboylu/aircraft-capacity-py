@@ -313,8 +313,11 @@ def test_summary_lists_every_airport_separately(session):
 
     assert set(rows) == {"IST", "SAW"}
     # IST varsayılan config'le (4 gişe) doygun, SAW kendi config'iyle rahat.
+    # ADIM 6D ile GÜNCELLENDİ: rho>=1 artık None DEĞİL, backlog tabanlı
+    # sonlu bir dakika üretir (bkz. core/scoring.py passport_queue_model).
     assert rows["IST"]["peak_passport_risk"] == "CRITICAL"
-    assert rows["IST"]["peak_passport_wait_minutes"] is None
+    assert rows["IST"]["peak_passport_wait_minutes"] is not None
+    assert rows["IST"]["peak_passport_wait_minutes"] > 0
     assert rows["SAW"]["peak_passport_risk"] == "LOW"
     assert rows["SAW"]["peak_passport_wait_minutes"] is not None
     # Tepe saatler birbirinden bağımsız.

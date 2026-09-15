@@ -578,3 +578,199 @@ def test_pagination_works_for_fetch_live_flights_too(monkeypatch):
     )
     rows = client.fetch_live_flights()
     assert rows == [{"aircraft_icao": "A320"}, {"aircraft_icao": "B738"}]
+
+
+# --------------------------------------------------------------------
+# ADIM 5G-1 - Multi-airport ingestion failure isolation (Bug: ADIM 5F
+# audit'te bulunan P1). `build_source_a()` birden fazla havalimanını
+# işlerken bir havalimanının kalıcı hatası, DİĞER havalimanlarının
+# zaten toplanmış kayıtlarını silmemeli, sonraki havalimanına devam
+# etmeli.
+# --------------------------------------------------------------------
+
+def _always_fails(direction, airport_iata):
+    raise client.AirLabsError(f"synthetic failure for {airport_iata}")
+
+
+def _fetch_by_airport(results: dict, failing: set):
+    """
+    `results`: {airport -> [records]} başarılı havalimanları.
+    `failing`: hangi havalimanları AirLabsError fırlatsın.
+    """
+    def fake_fetch_schedules(direction, airport_iata):
+        if airport_iata in failing:
+            raise client.AirLabsError(f"synthetic failure for {airport_iata}")
+        return list(results.get(airport_iata, []))
+    return fake_fetch_schedules
+
+
+def test_isolation_middle_airport_failure_preserves_others(monkeypatch):
+    """IST success, SAW failure, ADB success -> IST + ADB kayıtları döner."""
+    calls = []
+    results = {
+        "IST": [{"flight_iata": "TK1"}],
+        "ADB": [{"flight_iata": "TK2"}],
+    }
+
+    def fake_fetch_schedules(direction, airport_iata):
+        calls.append(airport_iata)
+        if airport_iata == "SAW":
+            raise client.AirLabsError("synthetic SAW failure")
+        return list(results[airport_iata])
+
+    monkeypatch.setattr(client, "fetch_schedules", fake_fetch_schedules)
+
+    provide = client.build_source_a(["IST", "SAW", "ADB"])
+    rows = provide("departure")
+
+    assert rows == [{"flight_iata": "TK1"}, {"flight_iata": "TK2"}]
+    # SAW'un başarısız olması ADB fetch'inin GERÇEKTEN çağrılmasını
+    # engellemedi - iteration devam etti (sadece output değil).
+    assert calls == ["IST", "SAW", "ADB"]
+
+
+def test_isolation_first_airport_failure_does_not_stop_loop(monkeypatch):
+    """IST failure, SAW success, ADB success -> SAW + ADB korunur."""
+    calls = []
+    results = {"SAW": [{"flight_iata": "PC1"}], "ADB": [{"flight_iata": "PC2"}]}
+
+    def fake_fetch_schedules(direction, airport_iata):
+        calls.append(airport_iata)
+        if airport_iata == "IST":
+            raise client.AirLabsError("synthetic IST failure")
+        return list(results[airport_iata])
+
+    monkeypatch.setattr(client, "fetch_schedules", fake_fetch_schedules)
+
+    provide = client.build_source_a(["IST", "SAW", "ADB"])
+    rows = provide("departure")
+
+    assert rows == [{"flight_iata": "PC1"}, {"flight_iata": "PC2"}]
+    assert calls == ["IST", "SAW", "ADB"]
+
+
+def test_isolation_last_airport_failure_preserves_earlier_records(monkeypatch):
+    """IST success, SAW success, ADB failure -> IST + SAW korunur."""
+    calls = []
+    results = {"IST": [{"flight_iata": "AF1"}], "SAW": [{"flight_iata": "AF2"}]}
+
+    def fake_fetch_schedules(direction, airport_iata):
+        calls.append(airport_iata)
+        if airport_iata == "ADB":
+            raise client.AirLabsError("synthetic ADB failure")
+        return list(results[airport_iata])
+
+    monkeypatch.setattr(client, "fetch_schedules", fake_fetch_schedules)
+
+    provide = client.build_source_a(["IST", "SAW", "ADB"])
+    rows = provide("departure")
+
+    assert rows == [{"flight_iata": "AF1"}, {"flight_iata": "AF2"}]
+    assert calls == ["IST", "SAW", "ADB"]
+
+
+def test_isolation_all_airports_failing_returns_empty_list_without_raising(monkeypatch, caplog):
+    """
+    IST, SAW, ADB hepsi başarısız -> [] döner (exception FIRLATILMAZ),
+    her biri için ayrı bir ERROR logu üretilir - sessiz kayıp yok.
+    """
+    monkeypatch.setattr(client, "fetch_schedules", _always_fails)
+
+    with caplog.at_level(logging.ERROR):
+        provide = client.build_source_a(["IST", "SAW", "ADB"])
+        rows = provide("departure")
+
+    assert rows == []
+    failed_airports_logged = {
+        r.args[0] for r in caplog.records
+        if "AirLabs schedules fetch failed" in r.getMessage()
+    }
+    assert failed_airports_logged == {"IST", "SAW", "ADB"}
+
+
+def test_isolation_arrival_direction_partial_failure(monkeypatch):
+    """Aynı izolasyon arrival yönünde de çalışıyor."""
+    calls = []
+    results = {"IST": [{"flight_iata": "BA1"}], "ADB": [{"flight_iata": "BA2"}]}
+
+    def fake_fetch_schedules(direction, airport_iata):
+        calls.append((direction, airport_iata))
+        if airport_iata == "SAW":
+            raise client.AirLabsError("synthetic SAW arrival failure")
+        return list(results[airport_iata])
+
+    monkeypatch.setattr(client, "fetch_schedules", fake_fetch_schedules)
+
+    provide = client.build_source_a(["IST", "SAW", "ADB"])
+    rows = provide("arrival")
+
+    assert rows == [{"flight_iata": "BA1"}, {"flight_iata": "BA2"}]
+    assert calls == [("arrival", "IST"), ("arrival", "SAW"), ("arrival", "ADB")]
+
+
+def test_isolation_departure_direction_partial_failure(monkeypatch):
+    """Aynı izolasyon departure yönünde de çalışıyor (arrival testinden ayrık)."""
+    results = {"IST": [{"flight_iata": "LH1"}], "ADB": [{"flight_iata": "LH2"}]}
+
+    def fake_fetch_schedules(direction, airport_iata):
+        if airport_iata == "SAW":
+            raise client.AirLabsError("synthetic SAW departure failure")
+        return list(results[airport_iata])
+
+    monkeypatch.setattr(client, "fetch_schedules", fake_fetch_schedules)
+
+    provide = client.build_source_a(["IST", "SAW", "ADB"])
+    rows = provide("departure")
+
+    assert rows == [{"flight_iata": "LH1"}, {"flight_iata": "LH2"}]
+
+
+def test_isolation_auth_error_subclass_is_also_isolated(monkeypatch):
+    """
+    `AirLabsAuthError` (401/403), `AirLabsError`'ın alt sınıfı - o da
+    per-airport izole edilmeli, sadece genel `RuntimeError` (eksik
+    key) izole EDİLMEMELİ.
+    """
+    results = {"ADB": [{"flight_iata": "SU1"}]}
+
+    def fake_fetch_schedules(direction, airport_iata):
+        if airport_iata == "SAW":
+            raise client.AirLabsAuthError("synthetic 401 for SAW")
+        return list(results.get(airport_iata, []))
+
+    monkeypatch.setattr(client, "fetch_schedules", fake_fetch_schedules)
+
+    provide = client.build_source_a(["SAW", "ADB"])
+    rows = provide("departure")
+
+    assert rows == [{"flight_iata": "SU1"}]
+
+
+def test_isolation_does_not_catch_unrelated_runtime_error(monkeypatch):
+    """
+    Eksik AIRLABS_API_KEY gibi genel bir konfigürasyon hatası
+    (RuntimeError) havalimanına özel DEĞİLDİR - izole edilmez, yukarı
+    taşınır (her havalimanında aynı şekilde başarısız olacağı için
+    hepsini tek tek "denemek" anlamsız ve yanıltıcı olurdu).
+    """
+    def fake_fetch_schedules(direction, airport_iata):
+        raise RuntimeError("AIRLABS_API_KEY tanımlı değil")
+
+    monkeypatch.setattr(client, "fetch_schedules", fake_fetch_schedules)
+
+    provide = client.build_source_a(["IST", "SAW"])
+    with pytest.raises(RuntimeError):
+        provide("departure")
+
+
+def test_isolation_failure_log_message_never_contains_api_key(monkeypatch, caplog):
+    """Havalimanı-izolasyon logu da api_key/URL sızdırmaz."""
+    monkeypatch.setattr(client, "fetch_schedules", _always_fails)
+
+    with caplog.at_level(logging.ERROR):
+        provide = client.build_source_a(["IST"])
+        provide("departure")
+
+    for record in caplog.records:
+        assert FAKE_KEY not in record.getMessage()
+        assert "api_key" not in record.getMessage().lower()

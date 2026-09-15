@@ -190,11 +190,50 @@ def passport_queue_model(
     config,
     demand_fn: Callable[[object], int],
     window_minutes: int = DEMAND_WINDOW_MINUTES,
+    backlog_start: float = 0.0,
 ) -> dict:
     """
-    Passport - tam Erlang-C.
+    Passport - tam Erlang-C + AŞAMA 6D pencereler-arası backlog.
 
     window_flights : international departure + international arrival
+    backlog_start  : bu pencereye ÖNCEKİ pencere(ler)den kalan, henüz
+                      işlenmemiş yolcu sayısı (kişi). Çağıran taraf
+                      (bkz. engine.py `_passport_backlog_chain`)
+                      havalimanı+süreç bazında KRONOLOJİK olarak
+                      hesaplayıp buraya besler; bu fonksiyon kendi
+                      başına önceki pencereleri BİLMEZ (saf kalır).
+                      Varsayılan 0.0 - eski çağıranlar (`predict_window`
+                      doğrudan çağrıldığında) ESKİ davranışla birebir
+                      aynı sonucu üretir.
+
+    RISK: SADECE rho'ya bağlıdır, backlog'a DEĞİL (AŞAMA 6D §redline:
+    risk threshold'ları değişmedi). estimated_wait_minutes ise backlog'u
+    da hesaba katar - risk ve bekleme süresi BİRBİRİNDEN BAĞIMSIZ iki
+    çıktıdır.
+
+    KARARLI DURUM (backlog_start <= 0 VE rho < 1): eski Erlang-C
+    sonucu BİREBİR AYNI - bu dal hiç değişmedi.
+
+    AŞIRI YÜK / TAŞAN BACKLOG (rho >= 1 VEYA backlog_start > 0):
+    Erlang-C'nin rho>=1'de matematiksel olarak tanımsız (Wq -> sonsuz)
+    sonucu yerine, ÖNÜNDE gerçekten bekleyen kişi sayısına dayanan
+    sonlu bir "an itibariyle bekleme" tahmini:
+
+        queue_ahead = backlog_start + demand   (kişi)
+        wait        = queue_ahead / capacity_rate   (kişi / (kişi/dk) = dk)
+
+    Burada `demand` bu pencerenin KENDİ talebidir (arrival_rate * window_minutes
+    ile aynı büyüklük) - yani "şu an bu pencerenin başında kuyruğa
+    girecek olan biri, önündeki backlog + bu pencerede kendisiyle
+    birlikte gelenlerin hepsi bitene kadar" bekler. Sahte/keyfi bir üst
+    sınır YOKTUR; c=4 (gişe) matematiği c=8 (personel) ile ASLA
+    karıştırılmaz (bkz. passport_effective_service_rate, mu bu
+    fonksiyona ZATEN staff_count'suz gelir).
+
+    backlog_end (round(.,3)) çağıran tarafın (`engine.py`) bir SONRAKİ
+    pencereye taşıyacağı değerdir - bu fonksiyon kendi çıktısını
+    ASLA geriye okuyup üstüne eklemez (idempotent: aynı backlog_start +
+    aynı window_flights -> aynı backlog_end, her çalıştırmada).
     """
     demand = sum(demand_fn(f) for f in window_flights)
     lam = demand / window_minutes            # dakikada gelen yolcu
@@ -204,25 +243,42 @@ def passport_queue_model(
     capacity_rate = c * mu
     rho = lam / capacity_rate if capacity_rate > 0 else float("inf")
 
-    if rho >= 1.0:
+    if capacity_rate <= 0:
+        # Kanal/servis hızı yok - hesaplanamaz durum (gerçek config
+        # hatası). Backlog hiç boşalmaz, sadece büyür - servis eden
+        # kimse yok.
         return {
             "flight_count": len(window_flights),
             "expected_passengers": demand,
             "arrival_rate": round(lam, 3),
-            "utilization": round(rho, 3) if rho != float("inf") else None,
+            "utilization": None,
             "estimated_wait_minutes": None,
+            "backlog_end": round(backlog_start + demand, 3),
             "risk": RISK_CRITICAL,
             "reasons": [PASSPORT_OVERLOAD_MESSAGE],
         }
 
-    wq = erlang_c_wait_time(c, lam, mu)
+    service_capacity = capacity_rate * window_minutes   # kişi, bu pencerede sunulabilecek
+    backlog_end = max(0.0, backlog_start + demand - service_capacity)
 
-    if rho < PASSPORT_RHO_LOW:
+    if rho >= 1.0:
+        risk = RISK_CRITICAL
+        reasons = [PASSPORT_OVERLOAD_MESSAGE]
+    elif rho < PASSPORT_RHO_LOW:
         risk = RISK_LOW
+        reasons = []
     elif rho < PASSPORT_RHO_MEDIUM:
         risk = RISK_MEDIUM
+        reasons = []
     else:
         risk = RISK_HIGH
+        reasons = []
+
+    if backlog_start <= 0.0 and rho < 1.0:
+        wq = erlang_c_wait_time(c, lam, mu)
+    else:
+        queue_ahead = backlog_start + demand
+        wq = queue_ahead / capacity_rate
 
     return {
         "flight_count": len(window_flights),
@@ -230,8 +286,9 @@ def passport_queue_model(
         "arrival_rate": round(lam, 3),
         "utilization": round(rho, 3),
         "estimated_wait_minutes": round(wq, 1),
+        "backlog_end": round(backlog_end, 3),
         "risk": risk,
-        "reasons": [],   # AŞAMA 6 dolduracak
+        "reasons": reasons,
     }
 
 

@@ -255,22 +255,35 @@ def test_passport_risk_bands_change_with_counter_count():
     assert many_counters["risk"] == "LOW"
 
 
-def test_passport_overload_returns_none_wait_and_critical():
-    """Senaryo 13: rho >= 1 -> dakika None, risk CRITICAL."""
-    # 90 yolcu / 15 dk = 6.0 = c*mu (4*1.5) -> rho tam 1.0
+def test_passport_overload_returns_finite_wait_and_critical():
+    """
+    Senaryo 13 - ADIM 6D ile GÜNCELLENDİ: rho >= 1 artık dakika=None
+    DEĞİL, backlog tabanlı SONLU bir "an itibariyle bekleme" tahmini
+    üretir (risk hâlâ CRITICAL - risk/wait birbirinden bağımsız).
+
+    90 yolcu / 15 dk = 6.0 = c*mu (4*1.5) -> rho tam 1.0.
+    backlog_start=0 (varsayılan) -> queue_ahead = 0 + 90 = 90;
+    wait = 90 / capacity_rate(6) = 15.0 dk.
+    """
     result = passport_queue_model([MockFlight(90)], MockConfig(), demand_fn)
 
     assert result["utilization"] == pytest.approx(1.0)
-    assert result["estimated_wait_minutes"] is None
+    assert result["estimated_wait_minutes"] == 15.0
     assert result["risk"] == "CRITICAL"
     assert result["reasons"] == [
         "Talep kapasiteyi aşıyor — kuyruk teorik olarak sürdürülemez"
     ]
 
 
-def test_passport_far_overload_still_none_wait():
+def test_passport_far_overload_scales_wait_up_not_none():
+    """
+    ADIM 6D ile GÜNCELLENDİ: 5000 yolculuk çok daha ağır bir aşım,
+    ESKİ None davranışı yerine ORANTILI olarak DAHA UZUN (sahte bir
+    üst sınıra çarpmadan) bir bekleme üretmeli.
+    queue_ahead=5000 -> wait = 5000/6 = 833.3 dk.
+    """
     result = passport_queue_model([MockFlight(5000)], MockConfig(), demand_fn)
-    assert result["estimated_wait_minutes"] is None
+    assert result["estimated_wait_minutes"] == round(5000 / 6, 1)
     assert result["risk"] == "CRITICAL"
 
 

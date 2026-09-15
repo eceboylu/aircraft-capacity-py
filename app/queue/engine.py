@@ -45,6 +45,7 @@ from .constants import (
 )
 from .core.scoring import (
     confidence_score,
+    passport_effective_service_rate,
     passport_queue_model,
     security_density_score,
 )
@@ -227,6 +228,7 @@ def _predict_window_core(
     aircraft_changes: dict[str, tuple[str | None, str | None]] | None = None,
     window_minutes: int = DEMAND_WINDOW_MINUTES,
     historical_passenger_baseline: float | None = None,
+    backlog_start: float = 0.0,
 ) -> WindowPrediction:
     """
     `predict_window()`'ın ASIL hesap gövdesi - ADIM 5E-2'de buradan
@@ -241,7 +243,8 @@ def _predict_window_core(
 
     if process == PROCESS_PASSPORT:
         score = passport_queue_model(
-            window_flights, config, demand.passenger_demand, window_minutes
+            window_flights, config, demand.passenger_demand, window_minutes,
+            backlog_start=backlog_start,
         )
         rho = score["utilization"]
     else:
@@ -327,11 +330,14 @@ def predict_window(
     aircraft_changes: dict[str, tuple[str | None, str | None]] | None = None,
     window_minutes: int = DEMAND_WINDOW_MINUTES,
     historical_passenger_baseline: float | None = None,
+    backlog_start: float = 0.0,
 ) -> WindowPrediction:
     """
     Tek pencere hesabı. Veritabanına dokunmaz. PUBLIC API - imza ve
     davranış ADIM 5E-2'de DEĞİŞMEDİ (doğrudan çağıranlar/testler için
-    korundu).
+    korundu); ADIM 6D SADECE opsiyonel `backlog_start` parametresini
+    EKLEDİ (varsayılan 0.0 - vermeyen eski çağıranlar ESKİ davranışla
+    birebir aynı sonucu alır, bkz. passport_queue_model docstring'i).
 
     process_flights : bu havalimanının, bu süreci besleyen uçuşları
                       (AŞAMA 2 filtresinden geçmiş)
@@ -339,6 +345,11 @@ def predict_window(
                     : MADDE 7 - security'nin yolcu oranı için geçmiş
                       ortalama yolcu talebi. Yoksa None; passenger_ratio
                       hesaplanmaz, uydurulmaz.
+    backlog_start   : SADECE process=passport için anlamlıdır (security
+                      hiç kullanmaz). Bu fonksiyon TEK bir pencereyi
+                      hesapladığı için önceki pencereden gelen backlog'u
+                      KENDİSİ HESAPLAMAZ - çağıran taraf (kronolojik
+                      zincir `predict_airport`'ta) besler.
 
     NOT: Bu fonksiyon HÂLÂ `flights_in_window()` ile process_flights'ın
     TAMAMINI tarar (eski O(N) davranış) - `run_predictions()`'ın gerçek
@@ -368,7 +379,79 @@ def predict_window(
         aircraft_changes=aircraft_changes,
         window_minutes=window_minutes,
         historical_passenger_baseline=historical_passenger_baseline,
+        backlog_start=backlog_start,
     )
+
+
+def _passport_backlog_starts(
+    buckets: dict[datetime, list],
+    config: AirportConfigView,
+    demand_fn,
+    window_minutes: int,
+) -> dict[datetime, float]:
+    """
+    AŞAMA 6D - passport için, bu havalimanının KENDİ pencereleri
+    üzerinde KRONOLOJİK backlog zinciri.
+
+    `buckets` sadece uçuşu OLAN pencereleri içerir (bkz. `window_starts`
+    docstring'i - boş pencereye satır açılmaz). Ama backlog, gişelerin
+    o boş pencerelerde de yolcu işlemeye DEVAM ettiği gerçeğini
+    yansıtmalı - aksi halde iki dolu pencere arasında (mesela) 45 dk'lık
+    sakin bir ara varsa, o 45 dk boyunca hiç servis olmamış gibi
+    davranıp backlog'u YAPAY OLARAK ŞİŞİRİRDİK. Bu yüzden zincir,
+    ilk ve son dolu pencere arasındaki HER 15 dk'lık pencereyi (boş
+    olanlar dahil, `window_minutes` adımlarla) sırayla dolaşır; sadece
+    dolu pencereler için `backlog_start` DÖNDÜRÜLÜR, ama boş
+    pencerelerin de servis kapasitesi backlog'dan düşülür.
+
+    Recurrence (bkz. passport_queue_model docstring'i - AYNI formül,
+    burada SADECE zincirleme amaçlı önceden yürütülür):
+
+        service_capacity = (c * mu) * window_minutes    (kişi)
+        backlog_end = max(0, backlog_start + demand - service_capacity)
+
+    c/mu, `passport_queue_model`'in KULLANDIĞI AYNI
+    `passport_effective_service_rate()` ile hesaplanır - yeni/farklı
+    bir servis hızı İCAT EDİLMEZ.
+
+    Tamamen bu havalimanının kendi `buckets`'ından türetildiği ve hiçbir
+    DB'den önceki çalışmanın backlog'unu OKUMADIĞI için, aynı `flights`
+    ile tekrar çağrıldığında HER ZAMAN aynı sonucu üretir (idempotent).
+    """
+    starts = sorted(buckets)
+    if not starts:
+        return {}
+
+    mu = passport_effective_service_rate(config)
+    c = config.passport_counter_count
+    capacity_rate = c * mu
+    service_capacity = capacity_rate * window_minutes if capacity_rate > 0 else 0.0
+
+    backlog_starts: dict[datetime, float] = {}
+    backlog = 0.0
+    current = starts[0]
+    last = starts[-1]
+    step = timedelta(minutes=window_minutes)
+
+    while current <= last:
+        window_all = buckets.get(current, [])
+        window_flights = [
+            f for f in window_all if f.status not in EXCLUDED_STATUSES
+        ]
+        demand = sum(demand_fn(f) for f in window_flights)
+
+        if current in buckets:
+            backlog_starts[current] = backlog
+
+        if capacity_rate > 0:
+            backlog = max(0.0, backlog + demand - service_capacity)
+        else:
+            # Servis kapasitesi yok - backlog hiç boşalmaz, sadece büyür.
+            backlog = backlog + demand
+
+        current += step
+
+    return backlog_starts
 
 
 def predict_airport(
@@ -411,6 +494,18 @@ def predict_airport(
         relevant = _PROCESS_FLIGHTS[process](flights)
         buckets = _bucket_flights_by_window(relevant, window_minutes)
 
+        # AŞAMA 6D: SADECE passport için kronolojik backlog zinciri.
+        # Security'nin döngüsü bu satırdan HİÇ etkilenmez - kendi
+        # zinciri boş dict olur, backlog_start her zaman 0.0'a düşer
+        # (aşağıdaki .get(start, 0.0) ile), yani security matematiği
+        # BİREBİR eskisi gibi çalışır.
+        if process == PROCESS_PASSPORT:
+            backlog_starts = _passport_backlog_starts(
+                buckets, config, demand.passenger_demand, window_minutes
+            )
+        else:
+            backlog_starts = {}
+
         for start in sorted(buckets):
             window_all = buckets[start]
             # Talep hesabına giren uçuşlar (iptal/diverted hariç) -
@@ -436,6 +531,7 @@ def predict_airport(
                 demand=demand,
                 historical_baseline=baseline,
                 aircraft_match_rate=aircraft_match_rate,
+                backlog_start=backlog_starts.get(start, 0.0),
                 aircraft_changes=aircraft_changes,
                 window_minutes=window_minutes,
                 historical_passenger_baseline=passenger_baseline,

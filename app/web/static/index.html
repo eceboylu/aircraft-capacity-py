@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Airport Queue Monitor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --border: #dde1e8;
+    --ink: #1c2230;
+    --ink-soft: #626b7d;
+    --accent: #2f5fa8;
+    --accent-bg: #e8effa;
+
+    /* ADIM 6A-UI §7 - backend risk -> renk. Frontend bu 5 rengin
+       DIŞINDA hiçbir eşik/renk İCAT ETMEZ. */
+    --low: #1f8f4f;
+    --low-bg: #e5f5ea;
+    --medium: #b8960c;
+    --medium-bg: #fbf3d9;
+    --high: #c9691a;
+    --high-bg: #fbe9dc;
+    --critical: #c23b3b;
+    --critical-bg: #fbe4e4;
+    --unknown: #8a90a0;
+    --unknown-bg: #ececef;
+    --none: #8a90a0;
+    --none-bg: #eceef1;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: 0.02em; }
+  #refresh-info { font-size: 12px; color: var(--ink-soft); text-align: right; }
+  #error-banner {
+    display: none;
+    background: var(--critical-bg);
+    color: var(--critical);
+    border-bottom: 1px solid var(--critical);
+    padding: 6px 20px;
+    font-size: 12.5px;
+  }
+
+  /* ---- Sol filtre + sağ içerik ---- */
+  .layout { display: flex; align-items: flex-start; }
+  @media (max-width: 760px) {
+    .layout { flex-direction: column; }
+  }
+
+  #airport-sidebar {
+    flex: 0 0 240px;
+    max-width: 280px;
+    border-right: 1px solid var(--border);
+    padding: 16px 12px;
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+  }
+  @media (max-width: 760px) {
+    #airport-sidebar {
+      flex: none;
+      width: 100%;
+      max-width: none;
+      max-height: none;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      overflow-y: visible;
+    }
+  }
+  #airport-sidebar h2 {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    margin: 0 0 8px 8px;
+  }
+  .airport-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    font-size: 13.5px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: none;
+    background: none;
+    color: var(--ink);
+    cursor: pointer;
+    line-height: 1.3;
+  }
+  .airport-item:hover { background: var(--bg); }
+  .airport-item.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+  .airport-item .code { font-weight: 700; }
+  .airport-item .name { display: block; font-size: 11.5px; color: var(--ink-soft); font-weight: 400; }
+  .airport-item.active .name { color: var(--accent); opacity: 0.75; }
+  #airport-sidebar .empty { color: var(--ink-soft); font-size: 13px; padding: 0 8px; }
+
+  #airport-content { flex: 1 1 auto; padding: 20px 24px; min-width: 0; }
+
+  #airport-content h2 { font-size: 21px; font-weight: 700; margin: 0 0 12px; }
+
+  .overall-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 18px;
+  }
+
+  .process-block { margin-bottom: 18px; max-width: 640px; }
+  .process-block h3 {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    margin: 0 0 8px;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 3px 11px;
+    border-radius: 6px;
+  }
+  .pill-LOW { color: var(--low); background: var(--low-bg); }
+  .pill-MEDIUM { color: var(--medium); background: var(--medium-bg); }
+  .pill-HIGH { color: var(--high); background: var(--high-bg); }
+  .pill-CRITICAL { color: var(--critical); background: var(--critical-bg); }
+  .pill-UNKNOWN { color: var(--unknown); background: var(--unknown-bg); }
+  .pill-none { color: var(--none); background: var(--none-bg); }
+
+  .chart-wrap { position: relative; height: 150px; margin-bottom: 8px; }
+  .chart-empty {
+    height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-soft);
+    font-size: 12.5px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+
+  .current-line { font-size: 13px; margin-top: 2px; }
+  .wait-line { font-size: 13px; color: var(--ink-soft); margin-top: 4px; }
+  .wait-line b { color: var(--ink); font-weight: 600; }
+  .wait-detail { font-size: 11.5px; color: var(--ink-soft); opacity: 0.8; margin-top: 1px; }
+
+  /* ---- Operasyon dağılımı ---- */
+  #breakdown { max-width: 360px; margin-top: 4px; }
+  #breakdown h3 {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    margin: 0 0 10px;
+  }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; font-size: 12.5px; }
+  .bar-row .bar-label { flex: 0 0 92px; color: var(--ink-soft); }
+  .bar-row .bar-track { flex: 1 1 auto; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+  .bar-row .bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+  .bar-row .bar-value { flex: 0 0 26px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  #breakdown .note { color: var(--ink-soft); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>AIRPORT QUEUE STATUS</h1>
+  <div id="refresh-info"></div>
+</header>
+<div id="error-banner">Veri yenilenemedi - son bilinen değerler gösteriliyor.</div>
+
+<div class="layout">
+  <div id="airport-sidebar">
+    <h2>Havalimanları</h2>
+    <div id="airport-list"></div>
+  </div>
+  <div id="airport-content"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ADIM 6A-UI §7 / 6A-UI-2 - backend risk -> UI renk sınıfı. TEK
+  // yer; frontend başka HİÇBİR eşik/etiket İCAT ETMEZ.
+  var PILL_CLASS = {
+    LOW: "pill-LOW", MEDIUM: "pill-MEDIUM", HIGH: "pill-HIGH",
+    CRITICAL: "pill-CRITICAL", UNKNOWN: "pill-UNKNOWN",
+  };
+  var SEVERITY_HEIGHT = { UNKNOWN: 0.3, LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
+  var SEVERITY_COLOR = {
+    UNKNOWN: "#b3b7c2", LOW: "#2fa968", MEDIUM: "#d1a92c",
+    HIGH: "#e08a3c", CRITICAL: "#d4514f",
+  };
+
+  // Pipeline'ın kendi refresh aralığıyla (~30 dk) hizalı - AirLabs
+  // verisi zaten bu kadar sıklıkla yenileniyor, daha sık polling
+  // aynı veriyi tekrar tekrar çekmekten öteye gitmezdi.
+  var POLL_MS = 30 * 60 * 1000;
+
+  var state = {
+    directory: [],          // [{iata, name}] - son BAŞARILI /api/airports/directory
+    selected: null,         // seçili IATA kodu
+    predictionsByIata: {},  // iata -> son BAŞARILI /predictions yanıtı
+    charts: {},
+  };
+
+  function escapeHtml(text) {
+    var div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function pillHtml(riskOrNull, labelOrNull) {
+    if (!riskOrNull || !labelOrNull) {
+      return '<span class="pill pill-none">Veri bulunamadı</span>';
+    }
+    var cls = PILL_CLASS[riskOrNull] || "pill-none";
+    return '<span class="pill ' + cls + '">' + escapeHtml(labelOrNull) + "</span>";
+  }
+
+  // Backend zaman damgaları HER ZAMAN naive UTC ISO string'dir - bkz.
+  // app/queue/api.py. `new Date(...)` ile parse etmek tarayıcının
+  // YEREL saat dilimini karıştırır (YENİ bir dönüşüm İCAT ETMEK
+  // olurdu); bunun yerine ISO string'den saat:dakika STRING olarak
+  // kesilir.
+  function hhmm(isoString) {
+    return isoString.slice(11, 16);
+  }
+
+  function airportLabel(entry) {
+    return entry.name ? entry.iata + " - " + entry.name : entry.iata;
+  }
+
+  // ------------- fetch -------------
+
+  function fetchJSON(url) {
+    return fetch(url, { cache: "no-store" }).then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    });
+  }
+
+  function loadAll() {
+    return fetchJSON("/api/airports/directory").then(function (directory) {
+      state.directory = directory;
+      reconcileSelection();
+      renderSidebar();
+
+      if (!state.selected) {
+        renderContent();
+        setError(false);
+        return null;
+      }
+      return fetchJSON("/api/airports/" + state.selected + "/predictions").then(function (data) {
+        state.predictionsByIata[state.selected] = data;
+        renderContent();
+        setError(false);
+      });
+    }).catch(function () {
+      setError(true);
+      // state KASITLI OLARAK değiştirilmiyor - ekrandaki son bilinen
+      // durum kalır, sadece uyarı gösterilir. Bir havalimanının
+      // prediction isteği başarısız olsa bile SİDEBAR'ın kendisi
+      // (directory zaten yukarıda ayrı fetch edildi) etkilenmez.
+    });
+  }
+
+  // ADIM 6A-UI-2 §4 - dinamik keşif: IST seçiliyken yeni bir AYT
+  // gelirse seçim ATLAMAZ. Seçili havalimanı listeden GERÇEKTEN
+  // kaybolursa (örn. artık hiç tahmini yok) ilk mevcut havalimanına
+  // güvenli fallback yapılır. İlk açılışta IST varsa IST, yoksa
+  // listedeki ilk havalimanı seçilir.
+  function reconcileSelection() {
+    var codes = state.directory.map(function (e) { return e.iata; });
+    if (state.selected && codes.indexOf(state.selected) !== -1) {
+      return; // seçim hâlâ geçerli - DOKUNMA
+    }
+    if (codes.indexOf("IST") !== -1) {
+      state.selected = "IST";
+    } else {
+      state.selected = codes.length ? codes[0] : null;
+    }
+  }
+
+  function selectAirport(iata) {
+    if (iata === state.selected) return;
+    state.selected = iata;
+    renderSidebar();
+    if (!state.predictionsByIata[iata]) {
+      renderContent(); // yükleniyor durumu göster
+    }
+    fetchJSON("/api/airports/" + iata + "/predictions").then(function (data) {
+      state.predictionsByIata[iata] = data;
+      if (state.selected === iata) renderContent();
+    }).catch(function () {
+      setError(true);
+    });
+  }
+
+  // ------------- render: sidebar -------------
+
+  function renderSidebar() {
+    var el = document.getElementById("airport-list");
+    if (!state.directory.length) {
+      el.innerHTML = '<div class="empty">Henüz izlenen havalimanı yok.</div>';
+      return;
+    }
+    el.innerHTML = state.directory.map(function (entry) {
+      var active = entry.iata === state.selected ? " active" : "";
+      return (
+        '<button class="airport-item' + active + '" data-iata="' + entry.iata + '">' +
+          '<span class="code">' + escapeHtml(entry.iata) + "</span>" +
+          (entry.name ? '<span class="name">' + escapeHtml(entry.name) + "</span>" : "") +
+        "</button>"
+      );
+    }).join("");
+    Array.prototype.forEach.call(el.querySelectorAll(".airport-item"), function (btn) {
+      btn.addEventListener("click", function () {
+        selectAirport(btn.getAttribute("data-iata"));
+      });
+    });
+  }
+
+  // ------------- render: sağ panel -------------
+
+  function renderContent() {
+    var root = document.getElementById("airport-content");
+    Object.keys(state.charts).forEach(destroyChart);
+
+    if (!state.selected) {
+      root.innerHTML = "";
+      return;
+    }
+    var data = state.predictionsByIata[state.selected];
+    var entry = state.directory.filter(function (e) { return e.iata === state.selected; })[0];
+    var heading = entry ? airportLabel(entry) : state.selected;
+
+    if (!data) {
+      root.innerHTML = "<h2>" + escapeHtml(heading) + "</h2><p>Yükleniyor...</p>";
+      return;
+    }
+
+    root.innerHTML =
+      "<h2>" + escapeHtml(heading) + "</h2>" +
+      '<div class="overall-row">GENEL YOĞUNLUK ' +
+        pillHtml(data.overall.risk, data.overall.label) +
+      "</div>" +
+      processBlockHtml("security", "SECURITY", data.security) +
+      processBlockHtml("passport", "PASSPORT", data.passport) +
+      breakdownHtml(data.breakdown);
+
+    drawChart(data.security.windows, "chart-security");
+    drawChart(data.passport.windows, "chart-passport");
+    renderRefreshInfo();
+  }
+
+  // ADIM 6C §9 - `estimated_wait_minutes=null`'ın İKİ AYRI, backend'in
+  // ZATEN döndürdüğü alanlardan (yeni bir Erlang-C hesabı YAPMADAN)
+  // ayırt edilebilen nedeni var (bkz. app/queue/core/scoring.py
+  // `passport_queue_model`):
+  //   1) `utilization` SONLU bir sayı VE >= 1  -> talep kapasiteyi
+  //      gerçekten aşıyor, kuyruk teorik olarak sürdürülemez.
+  //   2) `utilization` DA null (kapasite oranı c*mu <= 0 - örn. gişe
+  //      sayısı 0 gibi geçersiz/eksik bir config) -> sistem bir
+  //      çalışma noktası bile KURAMADI.
+  // Frontend burada HİÇBİR hesap yapmıyor - sadece bu iki durumu
+  // AYNI None değerinden ayırmak için mevcut `utilization` alanına bakıyor.
+  function waitTimeText(current) {
+    if (!current) return "—";
+    if (current.estimated_wait_minutes != null) {
+      return current.estimated_wait_minutes + " dk";
+    }
+    if (current.utilization != null && current.utilization >= 1) {
+      return "Kapasite aşıldı";
+    }
+    return "Hesaplanamıyor";
+  }
+
+  // ADIM 6C-2 - Ortalama bekleme süresi: backend'in HER pencere için
+  // ZATEN hesapladığı `estimated_wait_minutes` değerlerinin basit
+  // aritmetik ortalaması. Bu YENİ bir Erlang-C/queue hesabı DEĞİLDİR -
+  // ρ/λ/μ'ye dokunulmuyor, sadece var olan sayıların özeti alınıyor
+  // (tıpkı backend'deki `overall_status`'un iki riski birleştirmesi
+  // gibi, ama burada ortalama). ρ≥1 olan (wait=null) pencereler
+  // ortalamaya KATILMIYOR - onları 0 saymak ortalamayı yapay şekilde
+  // aşağı çekerdi; kaç pencerenin dışarıda kaldığı AÇIKÇA gösteriliyor.
+  function averageWaitText(windows) {
+    if (!windows || !windows.length) return { text: "—", detail: "" };
+
+    var finite = windows
+      .map(function (w) { return w.estimated_wait_minutes; })
+      .filter(function (v) { return v != null; });
+
+    if (!finite.length) {
+      return { text: "Kapasite aşıldı", detail: windows.length + " pencerenin tümünde talep kapasiteyi aştı" };
+    }
+
+    var sum = finite.reduce(function (a, b) { return a + b; }, 0);
+    var avg = sum / finite.length;
+    var excluded = windows.length - finite.length;
+    var detail = finite.length + "/" + windows.length + " pencere üzerinden ortalama" +
+      (excluded ? " · " + excluded + " pencerede kapasite aşıldı (hesaba katılmadı)" : "");
+    return { text: avg.toFixed(1) + " dk", detail: detail };
+  }
+
+  function processBlockHtml(key, title, section) {
+    var current = section.current;
+    var canvasId = "chart-" + key;
+    var chartArea = section.windows.length
+      ? '<div class="chart-wrap"><canvas id="' + canvasId + '"></canvas></div>'
+      : '<div class="chart-empty">Bu havalimanı için henüz pencere yok.</div>';
+
+    var waitLine = "";
+    if (key === "passport") {
+      var avg = averageWaitText(section.windows);
+      var detailBits = [];
+      if (avg.detail) detailBits.push(avg.detail);
+      detailBits.push("şu anki pencere: " + waitTimeText(current));
+      waitLine =
+        '<div class="wait-line">Ortalama bekleme süresi: <b>' + avg.text + "</b></div>" +
+        '<div class="wait-detail">' + escapeHtml(detailBits.join(" · ")) + "</div>";
+    }
+
+    var currentRisk = current ? current.risk : null;
+    var currentLabel = current ? current.risk_label : null;
+
+    return (
+      '<div class="process-block">' +
+        "<h3>" + title + "</h3>" +
+        chartArea +
+        '<div class="current-line">' + pillHtml(currentRisk, currentLabel) + "</div>" +
+        waitLine +
+      "</div>"
+    );
+  }
+
+  // ADIM 6A-UI-2 §6-7 - Operasyon dağılımı: SADECE Flight tablosundan
+  // türetilen uçuş SAYISI (departure/arrival, domestic/international).
+  // Yolcu sayısı YOK. `breakdown` backend'de o an için üretilemediyse
+  // (bkz. app/queue/api.py:traffic_breakdown) bu AÇIKÇA gösterilir -
+  // sahte/sıfır bir sayı ÜRETİLMEZ.
+  function breakdownHtml(breakdown) {
+    if (!breakdown) {
+      return (
+        '<div id="breakdown"><h3>Operasyon Dağılımı</h3>' +
+        '<p class="note">Bu an için uçuş dağılımı hesaplanamıyor.</p></div>'
+      );
+    }
+    var max = Math.max(breakdown.departures, breakdown.arrivals, breakdown.domestic, breakdown.international, 1);
+    function row(label, value) {
+      var pct = Math.round((value / max) * 100);
+      return (
+        '<div class="bar-row"><span class="bar-label">' + label + '</span>' +
+        '<span class="bar-track"><span class="bar-fill" style="width:' + pct + '%"></span></span>' +
+        '<span class="bar-value">' + value + "</span></div>"
+      );
+    }
+    return (
+      '<div id="breakdown"><h3>Operasyon Dağılımı (' +
+      hhmm(breakdown.window_start) + "–" + hhmm(breakdown.window_end) + ")</h3>" +
+      row("Departures", breakdown.departures) +
+      row("Arrivals", breakdown.arrivals) +
+      row("Domestic", breakdown.domestic) +
+      row("International", breakdown.international) +
+      "</div>"
+    );
+  }
+
+  function renderRefreshInfo() {
+    document.getElementById("refresh-info").textContent =
+      "Son güncelleme: " + new Date().toLocaleTimeString() + " · 30 dk sonra yenilenecek";
+  }
+
+  function setError(isError) {
+    document.getElementById("error-banner").style.display = isError ? "block" : "none";
+  }
+
+  // ------------- charts -------------
+
+  function destroyChart(k) {
+    if (state.charts[k]) {
+      state.charts[k].destroy();
+      delete state.charts[k];
+    }
+  }
+
+  function drawChart(windows, canvasId) {
+    if (!windows.length) return;
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    var labels = windows.map(function (w) { return hhmm(w.window_start); });
+    var heights = windows.map(function (w) { return SEVERITY_HEIGHT[w.risk]; });
+    var colors = windows.map(function (w) { return SEVERITY_COLOR[w.risk] || SEVERITY_COLOR.UNKNOWN; });
+
+    state.charts[canvasId] = new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [{ data: heights, backgroundColor: colors, borderRadius: 2, maxBarThickness: 14 }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            displayColors: false,
+            callbacks: {
+              title: function (items) {
+                var w = windows[items[0].dataIndex];
+                return hhmm(w.window_start) + "–" + hhmm(w.window_end);
+              },
+              label: function (item) {
+                var w = windows[item.dataIndex];
+                return w.risk_label || "Bilinmiyor";
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { autoSkip: true, maxRotation: 0, font: { size: 10 } },
+          },
+          y: {
+            min: 0,
+            max: 4.3,
+            grid: { color: "#eef0f3" },
+            ticks: {
+              stepSize: 1,
+              callback: function (value) {
+                return { 1: "NORMAL", 2: "YOĞUN", 3: "ÇOK YOĞUN" }[value] || "";
+              },
+              font: { size: 10 },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // ------------- boot -------------
+
+  loadAll();
+  setInterval(loadAll, POLL_MS);
+})();
+</script>
+</body>
+</html>

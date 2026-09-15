@@ -407,7 +407,11 @@ def test_passport_e2e_prediction_reflects_spec_capacity():
     assert result["risk"] in ("LOW", "MEDIUM", "HIGH")
 
 
-def test_passport_e2e_overload_returns_none_wait_and_critical():
+def test_passport_e2e_overload_returns_finite_wait_and_critical():
+    """
+    ADIM 6D ile GÜNCELLENDİ: rho>=1 artık None DEĞİL, backlog tabanlı
+    sonlu bir dakika üretir (risk hâlâ CRITICAL, bağımsız çıktı).
+    """
     calc = DemandCalculator(MockCapacityResolver())
     flights = [
         flight(DIRECTION_DEPARTURE, 10, i, aircraft="B77W",
@@ -417,7 +421,8 @@ def test_passport_e2e_overload_returns_none_wait_and_critical():
     result = passport_queue_model(flights, spec_passport_config(), calc.passenger_demand)
 
     assert result["utilization"] >= 1.0
-    assert result["estimated_wait_minutes"] is None
+    assert result["estimated_wait_minutes"] is not None
+    assert result["estimated_wait_minutes"] > 0
     assert result["risk"] == "CRITICAL"
 
 
