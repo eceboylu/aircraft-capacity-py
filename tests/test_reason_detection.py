@@ -392,6 +392,8 @@ def test_all_codes_are_from_the_nine_detectors(calc):
         arrival(8, 6, location="international", key="C"),
         arrival(8, 7, location="international", key="D"),
         arrival(8, 8, location="international", key="E"),
+        arrival(8, 9, location="international", key="F"),
+        arrival(8, 10, location="international", key="G"),
     ]
     period = flights + [
         departure(8, 9, status="cancelled", key="CX"),
