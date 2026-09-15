@@ -193,7 +193,41 @@ def test_unknown_aircraft_is_flagged(session, service):
 
 
 def test_empty_icao_returns_default_immediately(session, service):
+    """Havayolu da bilinmiyorsa (fleet config yok) mevcut unknown/default davranışı korunur."""
     result = service.resolve("", "TK")
+    assert result.capacity == DEFAULT_CAPACITY
+    assert result.source == "unknown_default"
+
+
+def test_empty_icao_with_known_airline_fleet_uses_weighted_average_not_default(session, service):
+    """
+    Bug 3: aircraft_icao BOŞ ama havayolu (TK) biliniyor ve TK'nin
+    filo config'i VARSA, doğrudan 150'ye düşülmemeli - havayolunun
+    TÜM filosundaki ağırlıklı ortalama kullanılmalı.
+    """
+    add_fleet(session, "A320", "TK", seats=180, fleet_count=10)
+    add_fleet(session, "A321", "TK", seats=220, fleet_count=5)
+
+    result = service.resolve("", "TK")
+
+    assert result.capacity != DEFAULT_CAPACITY
+    assert result.capacity == 193   # (180*10 + 220*5) / 15 = 193.33 -> round(193.33)=193
+    assert result.source != "unknown_default"
+
+
+def test_empty_icao_with_unknown_airline_keeps_default_fallback(session, service):
+    """aircraft_icao boş + havayolu TAMAMEN bilinmiyor -> mevcut unknown/default davranışı korunur."""
+    result = service.resolve("", "ZZ")
+    assert result.capacity == DEFAULT_CAPACITY
+    assert result.source == "unknown_default"
+
+
+def test_empty_icao_with_airline_but_no_fleet_rows_keeps_default_fallback(session, service):
+    """aircraft_icao boş + havayolu biliniyor ama o havayolu için hiç fleet config yok -> default korunur."""
+    add_fleet(session, "A320", "PC", seats=189, fleet_count=8)   # başka havayolu
+
+    result = service.resolve("", "TK")
+
     assert result.capacity == DEFAULT_CAPACITY
     assert result.source == "unknown_default"
 

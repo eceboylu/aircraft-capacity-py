@@ -4,6 +4,8 @@ __pycache__/
 *.py[cod]
 database.sqlite
 .env
+*.env
+!*.env.example
 *.log
 .vscode/
 .idea/

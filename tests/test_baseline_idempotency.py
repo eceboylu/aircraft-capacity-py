@@ -359,3 +359,59 @@ def test_run_predictions_default_now_uses_real_clock(session):
     run_predictions(session, resolver)
 
     assert observation_count(session) >= 1
+
+
+# --------------------------------------------------------------------
+# ADIM 5E-5 - `expire_on_commit` lokal geçici değişikliği restore ediliyor mu?
+# --------------------------------------------------------------------
+
+def test_expire_on_commit_is_restored_after_normal_completion(session):
+    """
+    Test A: `record_baseline_observations()` çağrılmadan önce
+    `session.expire_on_commit` True ise, işlem NORMAL tamamlandıktan
+    sonra da True kalmalı - global sessionmaker ayarı DEĞİŞMEDİ, sadece
+    fonksiyonun kendi ömrü boyunca geçici olarak False'a çekildi.
+    """
+    assert session.expire_on_commit is True
+
+    prediction = make_prediction(window_start=at(18, 0))
+    record_baseline_observations(session, [prediction], now=at(18, 16))
+
+    assert session.expire_on_commit is True
+
+
+def test_expire_on_commit_is_restored_even_if_record_observation_raises(session, monkeypatch):
+    """
+    Test B: `record_observation()` beklenmeyen (IntegrityError DIŞINDA)
+    bir hata fırlatsa bile, `finally` bloğu sayesinde
+    `session.expire_on_commit` eski değerine geri dönmeli - global
+    session durumu kalıcı olarak bozulmamalı.
+    """
+    import app.queue.engine as engine_mod
+
+    def broken_record_observation(*args, **kwargs):
+        raise RuntimeError("kasıtlı test hatası")
+
+    monkeypatch.setattr(engine_mod, "record_observation", broken_record_observation)
+
+    assert session.expire_on_commit is True
+    prediction = make_prediction(window_start=at(18, 0))
+
+    with pytest.raises(RuntimeError):
+        record_baseline_observations(session, [prediction], now=at(18, 16))
+
+    assert session.expire_on_commit is True
+
+
+def test_expire_on_commit_false_session_is_restored_to_false_not_forced_true(session):
+    """
+    Restore işlemi HER ZAMAN True'ya değil, ÇAĞRI ÖNCESİNDEKİ gerçek
+    değere dönmeli - eğer çağıran taraf zaten `expire_on_commit=False`
+    ile bir session kullanıyorsa, bu tercih ezilmemeli.
+    """
+    session.expire_on_commit = False
+    prediction = make_prediction(window_start=at(18, 0))
+
+    record_baseline_observations(session, [prediction], now=at(18, 16))
+
+    assert session.expire_on_commit is False

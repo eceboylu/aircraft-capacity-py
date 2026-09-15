@@ -137,22 +137,63 @@ def load_source_payload(path: str) -> list[dict]:
     return [r for r in records if isinstance(r, dict)]
 
 
-def build_aircraft_index(source_b_records: list[dict]) -> dict[str, str]:
+def _parse_source_b_timestamp(record: dict) -> datetime | None:
     """
-    Kaynak B'den {normalize edilmiş uçuş no: aircraft_icao} indeksi.
+    Kaynak B (`flights`, canlı ADS-B) kaydının zaman damgasını okur.
 
-    Uçak tipi olmayan kayıtlar indekse girmez - boş eşleşme
-    üretmenin anlamı yok.
+    ÖNEMLİ: Kaynak B'nin GERÇEK response'unda `dep_time_utc`/
+    `arr_time_utc` gibi tarife alanları YOKTUR - bu alanlar sadece
+    Kaynak A'ya (schedules/delays) özgüdür. `flights` endpoint'i
+    9625 kayıtlık gerçek örneklemde TEK zaman sinyali olarak
+    `updated` (UNIX epoch, saniye) taşır - "bu pozisyon ne zaman
+    görüldü" anlamına gelir, bir tarife saati DEĞİLDİR ama flight
+    number eşleşmesini hangi GÜNE ait olduğuna göre süzmek için
+    yeterli bir yaklaşık göstergedir.
+
+    `updated` yoksa (veya sayısal değilse) None döner - uydurma zaman
+    üretilmez, o kayıt eşleştirmede kullanılmaz.
     """
-    index: dict[str, str] = {}
+    raw = field(record, "updated", "updatedAt")
+    if raw is None:
+        return None
+    try:
+        epoch_seconds = float(raw)
+    except (TypeError, ValueError):
+        return None
+    try:
+        return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).replace(tzinfo=None)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def build_aircraft_index(source_b_records: list[dict]) -> dict[str, list[dict]]:
+    """
+    Kaynak B'den {normalize edilmiş uçuş no: [{'icao': icao, 'time': time}, ...]} indeksi.
+
+    `time`, Kaynak B kaydının GERÇEK zaman alanı olan `updated`
+    (UNIX epoch) alanından türetilir - bkz. `_parse_source_b_timestamp`.
+    Uçak tipi olmayan veya zamanı çözülemeyen kayıtlar indekse girmez;
+    zamanı olmayan bir aday, tarih kontrolü YAPILAMAYACAĞI için
+    güvenli bir eşleşme üretemez (bkz. `parse_source_a_record`).
+    """
+    index: dict[str, list[dict]] = {}
     for record in source_b_records:
         icao = (field(record, "aircraft_icao", "aircraftIcao") or "").upper()
         if not icao:
             continue
+
+        time_utc = _parse_source_b_timestamp(record)
+        if not time_utc:
+            continue
+
+        entry = {"icao": icao, "time": time_utc}
+
         for name in ("flight_iata", "flightIata", "flight_icao", "flightIcao"):
             key = normalize_flight_number(record.get(name))
-            if key and key not in index:
-                index[key] = icao
+            if key:
+                if key not in index:
+                    index[key] = []
+                index[key].append(entry)
     return index
 
 
@@ -160,9 +201,11 @@ def build_flight_key(
     airline_iata: str | None,
     flight_number: str | None,
     operational_scheduled_utc: datetime | None,
+    airport_iata: str,
+    direction: str,
 ) -> str:
     """
-    "{airline_iata}_{flight_number}_{operational_scheduled_date_utc}"
+    "{airline_iata}_{flight_number}_{operational_scheduled_date_utc}_{airport_iata}_{direction}"
 
     MADDE 5: operational_scheduled_utc, yöne göre çağıran tarafından
     seçilir - departure için dep_scheduled_utc, arrival için
@@ -184,7 +227,7 @@ def build_flight_key(
         operational_scheduled_utc.date().isoformat()
         if operational_scheduled_utc else "UNKDATE"
     )
-    return f"{airline}_{number}_{date_part}"
+    return f"{airline}_{number}_{date_part}_{airport_iata.upper()}_{direction.lower()}"
 
 
 def resolve_location(
@@ -295,18 +338,27 @@ def parse_source_a_record(
         field(record, "aircraft_icao", "aircraftIcao") or ""
     ).upper() or None
     matched_icao = None
-    if own_icao is None and aircraft_index:
+    if own_icao is None and aircraft_index and operational_scheduled:
+        best_diff = None
         for candidate in (flight_code, flight_icao):
             key = normalize_flight_number(candidate)
             if key and key in aircraft_index:
-                matched_icao = aircraft_index[key]
-                break
+                for candidate_match in aircraft_index[key]:
+                    # Date must match exactly to avoid assigning tomorrow's flight to today's aircraft
+                    if candidate_match["time"].date() == operational_scheduled.date():
+                        diff = abs((candidate_match["time"] - operational_scheduled).total_seconds())
+                        if best_diff is None or diff < best_diff:
+                            best_diff = diff
+                            matched_icao = candidate_match["icao"]
+                
+                if matched_icao:
+                    break
 
     aircraft_icao = own_icao or matched_icao
 
     return {
         "flight_key": build_flight_key(
-            airline_iata, flight_number, operational_scheduled
+            airline_iata, flight_number, operational_scheduled, airport_iata, direction
         ),
         "airport_iata": airport_iata,
         "direction": direction,

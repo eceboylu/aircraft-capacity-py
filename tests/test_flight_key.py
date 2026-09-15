@@ -44,7 +44,7 @@ def test_departure_key_uses_dep_scheduled_utc():
         "status": "scheduled",
     }
     row = parse_source_a_record(record, DIRECTION_DEPARTURE, NO_COUNTRIES)
-    assert row["flight_key"] == "TK_123_2026-09-15"
+    assert row["flight_key"] == "TK_123_2026-09-15_IST_departure"
 
 
 def test_arrival_key_uses_arr_scheduled_utc_not_dep():
@@ -63,8 +63,8 @@ def test_arrival_key_uses_arr_scheduled_utc_not_dep():
     dep_row = parse_source_a_record(record, DIRECTION_DEPARTURE, NO_COUNTRIES)
     arr_row = parse_source_a_record(record, DIRECTION_ARRIVAL, NO_COUNTRIES)
 
-    assert dep_row["flight_key"] == "TK_123_2026-09-15"
-    assert arr_row["flight_key"] == "TK_123_2026-09-16"
+    assert dep_row["flight_key"] == "TK_123_2026-09-15_IST_departure"
+    assert arr_row["flight_key"] == "TK_123_2026-09-16_JFK_arrival"
     assert dep_row["flight_key"] != arr_row["flight_key"]
 
 
@@ -82,7 +82,7 @@ def test_arrival_with_missing_dep_scheduled_uses_arr_scheduled():
     }
     row = parse_source_a_record(record, DIRECTION_ARRIVAL, NO_COUNTRIES)
 
-    assert row["flight_key"] == "PC_456_2026-09-15"
+    assert row["flight_key"] == "PC_456_2026-09-15_SAW_arrival"
     assert "UNKDATE" not in row["flight_key"]
     assert row["dep_scheduled_utc"] is None
     assert row["arr_scheduled_utc"] == datetime(2026, 9, 15, 10, 0)
@@ -103,7 +103,7 @@ def test_departure_estimated_update_does_not_change_key():
     delayed = dict(base, dep_estimated_utc="2026-09-15 18:40")
     after = parse_source_a_record(delayed, DIRECTION_DEPARTURE, NO_COUNTRIES)
 
-    assert before["flight_key"] == after["flight_key"] == "TK_1_2026-09-15"
+    assert before["flight_key"] == after["flight_key"] == "TK_1_2026-09-15_IST_departure"
 
 
 def test_departure_actual_update_does_not_change_key():
@@ -125,7 +125,7 @@ def test_departure_actual_update_does_not_change_key():
         scheduled_only["flight_key"]
         == estimated_row["flight_key"]
         == actual_row["flight_key"]
-        == "TK_1_2026-09-15"
+        == "TK_1_2026-09-15_IST_departure"
     )
 
 
@@ -144,7 +144,7 @@ def test_arrival_estimated_and_actual_updates_do_not_change_key():
     )
     updated_row = parse_source_a_record(updated, DIRECTION_ARRIVAL, NO_COUNTRIES)
 
-    assert scheduled_only["flight_key"] == updated_row["flight_key"] == "LH_7_2026-09-15"
+    assert scheduled_only["flight_key"] == updated_row["flight_key"] == "LH_7_2026-09-15_FRA_arrival"
 
 
 # --------------------------------------------------------------------
@@ -166,7 +166,7 @@ def test_midnight_boundary_departure(scheduled, expected_date):
         "arr_iata": "CDG", "dep_time_utc": scheduled, "status": "scheduled",
     }
     row = parse_source_a_record(record, DIRECTION_DEPARTURE, NO_COUNTRIES)
-    assert row["flight_key"] == f"TK_9_{expected_date}"
+    assert row["flight_key"] == f"TK_9_{expected_date}_IST_departure"
 
 
 @pytest.mark.parametrize(
@@ -182,7 +182,7 @@ def test_midnight_boundary_arrival(scheduled, expected_date):
         "dep_iata": "IST", "arr_time_utc": scheduled, "status": "scheduled",
     }
     row = parse_source_a_record(record, DIRECTION_ARRIVAL, NO_COUNTRIES)
-    assert row["flight_key"] == f"TK_9_{expected_date}"
+    assert row["flight_key"] == f"TK_9_{expected_date}_CDG_arrival"
 
 
 # --------------------------------------------------------------------
@@ -196,7 +196,7 @@ def test_missing_scheduled_time_falls_back_to_explicit_unkdate_departure():
         # dep_time_utc YOK
     }
     row = parse_source_a_record(record, DIRECTION_DEPARTURE, NO_COUNTRIES)
-    assert row["flight_key"] == "TK_1_UNKDATE"
+    assert row["flight_key"] == "TK_1_UNKDATE_IST_departure"
 
 
 def test_missing_scheduled_time_falls_back_to_explicit_unkdate_arrival():
@@ -206,12 +206,12 @@ def test_missing_scheduled_time_falls_back_to_explicit_unkdate_arrival():
         # arr_time_utc YOK, dep_time_utc da YOK
     }
     row = parse_source_a_record(record, DIRECTION_ARRIVAL, NO_COUNTRIES)
-    assert row["flight_key"] == "TK_1_UNKDATE"
+    assert row["flight_key"] == "TK_1_UNKDATE_CDG_arrival"
 
 
 def test_build_flight_key_none_input_is_explicit_not_silent():
     """build_flight_key() sözleşmesi doğrudan da doğrulanır."""
-    assert build_flight_key("TK", "1", None) == "TK_1_UNKDATE"
+    assert build_flight_key("TK", "1", None, "IST", "departure") == "TK_1_UNKDATE_IST_departure"
 
 
 # --------------------------------------------------------------------
@@ -294,3 +294,24 @@ def test_effective_time_regression_arrival_falls_back_scheduled_when_no_actual_e
         minutes=PASSPORT_RELEASE_BUFFER_MINUTES
     )
     assert effective_time(flight) == expected
+
+def test_flight_key_separates_departure_and_arrival():
+    """IST -> ADB aynı uçuşun dep ve arr kayıtlarının ayrı kaldığını doğrular."""
+    record = {
+        "flight_number": "123", "airline_iata": "TK",
+        "dep_iata": "IST", "arr_iata": "ADB",
+        "dep_time_utc": "2026-09-15 08:00",
+        "arr_time_utc": "2026-09-15 09:00",
+        "status": "scheduled",
+    }
+    dep_row = parse_source_a_record(record, DIRECTION_DEPARTURE, NO_COUNTRIES)
+    arr_row = parse_source_a_record(record, DIRECTION_ARRIVAL, NO_COUNTRIES)
+
+    assert dep_row["flight_key"] != arr_row["flight_key"]
+    assert dep_row["flight_key"] == "TK_123_2026-09-15_IST_departure"
+    assert dep_row["airport_iata"] == "IST"
+    assert dep_row["direction"] == "departure"
+
+    assert arr_row["flight_key"] == "TK_123_2026-09-15_ADB_arrival"
+    assert arr_row["airport_iata"] == "ADB"
+    assert arr_row["direction"] == "arrival"

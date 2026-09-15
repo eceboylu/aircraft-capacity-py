@@ -1,0 +1,71 @@
+# aircraft-capacity.service
+#
+# ADIM 5B - production batch pipeline unit'i. Sürekli çalışan bir servis
+# DEĞİLDİR: her tetiklendiğinde (aircraft-capacity.timer tarafından, 30
+# dakikada bir) TEK bir `python -m app.queue.pipeline` çalıştırır ve
+# çıkar (Type=oneshot). Bu, mevcut app/queue/pipeline.py:main()'in
+# CLI davranışının BİREBİR aynısıdır - hiçbir yeni Python scheduler/
+# worker kodu yazılmadı.
+#
+# Overlap koruması: systemd, AYNI unit adı için ikinci bir "start" işi
+# zaten "activating"/"active" durumdayken KUYRUĞA ALMAZ/tekrar
+# BAŞLATMAZ (systemd'nin bir unit için tek seferde tek job garantisi -
+# ekstra bir kilit dosyası/PID kontrolü GEREKMEZ). Yani önceki run 30
+# dakikadan uzun sürerse, timer'ın bir sonraki tetiklemesi bu run'ı
+# ikinci bir instance olarak BAŞLATMAZ; mevcut run bitene kadar bekler
+# ya da (timer tarafında) o tetikleme basitçe atlanır - iki pipeline
+# aynı anda AYNI veritabanına yazmaz.
+#
+# Secret yönetimi: AIRLABS_API_KEY / DATABASE_URL bu dosyada HİÇ
+# YAZMAZ - EnvironmentFile= ile sunucudaki (repo DIŞINDAKİ) bir
+# dosyadan okunur. Örnek biçim: aircraft-capacity.env.example (bu
+# klasörde) - gerçek değerler İÇERMEZ, sadece anahtar isimlerini
+# gösterir.
+
+[Unit]
+Description=Aircraft Capacity - AirLabs ingestion + queue prediction pipeline (batch run)
+Documentation=file:///opt/aircraft-capacity/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+
+# Prod ortamında ayrı, ayrıcalıksız bir sistem kullanıcısı önerilir -
+# root olarak ÇALIŞTIRILMAMALI. Kurulum sırasında oluşturulmalı:
+#   sudo useradd --system --home /opt/aircraft-capacity --shell /usr/sbin/nologin aircraft-capacity
+User=aircraft-capacity
+Group=aircraft-capacity
+
+WorkingDirectory=/opt/aircraft-capacity
+
+# AIRLABS_API_KEY / DATABASE_URL / LOG_LEVEL gibi değerler BURADAN
+# okunur, unit dosyasına asla hardcode edilmez.
+EnvironmentFile=/etc/aircraft-capacity/aircraft-capacity.env
+
+# Repo'nun kendi venv'i - sunucuda `python -m venv venv && venv/bin/pip
+# install -r requirements.txt` ile kurulduğu varsayılır.
+ExecStart=/opt/aircraft-capacity/venv/bin/python -m app.queue.pipeline
+
+# Bir batch run'ın makul üst sınırı - AirLabs 30 dakikada bir yenilendiği
+# için bir run'ın bir sonraki pencereye kadar (yaklaşık) bitmesi
+# beklenir; donmuş bir process'i sonsuza kadar beklemek yerine systemd
+# tarafından sonlandırılır ve run "failed" olarak işaretlenir (exit
+# code app/queue/pipeline.py:main() tarafından zaten anlamlı üretiliyor
+# - bkz. ADIM 5A).
+TimeoutStartSec=1500
+
+# journald'a yazar (systemd servislerinin varsayılanı) - ekstra log
+# dosyası/rotasyon YÖNETİMİ gerekmez, `journalctl -u
+# aircraft-capacity.service` ile okunur.
+StandardOutput=journal
+StandardError=journal
+
+# Otomatik yeniden deneme YOK: bir run başarısız olursa bir sonraki
+# 30 dakikalık tetiklemede zaten yeniden denenecek (idempotent upsert
+# sayesinde güvenli) - sıkı bir restart döngüsü sadece geçici bir
+# AirLabs/DB kesintisinde gereksiz yük ve log gürültüsü üretir.
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

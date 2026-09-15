@@ -61,6 +61,12 @@ class AircraftCapacityService:
         code = (icao_code or "").strip().upper()
         airline = (airline_iata or "").strip().upper() or None
 
+        # Katman 1-2: airline_fleet_seat_config (exact / weighted average)
+        if airline:
+            fleet_result = self._resolve_airline_fleet(code, airline)
+            if fleet_result is not None:
+                return fleet_result
+
         if code == "":
             return CapacityResult(
                 code,
@@ -70,12 +76,6 @@ class AircraftCapacityService:
                 "low",
                 True
             )
-
-        # Katman 1-2: airline_fleet_seat_config (exact / weighted average)
-        if airline:
-            fleet_result = self._resolve_airline_fleet(code, airline)
-            if fleet_result is not None:
-                return fleet_result
 
         # Katman 3: aircraft_capacity
         cached = self.session.execute(
@@ -151,32 +151,25 @@ class AircraftCapacityService:
     ) -> CapacityResult | None:
         """
         MADDE 4 - Havayoluna özel filo koltuk konfigürasyonu.
-
-        Eşleşen satır YOKSA None döner - çağıran taraf bir alt katmana
-        (aircraft_capacity) düşer.
-
-        Eşleşen TEK satır varsa (havayolunun o tipteki tek varyantı):
-        "exact match" - satırın seats değeri doğrudan kullanılır.
-
-        Birden fazla satır varsa (aynı havayolu + aynı tip, farklı kabin
-        konfigürasyonları): filo ağırlıklı ortalama.
-            SUM(seats * fleet_count) / SUM(fleet_count)
-        fleet_count'u olmayan (None/0) satırlar ağırlıklı ortalamaya
-        KATILMAZ - sıfıra bölme veya uydurma ağırlık üretilmez.
-        Kullanılabilir hiçbir ağırlık kalmazsa None döner (alt katmana
-        düşülür), fabrik edilmiş bir sayı üretilmez.
         """
-        rows = self.session.execute(
-            select(AirlineFleetSeatConfig).where(
-                AirlineFleetSeatConfig.icao_code == code,
-                AirlineFleetSeatConfig.airline_iata == airline,
-            )
-        ).scalars().all()
+        if code:
+            rows = self.session.execute(
+                select(AirlineFleetSeatConfig).where(
+                    AirlineFleetSeatConfig.icao_code == code,
+                    AirlineFleetSeatConfig.airline_iata == airline,
+                )
+            ).scalars().all()
+        else:
+            rows = self.session.execute(
+                select(AirlineFleetSeatConfig).where(
+                    AirlineFleetSeatConfig.airline_iata == airline,
+                )
+            ).scalars().all()
 
         if not rows:
             return None
 
-        if len(rows) == 1:
+        if code and len(rows) == 1:
             return CapacityResult(
                 code,
                 airline,

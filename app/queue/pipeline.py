@@ -30,6 +30,7 @@ açmaz.
 
 import logging
 import os
+import time
 
 from ..db import get_session, init_db
 from ..service import AircraftCapacityService
@@ -110,7 +111,8 @@ def load_flight_rows(
     source_b = source_b or file_source_b(data_dir)
 
     try:
-        aircraft_index = build_aircraft_index(source_b())
+        source_b_records = source_b()
+        aircraft_index = build_aircraft_index(source_b_records)
     except (OSError, ValueError) as exc:
         logger.warning(
             "Kaynak B (canlı uçuş / aircraft_icao beslemesi) okunamadı "
@@ -118,14 +120,33 @@ def load_flight_rows(
             "bu turda aircraft_icao eşleşmesi eksik kalabilir.",
             type(exc).__name__,
         )
+        source_b_records = []
         aircraft_index = {}
+    logger.info("Kaynak B: %d kayıt alındı", len(source_b_records))
 
     rows: list[dict] = []
+    source_a_total = 0
     for direction in SOURCE_A_FILES:
-        records = source_a(direction)
+        try:
+            records = source_a(direction)
+        except (OSError, ValueError) as exc:
+            logger.warning(
+                "Kaynak A (%s tarifesi) okunamadı (%s); bu yön için "
+                "bu turda hiç kayıt işlenmeyecek - diğer yön/kaynaklar "
+                "etkilenmeden devam ediyor.",
+                direction, type(exc).__name__,
+            )
+            continue
+        source_a_total += len(records)
+        logger.info("Kaynak A (%s): %d kayıt alındı", direction, len(records))
         rows.extend(
             parse_source_a(records, direction, countries, aircraft_index)
         )
+
+    logger.info(
+        "ingestion sonucu: %d uçuş satırı ayrıştırıldı (Kaynak A ham kayıt=%d, Kaynak B ham kayıt=%d)",
+        len(rows), source_a_total, len(source_b_records),
+    )
     return rows
 
 
@@ -141,7 +162,17 @@ def run(
     Canlı sistemde bu fonksiyon ~30 dakikada bir çağrılır; uçuşlar
     upsert edilir, sadece gerçek değişiklikler FlightEvent olarak
     yazılır, tahminler güncellenir ve bayat pencereler temizlenir.
+
+    ADIM 5A - scheduler öncesi observability: bu fonksiyon artık
+    rutin (INFO seviye) ilerleme logları üretir ve dönen özete
+    `failed_airports` (run_predictions()'ın zaten ürettiği ama önceden
+    dışarı yansıtılmayan alan) + `duration_seconds` eklenir. Mevcut
+    anahtarların hiçbiri kaldırılmadı/yeniden adlandırılmadı - sadece
+    eklendi.
     """
+    start = time.monotonic()
+    logger.info("pipeline run started")
+
     init_db()
     session = get_session()
     try:
@@ -149,16 +180,38 @@ def run(
         rows = load_flight_rows(session, data_dir, source_a, source_b)
         match_rate = aircraft_match_rate(rows)
         refreshed = refresh_flights(session, rows)
+        logger.info(
+            "refresh sonucu: inserted=%d updated=%d events_written=%d failed=%d",
+            refreshed["inserted"], refreshed["updated"],
+            refreshed["events_written"], refreshed["failed"],
+        )
 
+        logger.info("prediction started")
         predicted = run_predictions(
             session,
             resolver=AircraftCapacityService(session),
             update_baseline=update_baseline,
         )
+        logger.info(
+            "prediction completed: predictions=%d pruned=%d airports_ok=%d airports_failed=%d",
+            predicted["predictions"], predicted["pruned"],
+            len(predicted["airports"]), len(predicted["failed_airports"]),
+        )
+        if predicted["failed_airports"]:
+            # Havalimanı-bazlı izolasyon zaten run_predictions() içinde
+            # uygulanıyor (bkz. engine.py) - bu SADECE görünürlük için,
+            # akışı DEĞİŞTİRMEZ, kritik hata SAYILMAZ (bkz. __main__
+            # bloğundaki exit-code kararı).
+            logger.warning(
+                "bazı havalimanları için tahmin üretilemedi (izole edildi, "
+                "diğer havalimanları etkilenmedi): %s",
+                predicted["failed_airports"],
+            )
     finally:
         session.close()
 
-    return {
+    elapsed = time.monotonic() - start
+    summary = {
         "airports_loaded": airports_loaded,
         "flights_parsed": len(rows),
         "aircraft_match_rate": round(match_rate, 3),
@@ -166,13 +219,59 @@ def run(
         "predictions": predicted["predictions"],
         "pruned": predicted["pruned"],
         "airports_predicted": len(predicted["airports"]),
+        "failed_airports": predicted["failed_airports"],
+        "duration_seconds": round(elapsed, 2),
     }
+    logger.info("pipeline run completed duration=%.2fs", elapsed)
+    return summary
+
+
+def main() -> int:
+    """
+    CLI giriş noktasının gövdesi - `run()`'ı çağırır, özeti basar ve
+    scheduler'ın (systemd/cron) okuyabileceği bir exit code döndürür.
+
+    Ayrı bir fonksiyon olarak tutulması (doğrudan `if __name__` içine
+    yazmak yerine) SADECE test edilebilirlik içindir: testler `run()`'ı
+    monkeypatch edip `main()`'i çağırarak gerçek DB/dosya sistemine hiç
+    dokunmadan exit-code mantığını doğrulayabilir; `python -m
+    app.queue.pipeline` çalıştırıldığındaki davranış DEĞİŞMEDİ.
+
+    Exit-code kararı (ADIM 5A): SADECE run() dışına sızan (top-level/
+    kritik) bir hata non-zero (1) exit üretir - ör. DB'ye hiç
+    bağlanılamadı, beklenmeyen bir programlama hatası. `failed_airports`
+    (kısmi, havalimanı-bazlı izole hata) TEK BAŞINA process'i başarısız
+    SAYMAZ: run_predictions() bunu zaten izole edip loglayarak devam
+    ediyor (bkz. engine.py) - 3 havalimanından 1'i başarısız olsa bile
+    diğer 2'sinin tahminleri kalıcı ve doğru. Kısmi hatayı da non-zero
+    sayıp her 30 dakikada bir sürekli "FAILED" alarmı üretmek, gerçek/
+    kritik kesintileri (API tamamen düştü, DB erişilemez) gürültüde
+    kaybettirir - bu yüzden kısmi hata sadece WARNING olarak loglanır,
+    exit code'u ETKİLEMEZ.
+    """
+    try:
+        summary = run()
+    except Exception:
+        logger.exception("pipeline run başarısız oldu (kritik/top-level hata)")
+        return 1
+
+    for key, value in summary.items():
+        print(f"{key}: {value}")
+
+    if summary["failed_airports"]:
+        logger.warning(
+            "run tamamlandı ama bazı havalimanları başarısız oldu "
+            "(izole edildi, kritik değil): %s",
+            summary["failed_airports"],
+        )
+
+    return 0
 
 
 if __name__ == "__main__":
+    import sys
+
     from ..logging_config import configure_logging
 
     configure_logging()
-    summary = run()
-    for key, value in summary.items():
-        print(f"{key}: {value}")
+    sys.exit(main())

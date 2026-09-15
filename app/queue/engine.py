@@ -33,6 +33,7 @@ from .baseline import get_baseline, get_passenger_baseline, record_observation
 from .config import AirportConfigView, get_configs
 from .constants import (
     DEMAND_WINDOW_MINUTES,
+    EXCLUDED_STATUSES,
     NO_BASELINE_MESSAGE,
     PASSPORT_OVERLOAD_MESSAGE,
     PROCESS_PASSPORT,
@@ -163,11 +164,62 @@ def _scoring_notes(score: dict) -> list[DetectedReason]:
     return notes
 
 
-def predict_window(
+def _bucket_flights_by_window(
+    flights, window_minutes: int = DEMAND_WINDOW_MINUTES
+) -> dict[datetime, list]:
+    """
+    ADIM 5E-2 - prediction lookup optimizasyonu.
+
+    Her uçuşun `effective_time()`'ını TAM OLARAK BİR KEZ hesaplayıp
+    `floor_to_window()` ile 15 dk pencere anahtarına göre gruplar.
+    `effective_time`/`floor_to_window`'ın kendisi HİÇ DEĞİŞMEDİ - sadece
+    kaç kez çağrıldıkları (önceden pencere sayısı kadar tekrar tekrar,
+    şimdi uçuş başına bir kez).
+
+    MATEMATİKSEL EŞDEĞERLİK (bkz. `flights_in_window` - DEĞİŞMEDİ,
+    hâlâ mevcut/ayrı çağıranlar için kullanılabilir):
+
+        floor_to_window(effective_time(flight)) == window_start
+        ⟺ window_start <= effective_time(flight) < window_end
+
+    (floor_to_window'ın tanımı gereği) - yani bu bucket'lama,
+    `flights_in_window`'ın "bu pencereye girer mi" testiyle BİREBİR AYNI
+    sonucu üretir.
+
+    `effective_time()` None dönen uçuşlar (hiç zaman bilgisi yok) hiçbir
+    bucket'a girmez - `flights_in_window`'ın "moment is None -> atla"
+    davranışıyla AYNI.
+
+    İPTAL/YÖNLENDİRİLMİŞ uçuşlar da dahil TÜM uçuşlar bucket'a girer -
+    erken filtrelenmez; include_excluded=True/False ayrımı OKUMA anında
+    (bkz. predict_airport) uygulanır - `flights_in_window`'ın mevcut
+    davranışıyla AYNI.
+
+    Flight OBJELERİ kopyalanmaz - aynı referanslar sadece farklı
+    listelere eklenir (ek bellek maliyeti sadece dict/list iskeleti
+    kadardır, uçuş verisi tekrar üretilmez).
+
+    Uçuşların process_flights içindeki SIRASI korunur (tek geçişte,
+    sırayla ekleniyor) - bu, `detect_diversions`/`detect_aircraft_changes`
+    gibi liste sırasına bağlı çıktıların (ör. reasons listesi sırası)
+    eski davranışla BİREBİR aynı kalmasını garantiler.
+    """
+    buckets: dict[datetime, list] = {}
+    for flight in flights:
+        moment = effective_time(flight)
+        if moment is None:
+            continue
+        key = floor_to_window(moment, window_minutes)
+        buckets.setdefault(key, []).append(flight)
+    return buckets
+
+
+def _predict_window_core(
     airport_iata: str,
     process: str,
     window_start: datetime,
-    process_flights: list,
+    window_flights: list,
+    window_all: list,
     config: AirportConfigView,
     demand: DemandCalculator,
     historical_baseline: float | None,
@@ -177,25 +229,15 @@ def predict_window(
     historical_passenger_baseline: float | None = None,
 ) -> WindowPrediction:
     """
-    Tek pencere hesabı. Veritabanına dokunmaz.
-
-    process_flights : bu havalimanının, bu süreci besleyen uçuşları
-                      (AŞAMA 2 filtresinden geçmiş)
-    historical_passenger_baseline
-                    : MADDE 7 - security'nin yolcu oranı için geçmiş
-                      ortalama yolcu talebi. Yoksa None; passenger_ratio
-                      hesaplanmaz, uydurulmaz.
+    `predict_window()`'ın ASIL hesap gövdesi - ADIM 5E-2'de buradan
+    ayrıştırıldı. Farkı: pencereye giren uçuş listelerini (`window_flights`/
+    `window_all`) KENDİSİ taramıyor, ÇAĞIRANDAN hazır alıyor. Skorlama/
+    neden tespiti/confidence mantığının TEK VE AYNI kopyası - hem eski
+    `predict_window()` (geriye dönük uyumluluk, doğrudan çağıranlar için)
+    hem de `predict_airport()`'ın yeni bucket tabanlı hızlı yolu BU
+    fonksiyonu çağırır; böylece iki yol arasında sonuç farkı OLAMAZ.
     """
     window_end = window_start + timedelta(minutes=window_minutes)
-
-    # Talep hesabına giren uçuşlar (iptal/diverted hariç).
-    window_flights = flights_in_window(
-        process_flights, window_start, window_minutes
-    )
-    # Neden tespiti için aynı pencere, iptal ve yönlendirmeler dahil.
-    window_all = flights_in_window(
-        process_flights, window_start, window_minutes, include_excluded=True
-    )
 
     if process == PROCESS_PASSPORT:
         score = passport_queue_model(
@@ -273,6 +315,62 @@ def predict_window(
     )
 
 
+def predict_window(
+    airport_iata: str,
+    process: str,
+    window_start: datetime,
+    process_flights: list,
+    config: AirportConfigView,
+    demand: DemandCalculator,
+    historical_baseline: float | None,
+    aircraft_match_rate: float,
+    aircraft_changes: dict[str, tuple[str | None, str | None]] | None = None,
+    window_minutes: int = DEMAND_WINDOW_MINUTES,
+    historical_passenger_baseline: float | None = None,
+) -> WindowPrediction:
+    """
+    Tek pencere hesabı. Veritabanına dokunmaz. PUBLIC API - imza ve
+    davranış ADIM 5E-2'de DEĞİŞMEDİ (doğrudan çağıranlar/testler için
+    korundu).
+
+    process_flights : bu havalimanının, bu süreci besleyen uçuşları
+                      (AŞAMA 2 filtresinden geçmiş)
+    historical_passenger_baseline
+                    : MADDE 7 - security'nin yolcu oranı için geçmiş
+                      ortalama yolcu talebi. Yoksa None; passenger_ratio
+                      hesaplanmaz, uydurulmaz.
+
+    NOT: Bu fonksiyon HÂLÂ `flights_in_window()` ile process_flights'ın
+    TAMAMINI tarar (eski O(N) davranış) - `run_predictions()`'ın gerçek
+    production yolu (bkz. `predict_airport`) artık bunun yerine
+    `_bucket_flights_by_window()` + `_predict_window_core()` kullanıyor
+    (O(N×W) yerine O(N)). İkisi de AYNI `_predict_window_core()`'u
+    çağırdığı için sonuçlar birebir aynıdır - bu fonksiyon sadece
+    tek-pencere senaryoları/testler için geriye dönük uyumluluk amacıyla
+    tutuluyor.
+    """
+    window_flights = flights_in_window(
+        process_flights, window_start, window_minutes
+    )
+    window_all = flights_in_window(
+        process_flights, window_start, window_minutes, include_excluded=True
+    )
+    return _predict_window_core(
+        airport_iata=airport_iata,
+        process=process,
+        window_start=window_start,
+        window_flights=window_flights,
+        window_all=window_all,
+        config=config,
+        demand=demand,
+        historical_baseline=historical_baseline,
+        aircraft_match_rate=aircraft_match_rate,
+        aircraft_changes=aircraft_changes,
+        window_minutes=window_minutes,
+        historical_passenger_baseline=historical_passenger_baseline,
+    )
+
+
 def predict_airport(
     airport_iata: str,
     flights: list,
@@ -295,6 +393,14 @@ def predict_airport(
                   MADDE 7 - geçmiş ortalama YOLCU talebi. Ayrı bir
                   fonksiyondur çünkü yolcu örneklemi uçuş örnekleminden
                   bağımsız birikir; biri varken diğeri henüz olmayabilir.
+
+    ADIM 5E-2 - performans: process başına uçuşlar TEK bir geçişte
+    (`_bucket_flights_by_window`) 15 dk pencerelere önceden gruplanır -
+    `effective_time()` uçuş başına TAM OLARAK BİR KEZ hesaplanır (eskiden
+    pencere sayısı kadar tekrar tekrar hesaplanıyordu). Matematiksel
+    sonuç `predict_window()`'ın eski O(N×W) taramasıyla BİREBİR AYNIDIR
+    (bkz. `_bucket_flights_by_window` docstring'indeki eşdeğerlik kanıtı)
+    - ikisi de aynı `_predict_window_core()`'u çağırır.
     """
     if aircraft_match_rate is None:
         aircraft_match_rate = flight_match_rate(flights)
@@ -303,17 +409,29 @@ def predict_airport(
 
     for process in PROCESSES:
         relevant = _PROCESS_FLIGHTS[process](flights)
-        for start in window_starts(relevant, window_minutes):
+        buckets = _bucket_flights_by_window(relevant, window_minutes)
+
+        for start in sorted(buckets):
+            window_all = buckets[start]
+            # Talep hesabına giren uçuşlar (iptal/diverted hariç) -
+            # `flights_in_window(..., include_excluded=False)` ile AYNI
+            # filtre, ama artık N değil sadece bu pencerenin (~N/W
+            # büyüklüğündeki) uçuşları üzerinde.
+            window_flights = [
+                f for f in window_all if f.status not in EXCLUDED_STATUSES
+            ]
+
             baseline = baseline_fn(process, start) if baseline_fn else None
             passenger_baseline = (
                 passenger_baseline_fn(process, start)
                 if passenger_baseline_fn else None
             )
-            predictions.append(predict_window(
+            predictions.append(_predict_window_core(
                 airport_iata=airport_iata,
                 process=process,
                 window_start=start,
-                process_flights=relevant,
+                window_flights=window_flights,
+                window_all=window_all,
                 config=config,
                 demand=demand,
                 historical_baseline=baseline,
@@ -485,23 +603,44 @@ def record_baseline_observations(
 
     `now` test edilebilirlik için enjekte edilebilir; verilmezse
     domain_now() (gerçek saat) kullanılır.
+
+    ADIM 5E-5 - performans (bkz. ADIM 5E-3/5E-4 analizi): bu döngü
+    boyunca session'ın `expire_on_commit`'i GEÇİCİ olarak `False`'a
+    çekilir - `app/db.py`'deki global `sessionmaker` ayarına
+    DOKUNULMAZ, sadece bu fonksiyonun ömrü boyunca, `finally` ile
+    garanti altında geri yüklenir. Gerekçe: `record_observation()`'ın
+    pencere başına yaptığı commit'ler (bkz. baseline.py), session'da bu
+    noktada hâlâ yüklü olan - ve bu fonksiyon çalıştığı sürece bir daha
+    HİÇ okunmayan - uçuş ORM nesnelerini SQLAlchemy'nin varsayılan
+    `expire_on_commit=True` davranışıyla gereksiz yere expire ediyordu
+    (N=10.000 flight'ta ölçülen maliyetin ~%90'ı burasıydı). Commit
+    sayısı, IntegrityError/rollback deseni, unique constraint ve
+    idempotency mantığının HİÇBİRİ değişmedi - sadece artık kullanılmayan
+    obje cache'inin boşa invalidation'ı kalkıyor.
     """
     now = now if now is not None else domain_now()
     recorded = 0
-    for prediction in predictions:
-        if now < prediction.window_end:
-            continue  # açık pencere - baseline'a yazma
-        record_observation(
-            session,
-            airport_iata=prediction.airport_iata,
-            process=prediction.process,
-            window_start=prediction.window_start,
-            hour_of_day=prediction.window_start.hour,
-            day_of_week=prediction.window_start.weekday(),
-            flight_count=prediction.flight_count,
-            expected_passengers=prediction.expected_passengers,
-        )
-        recorded += 1
+
+    old_expire_on_commit = session.expire_on_commit
+    session.expire_on_commit = False
+    try:
+        for prediction in predictions:
+            if now < prediction.window_end:
+                continue  # açık pencere - baseline'a yazma
+            record_observation(
+                session,
+                airport_iata=prediction.airport_iata,
+                process=prediction.process,
+                window_start=prediction.window_start,
+                hour_of_day=prediction.window_start.hour,
+                day_of_week=prediction.window_start.weekday(),
+                flight_count=prediction.flight_count,
+                expected_passengers=prediction.expected_passengers,
+            )
+            recorded += 1
+    finally:
+        session.expire_on_commit = old_expire_on_commit
+
     return recorded
 
 

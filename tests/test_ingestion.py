@@ -5,7 +5,7 @@ Veritabanı gerektiren testler in-memory SQLite kullanır; diskteki
 database.sqlite'a DOKUNULMAZ.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 from sqlalchemy import create_engine, func, select
@@ -30,6 +30,16 @@ from app.queue.models import Flight, FlightEvent
 
 
 COUNTRIES = {"IST": "TR", "ESB": "TR", "SAW": "TR", "CDG": "FR", "JFK": "US"}
+
+
+def unix_ts(dt: datetime) -> int:
+    """
+    Kaynak B (`flights`) test fixture'ları için gerçek şemaya uygun
+    UNIX epoch üretir - gerçek `flights` response'unda TEK zaman
+    alanı `updated`dir (bkz. sources.py:_parse_source_b_timestamp),
+    `dep_time_utc` gibi tarife alanları YOKTUR.
+    """
+    return int(dt.replace(tzinfo=timezone.utc).timestamp())
 
 
 @pytest.fixture
@@ -64,24 +74,41 @@ def test_normalize_flight_number(raw, expected):
 
 
 def test_aircraft_index_matches_spaced_flight_number():
-    source_b = [{"flight_iata": "AC72", "aircraft_icao": "B77W"}]
+    source_b = [{"flight_iata": "AC72", "aircraft_icao": "B77W", "updated": unix_ts(datetime(2026, 9, 14, 8, 5))}]
     index = build_aircraft_index(source_b)
-    assert index[normalize_flight_number("AC 72")] == "B77W"
+    assert index[normalize_flight_number("AC 72")][0]["icao"] == "B77W"
 
 
 def test_aircraft_index_skips_records_without_type():
+    ts = unix_ts(datetime(2026, 9, 14, 8, 5))
     source_b = [
-        {"flight_iata": "TK1", "aircraft_icao": None},
-        {"flight_iata": "TK2", "aircraft_icao": ""},
-        {"flight_iata": "TK3", "aircraft_icao": "A321"},
+        {"flight_iata": "TK1", "aircraft_icao": None, "updated": ts},
+        {"flight_iata": "TK2", "aircraft_icao": "", "updated": ts},
+        {"flight_iata": "TK3", "aircraft_icao": "A321", "updated": ts},
     ]
     index = build_aircraft_index(source_b)
     assert "TK1" not in index and "TK2" not in index
-    assert index["TK3"] == "A321"
+    assert index["TK3"][0]["icao"] == "A321"
+
+
+def test_aircraft_index_skips_records_without_updated_timestamp():
+    """
+    Kaynak B kaydında `updated` yoksa (gerçek response'ta bu ALAN HER
+    ZAMAN var ama savunma amaçlı) indekse hiç girmemeli - tarihsiz bir
+    aday güvenli eşleştirilemez.
+    """
+    source_b = [{"flight_iata": "TK9", "aircraft_icao": "A320"}]
+    index = build_aircraft_index(source_b)
+    assert "TK9" not in index
 
 
 # --------------------------------------------------------------------
-# Enrichment - Senaryo 14
+# Enrichment - Senaryo 14 & Date Matching
+#
+# Kaynak B (`flights`) mock'ları GERÇEK response şemasını kullanır:
+# tek zaman alanı `updated` (UNIX epoch) - `dep_time_utc` gibi tarife
+# alanları `flights` response'unda YOKTUR (9625 gerçek kayıt üzerinde
+# doğrulandı, bkz. sources.py:_parse_source_b_timestamp).
 # --------------------------------------------------------------------
 
 def test_enrichment_fills_aircraft_from_source_b():
@@ -91,7 +118,9 @@ def test_enrichment_fills_aircraft_from_source_b():
         "arr_time_utc": "2026-09-14 14:00", "status": "scheduled",
         "aircraft_icao": None,
     }
-    index = build_aircraft_index([{"flight_iata": "AC72", "aircraft_icao": "B77W"}])
+    index = build_aircraft_index([
+        {"flight_iata": "AC72", "aircraft_icao": "B77W", "updated": unix_ts(datetime(2026, 9, 14, 8, 5))}
+    ])
     row = parse_source_a_record(record, "departure", COUNTRIES, index)
 
     assert row["aircraft_icao"] == "B77W"
@@ -116,7 +145,9 @@ def test_source_a_own_aircraft_wins_over_source_b():
         "dep_iata": "CDG", "arr_iata": "JFK", "dep_time_utc": "2026-09-14 08:00",
         "status": "scheduled", "aircraft_icao": "A359",
     }
-    index = build_aircraft_index([{"flight_iata": "AC72", "aircraft_icao": "B77W"}])
+    index = build_aircraft_index([
+        {"flight_iata": "AC72", "aircraft_icao": "B77W", "updated": unix_ts(datetime(2026, 9, 14, 8, 5))}
+    ])
     row = parse_source_a_record(record, "departure", COUNTRIES, index)
     assert row["aircraft_icao"] == "A359"
 
@@ -189,14 +220,14 @@ def test_parse_utc():
 
 
 def test_flight_key_is_stable_across_refreshes():
-    key1 = build_flight_key("TK", "1", datetime(2026, 9, 14, 8, 0))
-    key2 = build_flight_key("TK", "1", datetime(2026, 9, 14, 23, 59))
-    assert key1 == key2 == "TK_1_2026-09-14"
+    key1 = build_flight_key("TK", "1", datetime(2026, 9, 14, 8, 0), "IST", "departure")
+    key2 = build_flight_key("TK", "1", datetime(2026, 9, 14, 23, 59), "IST", "departure")
+    assert key1 == key2 == "TK_1_2026-09-14_IST_departure"
 
 
 def test_flight_key_differs_across_days():
-    a = build_flight_key("TK", "1", datetime(2026, 9, 14, 8, 0))
-    b = build_flight_key("TK", "1", datetime(2026, 9, 15, 8, 0))
+    a = build_flight_key("TK", "1", datetime(2026, 9, 14, 8, 0), "IST", "departure")
+    b = build_flight_key("TK", "1", datetime(2026, 9, 15, 8, 0), "IST", "departure")
     assert a != b
 
 
@@ -329,3 +360,155 @@ def test_refresh_updates_field_values(session):
 
     flight = session.execute(select(Flight)).scalar_one()
     assert flight.dep_gate == "B7"
+
+# --------------------------------------------------------------------
+# AIRCRAFT ENRICHMENT TARİH/ZAMAN TESTLERİ
+#
+# Kaynak B (`flights`) mock'ları burada da GERÇEK şemayı kullanır:
+# `updated` (UNIX epoch) - `dep_time_utc` DEĞİL.
+# --------------------------------------------------------------------
+
+def test_enrichment_date_match_test_a():
+    """
+    TEST A: Source A 2026-09-15 14:00, Source B AYNI GÜN 14:05'te
+    güncellenmiş (updated) bir A320 görüyor -> eşleşmeli.
+    """
+    record = {
+        "flight_iata": "TK123", "flight_number": "123", "airline_iata": "TK",
+        "dep_time_utc": "2026-09-15 14:00", "status": "scheduled",
+        "dep_iata": "IST"
+    }
+    source_b = [
+        {"flight_iata": "TK123", "aircraft_icao": "A320",
+         "updated": unix_ts(datetime(2026, 9, 15, 14, 5))}
+    ]
+    index = build_aircraft_index(source_b)
+    row = parse_source_a_record(record, "departure", COUNTRIES, index)
+    assert row["aircraft_icao"] == "A320"
+
+
+def test_enrichment_date_mismatch_test_b():
+    """
+    TEST B: Source A 2026-09-16, Source B'nin AYNI flight number'lı
+    kaydı 2026-09-15'te güncellenmiş -> FARKLI GÜN, eşleşmemeli.
+    """
+    record = {
+        "flight_iata": "TK123", "flight_number": "123", "airline_iata": "TK",
+        "dep_time_utc": "2026-09-16 14:00", "status": "scheduled",
+        "dep_iata": "IST"
+    }
+    source_b = [
+        {"flight_iata": "TK123", "aircraft_icao": "A320",
+         "updated": unix_ts(datetime(2026, 9, 15, 14, 5))}
+    ]
+    index = build_aircraft_index(source_b)
+    row = parse_source_a_record(record, "departure", COUNTRIES, index)
+    assert row["aircraft_icao"] is None
+
+
+def test_enrichment_multiple_flights_same_day_test_c():
+    """
+    TEST C: Aynı gün aynı flight number 2 kez operasyonda (10:00 ve
+    18:00). Source B'de de aynı flight number için 2 farklı `updated`
+    zamanlı aday var - her Source A kaydı SAATÇE en yakın adaya
+    eşleşmeli (10:00 -> A320, 18:00 -> B738).
+    """
+    record1 = {
+        "flight_iata": "TK123", "flight_number": "123", "airline_iata": "TK",
+        "dep_time_utc": "2026-09-15 10:00", "status": "scheduled", "dep_iata": "IST"
+    }
+    record2 = {
+        "flight_iata": "TK123", "flight_number": "123", "airline_iata": "TK",
+        "dep_time_utc": "2026-09-15 18:00", "status": "scheduled", "dep_iata": "IST"
+    }
+    source_b = [
+        {"flight_iata": "TK123", "aircraft_icao": "A320",
+         "updated": unix_ts(datetime(2026, 9, 15, 10, 5))},
+        {"flight_iata": "TK123", "aircraft_icao": "B738",
+         "updated": unix_ts(datetime(2026, 9, 15, 18, 5))},
+    ]
+    index = build_aircraft_index(source_b)
+    row1 = parse_source_a_record(record1, "departure", COUNTRIES, index)
+    row2 = parse_source_a_record(record2, "departure", COUNTRIES, index)
+
+    assert row1["aircraft_icao"] == "A320"
+    assert row2["aircraft_icao"] == "B738"
+
+
+def test_enrichment_no_reliable_match_test_d():
+    """
+    TEST D: Source B kaydında `updated` (dolayısıyla zaman) hiç yok -
+    tarih kontrolü YAPILAMAZ, güvenli eşleşme kurulamaz -> aircraft_icao
+    boş kalmalı (uydurma tip ÜRETİLMEZ, capacity fallback zinciri
+    devralır).
+    """
+    record = {
+        "flight_iata": "TK123", "flight_number": "123", "airline_iata": "TK",
+        "dep_time_utc": "2026-09-15 14:00", "status": "scheduled", "dep_iata": "IST"
+    }
+    # Source B var ama zamanı (updated) eksik
+    source_b = [{"flight_iata": "TK123", "aircraft_icao": "A320"}]
+    index = build_aircraft_index(source_b)
+    row = parse_source_a_record(record, "departure", COUNTRIES, index)
+    assert row["aircraft_icao"] is None
+
+
+# --------------------------------------------------------------------
+# FLIGHT KEY - DB SEVİYESİNDE departure/arrival AYRIMI (Bug 1)
+# --------------------------------------------------------------------
+
+def test_ist_adb_departure_and_arrival_stay_separate_rows_in_db(session):
+    """
+    Aynı fiziksel uçuş (TK123, IST->ADB) hem IST'in departure
+    tarifesinden hem ADB'nin arrival tarifesinden ayrı ayrı
+    ingestion'a girerse, ESKİ flight_key formatında (airline+numara+
+    tarih) İKİSİ AYNI satıra düşüp birbirini EZERDİ (last-write-wins).
+    Yeni format (+airport_iata+direction) bunu iki AYRI satıra ayırır.
+    """
+    dep_record = {
+        "flight_iata": "TK123", "flight_number": "123", "airline_iata": "TK",
+        "dep_iata": "IST", "arr_iata": "ADB",
+        "dep_time_utc": "2026-09-15 08:00", "arr_time_utc": "2026-09-15 09:00",
+        "status": "scheduled", "aircraft_icao": "A320",
+    }
+    arr_record = dict(dep_record)   # AYNI fiziksel uçuş, aynı ham kayıt
+
+    dep_row = parse_source_a_record(dep_record, "departure", COUNTRIES, {})
+    arr_row = parse_source_a_record(arr_record, "arrival", COUNTRIES, {})
+
+    assert dep_row["flight_key"] != arr_row["flight_key"]
+
+    summary = refresh_flights(session, [dep_row, arr_row])
+    assert summary["inserted"] == 2   # ikisi de AYRI satır olarak eklendi
+    assert session.scalar(select(func.count()).select_from(Flight)) == 2
+
+    stored = {
+        f.flight_key: f
+        for f in session.execute(select(Flight)).scalars().all()
+    }
+    dep_stored = stored[dep_row["flight_key"]]
+    arr_stored = stored[arr_row["flight_key"]]
+
+    assert dep_stored.airport_iata == "IST"
+    assert dep_stored.direction == "departure"
+    assert arr_stored.airport_iata == "ADB"
+    assert arr_stored.direction == "arrival"
+
+
+def test_ist_adb_repeated_refresh_does_not_merge_into_one_row(session):
+    """Tekrarlanan refresh'lerde de iki satır ayrı kalmaya devam etmeli - upsert kendi flight_key'ine göre çalışır."""
+    dep_record = {
+        "flight_iata": "TK123", "flight_number": "123", "airline_iata": "TK",
+        "dep_iata": "IST", "arr_iata": "ADB",
+        "dep_time_utc": "2026-09-15 08:00", "arr_time_utc": "2026-09-15 09:00",
+        "status": "scheduled", "aircraft_icao": "A320",
+    }
+    dep_row = parse_source_a_record(dep_record, "departure", COUNTRIES, {})
+    arr_row = parse_source_a_record(dict(dep_record), "arrival", COUNTRIES, {})
+
+    refresh_flights(session, [dep_row, arr_row])
+    refresh_flights(session, [dep_row, arr_row])
+    refresh_flights(session, [dep_row, arr_row])
+
+    assert session.scalar(select(func.count()).select_from(Flight)) == 2
+
