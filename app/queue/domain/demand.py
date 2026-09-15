@@ -51,6 +51,16 @@ class DemandCalculator:
             return 0
         return result.capacity
 
+    def capacity_of_icao(self, aircraft_icao: str | None) -> int:
+        """
+        Uçak tipinin koltuk kapasitesi (uçuş nesnesi olmadan).
+        Neden 8'de eski/yeni tip karşılaştırması için kullanılır.
+        """
+        result = self._resolver.resolve(aircraft_icao, None)
+        if not result.counts_toward_passenger_total:
+            return 0
+        return result.capacity
+
     def passenger_demand(self, flight) -> int:
         """
         Bu uçuşun kuyruğa getireceği tahmini yolcu sayısı.
@@ -68,20 +78,35 @@ def effective_time(flight) -> datetime | None:
     """
     Uçuşun kuyruğa yansıdığı an.
 
-    Departure : actual (varsa) veya scheduled, EKSİ dinamik security buffer
-    Arrival   : actual (varsa) veya scheduled, ARTI sabit passport buffer
+    Departure : actual > estimated > scheduled, EKSİ dinamik security buffer
+    Arrival   : actual > estimated > scheduled, ARTI sabit passport buffer
 
-    Gecikmiş uçuşlarda actual saat kullanıldığı için, birden fazla
+    Zaman önceliği delay_minutes() ile AYNI olmak zorundadır: gecikme
+    "estimated"tan okunup pencere "scheduled"a göre seçilirse, henüz
+    gerçekleşmemiş uçuşta yolcular hiç var olmayacakları pencereye
+    yazılır, gerçekten geldikleri pencere ise boş görünür. Gelecek
+    uçuşlarda actual zaten yoktur; tahmin sisteminin asıl çalıştığı
+    durum budur.
+
+    Gecikmiş uçuşlarda kaymış saat kullanıldığı için, birden fazla
     gecikmiş uçuşun aynı yeni pencerede toplanması (schedule
     compression) ayrı bir dedektöre gerek kalmadan otomatik yakalanır.
     """
     if flight.direction == DIRECTION_DEPARTURE:
-        base = flight.dep_actual_utc or flight.dep_scheduled_utc
+        base = (
+            flight.dep_actual_utc
+            or flight.dep_estimated_utc
+            or flight.dep_scheduled_utc
+        )
         if base is None:
             return None
         return base - timedelta(minutes=security_arrival_buffer_minutes(flight))
 
-    base = flight.arr_actual_utc or flight.arr_scheduled_utc
+    base = (
+        flight.arr_actual_utc
+        or flight.arr_estimated_utc
+        or flight.arr_scheduled_utc
+    )
     if base is None:
         return None
     return base + timedelta(minutes=PASSPORT_RELEASE_BUFFER_MINUTES)

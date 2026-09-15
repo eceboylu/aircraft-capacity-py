@@ -38,6 +38,9 @@ class CapacityResult:
 
 
 class AircraftCapacityService:
+
+    # Verilen uçak kodundan kapasiteyi çözümle/bul. 
+    
     def __init__(self, session: Session):
         self.session = session
 

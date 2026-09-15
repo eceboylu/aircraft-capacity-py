@@ -6,13 +6,24 @@ Kaynak A : tarife verisi (arrivals / departures). Zaman, terminal,
            çoğu kayıtta boştur.
 Kaynak B : canlı uçuş verisi. aircraft_icao'nun asıl kaynağıdır.
 
-Bu modül SAF ayrıştırma yapar: dosyayı okur, sözlüğe çevirir,
-zaman alanlarını datetime'a dönüştürür. Veritabanına yazmaz.
+Bu modül SAF ayrıştırma yapar: kayıt sözlüğünü alır, alanları
+normalize eder, zamanları datetime'a çevirir. Veritabanına yazmaz.
+
+CANLI BESLEMEYE HAZIR: Ayrıştırıcı bir dosyaya değil, kayıt
+LİSTESİNE bağlıdır (`parse_source_a`). Dosya okuma yalnızca
+`load_source_payload` içindedir; canlı API bağlandığında o fonksiyon
+yerine istek sonucu verilir, geri kalan katmanların hiçbiri değişmez.
+
+Alan adları da tek bir şemaya bağlı değildir. Aynı bilgi hem
+snake_case (`dep_time_utc`, `dep_iata`) hem camelCase
+(`depScheduledUtc`, `depIata`) şemasıyla okunabilir; hangisi gelirse
+gelsin aynı Flight alanlarına düşer. `direction` ve `location` kayıtta
+HAZIR geliyorsa doğrudan kullanılır, tekrar hesaplanmaz.
 """
 
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ...queue.constants import (
     DIRECTION_ARRIVAL,
@@ -23,8 +34,18 @@ from ...queue.constants import (
 
 _NON_ALNUM = re.compile(r"[^A-Z0-9]")
 
-# Kaynaklardaki zaman alanları "YYYY-MM-DD HH:MM" biçimindedir.
-_TIME_FORMAT = "%Y-%m-%d %H:%M"
+# Kaynaklarda görülen zaman biçimleri. Canlı feed ISO 8601 de
+# gönderebilir; hepsi naive UTC datetime'a indirgenir çünkü tüm iç
+# hesaplamalar UTC üzerinden yapılır.
+_TIME_FORMATS = (
+    "%Y-%m-%d %H:%M",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%dT%H:%M",
+    "%Y-%m-%dT%H:%M:%S",
+)
+
+# Ham metinde "yok" anlamına gelen gösterimler.
+_NULL_TOKENS = {"", "-", "--", "n/a", "na", "null", "none", "unknown"}
 
 
 def normalize_flight_number(value: str | None) -> str | None:
@@ -41,14 +62,61 @@ def normalize_flight_number(value: str | None) -> str | None:
     return cleaned or None
 
 
-def parse_utc(value: str | None) -> datetime | None:
-    """Kaynaktaki UTC zaman metnini datetime'a çevirir."""
+def clean_text(value):
+    """
+    Ham alanı temizler. `"-"` gibi "yok" gösterimleri None'a döner,
+    böylece sahte bir terminal/kapı/uçak tipi değeri üretilmez.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return value
+    stripped = value.strip()
+    if stripped.lower() in _NULL_TOKENS:
+        return None
+    return stripped
+
+
+def field(record: dict, *names):
+    """
+    Aynı bilginin farklı şemalardaki adlarını sırayla dener.
+
+    Böylece yeni bir besleme geldiğinde ayrıştırıcıyı yeniden yazmak
+    yerine buraya bir ad eklemek yeterli olur.
+    """
+    for name in names:
+        value = clean_text(record.get(name))
+        if value is not None:
+            return value
+    return None
+
+
+def parse_utc(value) -> datetime | None:
+    """
+    UTC zaman metnini naive datetime'a çevirir.
+
+    Bilinen biçimlerin hiçbiri tutmazsa ISO 8601 denenir ("...Z" veya
+    "+03:00" ekli olabilir); saat dilimi bilgisi UTC'ye çevrilip
+    düşürülür. Hiçbiri olmazsa None - uydurma zaman üretilmez.
+    """
+    value = clean_text(value)
     if not value:
         return None
+
+    for time_format in _TIME_FORMATS:
+        try:
+            return datetime.strptime(value, time_format)
+        except ValueError:
+            continue
+
     try:
-        return datetime.strptime(value, _TIME_FORMAT)
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
 
 
 def load_source_payload(path: str) -> list[dict]:
@@ -78,11 +146,11 @@ def build_aircraft_index(source_b_records: list[dict]) -> dict[str, str]:
     """
     index: dict[str, str] = {}
     for record in source_b_records:
-        icao = (record.get("aircraft_icao") or "").strip().upper()
+        icao = (field(record, "aircraft_icao", "aircraftIcao") or "").upper()
         if not icao:
             continue
-        for field in ("flight_iata", "flight_icao"):
-            key = normalize_flight_number(record.get(field))
+        for name in ("flight_iata", "flightIata", "flight_icao", "flightIcao"):
+            key = normalize_flight_number(record.get(name))
             if key and key not in index:
                 index[key] = icao
     return index
@@ -115,6 +183,9 @@ def resolve_location(
     """
     Kalkış ve varış aynı ülkedeyse domestic, değilse international.
 
+    SADECE kayıtta `location` alanı YOKSA çalışır. Alan hazır geldiğinde
+    ülke karşılaştırması gereksizdir ve yapılmaz.
+
     Ülke bilgisi bulunamıyorsa international varsayılır: passport
     yükünü eksik saymak, fazla saymaktan daha risklidir.
     """
@@ -124,6 +195,41 @@ def resolve_location(
     if dep_country and arr_country and dep_country == arr_country:
         return LOCATION_DOMESTIC
     return LOCATION_INTERNATIONAL
+
+
+def read_direction(record: dict, default: str) -> str:
+    """
+    Kayıttaki `direction` hazırsa kullanılır, tekrar çıkarılmaz.
+    Yoksa beslemenin kendi yönü (arrivals/departures dosyası) geçerlidir.
+    """
+    value = (field(record, "direction") or "").lower()
+    if value in (DIRECTION_ARRIVAL, DIRECTION_DEPARTURE):
+        return value
+    return default
+
+
+def read_location(
+    record: dict, dep_iata: str | None, arr_iata: str | None,
+    country_by_iata: dict[str, str],
+) -> str:
+    """Kayıttaki `location` hazırsa kullanılır; yoksa türetilir."""
+    value = (field(record, "location") or "").lower()
+    if value in (LOCATION_DOMESTIC, LOCATION_INTERNATIONAL):
+        return value
+    return resolve_location(dep_iata, arr_iata, country_by_iata)
+
+
+def read_flight_number(record: dict) -> str | None:
+    """
+    Uçuş numarası. Besleme yalnızca tam kodu ("AC72") veriyorsa
+    baştaki havayolu harfleri ayrılır.
+    """
+    number = field(record, "flight_number", "flightNumber", "flightNo")
+    if number and not number.strip().isdigit():
+        digits = normalize_flight_number(number) or ""
+        trimmed = digits.lstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        return trimmed or digits or None
+    return number
 
 
 def parse_source_a_record(
@@ -136,27 +242,40 @@ def parse_source_a_record(
     Kaynak A kaydını Flight alanlarına eşler ve Kaynak B ile
     zenginleştirir.
 
+    Alan adları iki şemadan da okunur (bkz. `field`), böylece canlı
+    beslemeye geçiş bu fonksiyonun dışında hiçbir katmanı etkilemez.
+
     aircraft_icao önceliği:
       1) Kaynak A'nın kendi alanı (doluysa)
       2) Kaynak B eşleşmesi
       3) None - uydurma değer ÜRETİLMEZ
     """
-    dep_iata = (record.get("dep_iata") or "").upper() or None
-    arr_iata = (record.get("arr_iata") or "").upper() or None
+    dep_iata = (field(record, "dep_iata", "depIata") or "").upper() or None
+    arr_iata = (field(record, "arr_iata", "arrIata") or "").upper() or None
 
+    direction = read_direction(record, direction)
     airport_iata = dep_iata if direction == DIRECTION_DEPARTURE else arr_iata
     if not airport_iata:
         return None
 
-    dep_scheduled = parse_utc(record.get("dep_time_utc"))
-    airline_iata = (record.get("airline_iata") or "").upper() or None
-    flight_number = record.get("flight_number")
+    dep_scheduled = parse_utc(
+        field(record, "dep_time_utc", "depScheduledUtc")
+    )
+    airline_iata = (
+        field(record, "airline_iata", "airlineIata", "airline") or ""
+    ).upper() or None
+    flight_number = read_flight_number(record)
 
-    own_icao = (record.get("aircraft_icao") or "").strip().upper() or None
+    flight_code = field(record, "flight_iata", "flightIata", "flightNo")
+    flight_icao = field(record, "flight_icao", "flightIcao")
+
+    own_icao = (
+        field(record, "aircraft_icao", "aircraftIcao") or ""
+    ).upper() or None
     matched_icao = None
     if own_icao is None and aircraft_index:
-        for field in ("flight_iata", "flight_icao"):
-            key = normalize_flight_number(record.get(field))
+        for candidate in (flight_code, flight_icao):
+            key = normalize_flight_number(candidate)
             if key and key in aircraft_index:
                 matched_icao = aircraft_index[key]
                 break
@@ -167,25 +286,37 @@ def parse_source_a_record(
         "flight_key": build_flight_key(airline_iata, flight_number, dep_scheduled),
         "airport_iata": airport_iata,
         "direction": direction,
-        "location": resolve_location(dep_iata, arr_iata, country_by_iata),
+        "location": read_location(
+            record, dep_iata, arr_iata, country_by_iata
+        ),
         "airline_iata": airline_iata,
         "flight_number": flight_number,
-        "flight_iata": normalize_flight_number(record.get("flight_iata")),
+        "flight_iata": normalize_flight_number(flight_code),
         "aircraft_icao": aircraft_icao,
         "aircraft_match_found": aircraft_icao is not None,
         "dep_iata": dep_iata,
         "arr_iata": arr_iata,
         "dep_scheduled_utc": dep_scheduled,
-        "dep_estimated_utc": parse_utc(record.get("dep_estimated_utc")),
-        "dep_actual_utc": parse_utc(record.get("dep_actual_utc")),
-        "arr_scheduled_utc": parse_utc(record.get("arr_time_utc")),
-        "arr_estimated_utc": parse_utc(record.get("arr_estimated_utc")),
-        "arr_actual_utc": parse_utc(record.get("arr_actual_utc")),
-        "dep_terminal": record.get("dep_terminal"),
-        "dep_gate": record.get("dep_gate"),
-        "arr_terminal": record.get("arr_terminal"),
-        "arr_gate": record.get("arr_gate"),
-        "status": (record.get("status") or "unknown").lower(),
+        "dep_estimated_utc": parse_utc(
+            field(record, "dep_estimated_utc", "depEstimatedUtc")
+        ),
+        "dep_actual_utc": parse_utc(
+            field(record, "dep_actual_utc", "depActualUtc")
+        ),
+        "arr_scheduled_utc": parse_utc(
+            field(record, "arr_time_utc", "arrScheduledUtc")
+        ),
+        "arr_estimated_utc": parse_utc(
+            field(record, "arr_estimated_utc", "arrEstimatedUtc")
+        ),
+        "arr_actual_utc": parse_utc(
+            field(record, "arr_actual_utc", "arrActualUtc")
+        ),
+        "dep_terminal": field(record, "dep_terminal", "depTerminal"),
+        "dep_gate": field(record, "dep_gate", "depGate"),
+        "arr_terminal": field(record, "arr_terminal", "arrTerminal"),
+        "arr_gate": field(record, "arr_gate", "arrGate"),
+        "status": (field(record, "status") or "unknown").lower(),
     }
 
 
@@ -223,10 +354,15 @@ __all__ = [
     "aircraft_match_rate",
     "build_aircraft_index",
     "build_flight_key",
+    "clean_text",
+    "field",
     "load_source_payload",
     "normalize_flight_number",
     "parse_source_a",
     "parse_source_a_record",
     "parse_utc",
+    "read_direction",
+    "read_flight_number",
+    "read_location",
     "resolve_location",
 ]

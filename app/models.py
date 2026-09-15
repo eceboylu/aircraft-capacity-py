@@ -23,14 +23,7 @@ class Base(DeclarativeBase):
 
 
 class AircraftCapacity(Base):
-    """
-    Önbelleklenmiş nihai kapasite değeri. Resolver, AeroLOPA
-    katmanlarında sonuç bulamazsa buraya bakar.
 
-    source değerleri:
-      - 'verified_dataset'  -> yolcu_ucaklari.json'dan (ana kaynak)
-      - 'curated_fallback'  -> elle kürasyon edilmiş yedek değer
-    """
     __tablename__ = "aircraft_capacity"
 
     icao_code: Mapped[str] = mapped_column(String(8), primary_key=True)
@@ -64,10 +57,7 @@ class AirlineFleetSeatConfig(Base):
 
 
 class AircraftCapacityFamily(Base):
-    """
-    Kategori/önek fallback tablosu. Genel havacılık da dahil
-    (counts_toward_passenger_total=False olan satırlar).
-    """
+   
     __tablename__ = "aircraft_capacity_family"
 
     icao_prefix: Mapped[str] = mapped_column(String(8), primary_key=True)

@@ -118,3 +118,18 @@ EVENT_AIRCRAFT_CHANGED = "AIRCRAFT_CHANGED"
 EVENT_DELAYED = "DELAYED"
 EVENT_CANCELLED = "CANCELLED"
 EVENT_DIVERTED = "DIVERTED"
+
+# --- Risk sıralaması (raporlamada "en kötü saat" seçimi için) ----------
+# UNKNOWN bir şiddet seviyesi DEĞİLDİR: veri yokluğunu anlatır, bu
+# yüzden sıralamada en altta durur ve gerçek bir riskin önüne geçmez.
+RISK_ORDER = {
+    RISK_UNKNOWN: -1,
+    RISK_LOW: 0,
+    RISK_MEDIUM: 1,
+    RISK_HIGH: 2,
+    RISK_CRITICAL: 3,
+}
+
+# AŞAMA 5'te üretilen durum notlarının kodları. Bunlar 9 tespit
+# fonksiyonuna ek DEĞİL, skorlama sonucunun kendi şeffaflık notlarıdır.
+REASON_CAPACITY_EXCEEDED = "capacity_exceeded"

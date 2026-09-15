@@ -245,3 +245,52 @@ def test_demand_calculator_caches_resolver_calls():
     for f in flights:
         calc.passenger_demand(f)
     assert len(resolver.calls) == 1
+
+
+# --------------------------------------------------------------------
+# effective_time ile delay_minutes aynı zaman önceliğini kullanmalı
+# --------------------------------------------------------------------
+
+def test_effective_time_uses_estimated_when_actual_missing():
+    """
+    Gelecek uçuşta actual yoktur. Gecikme estimated'tan okunuyorsa
+    pencere de estimated'tan seçilmeli - yoksa yolcular hiç
+    var olmayacakları pencereye yazılır.
+    """
+    flight = departure(8, 0, duration_minutes=90)
+    flight.dep_actual_utc = None
+    flight.dep_estimated_utc = at(9, 0)
+
+    # 09:00 kalkış - 45 dk kısa mesafe buffer'ı
+    assert effective_time(flight) == at(8, 15)
+
+
+def test_effective_time_arrival_uses_estimated_when_actual_missing():
+    flight = arrival(8, 0)
+    flight.arr_actual_utc = None
+    flight.arr_estimated_utc = at(10, 0)
+
+    assert effective_time(flight) == at(10, 15)
+
+
+def test_effective_time_prefers_actual_over_estimated():
+    flight = departure(8, 0, duration_minutes=90)
+    flight.dep_actual_utc = at(9, 0)
+    flight.dep_estimated_utc = at(11, 0)
+
+    assert effective_time(flight) == at(8, 15)
+
+
+def test_effective_time_and_delay_minutes_agree_on_source():
+    """
+    İkisi de aynı saati baz almalı: estimated'a göre 60 dk gecikme
+    varsa pencere de 60 dk kaymış olmalı.
+    """
+    on_time = departure(8, 0, duration_minutes=90)
+    delayed = departure(8, 0, duration_minutes=90)
+    delayed.dep_estimated_utc = at(9, 0)
+
+    assert delay_minutes(delayed) == 60
+    assert effective_time(delayed) - effective_time(on_time) == timedelta(
+        minutes=60
+    )
