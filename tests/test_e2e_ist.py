@@ -107,6 +107,9 @@ def roomy_config(airport=IST) -> AirportConfigView:
         airport_iata=airport,
         passport_counter_count=24,
         passport_staff_count=24,
+        passport_service_time_minutes=1.5,
+        security_lane_count=8,
+        security_service_time_minutes=1.0,
         passport_staff_per_counter=2.0,
         passport_service_rate_per_staff=0.5,
         passport_efficiency_multiplier=1.5,
@@ -121,6 +124,9 @@ def spec_passport_config(airport=IST) -> AirportConfigView:
         airport_iata=airport,
         passport_counter_count=4,
         passport_staff_count=99,          # kasıtlı tutarsız - mu'yu etkilememeli
+        passport_service_time_minutes=1.5,
+        security_lane_count=8,
+        security_service_time_minutes=1.0,
         passport_staff_per_counter=2,
         passport_service_rate_per_staff=1.5,
         passport_efficiency_multiplier=1.0,
@@ -205,19 +211,21 @@ def test_ist_airport_identity_matches_real_source(ist_session):
 
 
 # ========================================================================
-# 2. 15 DAKİKALIK WINDOW - boundary
+# 2. SAATLİK (60 DK) WINDOW - boundary (ADIM 6D-2 HOURLY MIGRATION)
 # ========================================================================
 
 @pytest.mark.parametrize(
     "moment,expected_window",
     [
-        (datetime(2026, 9, 15, 10, 0, 0), datetime(2026, 9, 15, 10, 0)),
-        (datetime(2026, 9, 15, 10, 5, 0), datetime(2026, 9, 15, 10, 0)),
-        (datetime(2026, 9, 15, 10, 14, 59), datetime(2026, 9, 15, 10, 0)),
-        (datetime(2026, 9, 15, 10, 15, 0), datetime(2026, 9, 15, 10, 15)),
-        (datetime(2026, 9, 15, 10, 20, 0), datetime(2026, 9, 15, 10, 15)),
-        (datetime(2026, 9, 15, 10, 29, 59), datetime(2026, 9, 15, 10, 15)),
-        (datetime(2026, 9, 15, 10, 30, 0), datetime(2026, 9, 15, 10, 30)),
+        # 07:59 -> önceki saat [07:00-08:00)
+        (datetime(2026, 9, 15, 7, 59, 0), datetime(2026, 9, 15, 7, 0)),
+        # 08:00 -> [08:00-09:00) tam sınırda
+        (datetime(2026, 9, 15, 8, 0, 0), datetime(2026, 9, 15, 8, 0)),
+        (datetime(2026, 9, 15, 8, 30, 0), datetime(2026, 9, 15, 8, 0)),
+        # 08:59 -> hâlâ [08:00-09:00)
+        (datetime(2026, 9, 15, 8, 59, 59), datetime(2026, 9, 15, 8, 0)),
+        # 09:00 -> [09:00-10:00) yeni saate geçti
+        (datetime(2026, 9, 15, 9, 0, 0), datetime(2026, 9, 15, 9, 0)),
     ],
 )
 def test_window_boundary_exact_timestamps(moment, expected_window):
@@ -371,8 +379,9 @@ def test_security_never_touches_passport_machinery(monkeypatch):
 def test_passport_numeric_mu_and_total_capacity_match_spec():
     config = spec_passport_config()
     mu = passport_effective_service_rate(config)
-    assert mu == pytest.approx(3.0)                       # 1.5*2*1.0
-    assert config.passport_counter_count * mu == pytest.approx(12.0)
+    assert mu == pytest.approx(2 / 3)                     # 1 / 1.5 dk
+    assert config.passport_counter_count * mu == pytest.approx(8 / 3)
+    assert config.passport_counter_count * mu * 60 == pytest.approx(160.0)
 
 
 def test_passport_staff_count_does_not_double_boost_capacity():
@@ -385,21 +394,34 @@ def test_passport_staff_count_does_not_double_boost_capacity():
 
 def test_passport_e2e_prediction_reflects_spec_capacity():
     """
-    12 yolcu/dk kapasiteyle, 15 dk pencerede kapasite = 180 yolcu.
+    12 yolcu/dk kapasiteyle, 15 dk pencerede kapasite = 180 yolcu -
+    bu AŞAMA 9 dokümanındaki YAZILI örnek senaryodur (window_minutes=15
+    AÇIKÇA sabitlenir, ADIM 6D-2'nin production varsayılanı olan 60'tan
+    BAĞIMSIZ - bkz. test_core_math.py'deki aynı desen).
     lambda kapasitenin altında kalacak şekilde uçuş kur, rho ve wait'in
     Erlang-C ile TUTARLI olduğunu doğrula.
+
+    ADIM (ICAO Demand Kalibrasyonu): passenger_demand artık load factor
+    UYGULAMADAN ham ICAO kapasitesini kullanıyor - A320 (180 koltuk)
+    bu spec config'inin kapasitesine (12/dk * 15dk = 180) TAM sınırda
+    (rho=1.0) denk gelirdi; "lambda kapasitenin ALTINDA" senaryosunu
+    korumak için daha küçük kapasiteli E190 (100 koltuk) kullanıldı.
     """
     calc = DemandCalculator(MockCapacityResolver())
     flights = [
-        flight(DIRECTION_DEPARTURE, 10, 0, aircraft="A320",
+        flight(DIRECTION_DEPARTURE, 10, 0, aircraft="E190",
                location=LOCATION_INTERNATIONAL, key="P1", number="1"),
     ]
-    result = passport_queue_model(flights, spec_passport_config(), calc.passenger_demand)
+    result = passport_queue_model(
+        flights, spec_passport_config(), calc.passenger_demand, window_minutes=60,
+    )
 
     demand = calc.passenger_demand(flights[0])
-    lam = demand / 15
-    expected_rho = lam / 12.0
-    expected_wait = erlang_c_wait_time(4, lam, 3.0)
+    lam = demand / 60
+    # ADIM (4x2 efektif server modeli): c=4 gişe x 2 görevli/gişe=8,
+    # capacity_rate=16/3/dk (320/saat).
+    expected_rho = lam / (16 / 3)
+    expected_wait = erlang_c_wait_time(8, lam, 2 / 3)
 
     assert result["arrival_rate"] == pytest.approx(lam, abs=1e-3)
     assert result["utilization"] == pytest.approx(expected_rho, abs=1e-3)

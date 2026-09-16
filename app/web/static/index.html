@@ -227,6 +227,11 @@
     selected: null,         // seçili IATA kodu
     predictionsByIata: {},  // iata -> son BAŞARILI /predictions yanıtı
     charts: {},
+    // ADIM 6D-2 G - her grafik kendi tıklanan penceresini BAĞIMSIZ
+    // tutar (`null` = "şu anki pencere" gösterilsin). Bir grafikte
+    // bir pencereye tıklamak DİĞER grafiklerin/`current`ın gösterdiği
+    // değeri DEĞİŞTİRMEZ.
+    detail: { overall: null, domestic_security: null, international_security: null, international_passport: null },
   };
 
   function escapeHtml(text) {
@@ -367,94 +372,74 @@
 
     root.innerHTML =
       "<h2>" + escapeHtml(heading) + "</h2>" +
-      '<div class="overall-row">GENEL YOĞUNLUK ' +
-        pillHtml(data.overall.risk, data.overall.label) +
-      "</div>" +
-      processBlockHtml("security", "SECURITY", data.security) +
-      processBlockHtml("passport", "PASSPORT", data.passport) +
+      graphSectionHtml("overall", "GENEL HAVALİMANI YOĞUNLUĞU", data.overall) +
+      graphSectionHtml("domestic_security", "DOMESTIC SECURITY YOĞUNLUĞU", data.domestic_security) +
+      graphSectionHtml("international_security", "INTERNATIONAL SECURITY YOĞUNLUĞU", data.international_security) +
+      graphSectionHtml("international_passport", "INTERNATIONAL PASSPORT YOĞUNLUĞU", data.international_passport) +
       breakdownHtml(data.breakdown);
 
-    drawChart(data.security.windows, "chart-security");
-    drawChart(data.passport.windows, "chart-passport");
+    drawChart(data.overall.windows, "chart-overall", "overall");
+    drawChart(data.domestic_security.windows, "chart-domestic_security", "domestic_security");
+    drawChart(data.international_security.windows, "chart-international_security", "international_security");
+    drawChart(data.international_passport.windows, "chart-international_passport", "international_passport");
     renderRefreshInfo();
   }
 
-  // ADIM 6C §9 - `estimated_wait_minutes=null`'ın İKİ AYRI, backend'in
-  // ZATEN döndürdüğü alanlardan (yeni bir Erlang-C hesabı YAPMADAN)
-  // ayırt edilebilen nedeni var (bkz. app/queue/core/scoring.py
-  // `passport_queue_model`):
-  //   1) `utilization` SONLU bir sayı VE >= 1  -> talep kapasiteyi
-  //      gerçekten aşıyor, kuyruk teorik olarak sürdürülemez.
-  //   2) `utilization` DA null (kapasite oranı c*mu <= 0 - örn. gişe
-  //      sayısı 0 gibi geçersiz/eksik bir config) -> sistem bir
-  //      çalışma noktası bile KURAMADI.
-  // Frontend burada HİÇBİR hesap yapmıyor - sadece bu iki durumu
-  // AYNI None değerinden ayırmak için mevcut `utilization` alanına bakıyor.
-  function waitTimeText(current) {
-    if (!current) return "—";
-    if (current.estimated_wait_minutes != null) {
-      return current.estimated_wait_minutes + " dk";
+  // Bekleme süresi metni SADECE backend'in o pencere için ZATEN
+  // döndürdüğü alanlara (`estimated_wait_minutes`, `utilization`)
+  // bakar - YENİ bir Erlang-C/ortalama/tahmin hesabı YAPILMAZ.
+  // ADIM 6C'den KORUNAN ayrım: `estimated_wait_minutes=null` İKİ AYRI
+  // nedenle olabilir:
+  //   1) `utilization` SONLU VE >= 1 -> talep kapasiteyi gerçekten
+  //      aşıyor, kuyruk teorik olarak sürdürülemez -> "Kapasite aşıldı".
+  //   2) `utilization` DA null -> sistem bir çalışma noktası bile
+  //      KURAMADI (geçersiz/eksik config) -> "Hesaplanamıyor".
+  // GENEL (overall) penceresi, o saatin en kötü sürecinin KENDİ
+  // `estimated_wait_minutes`'ını taşır (bkz. api.py
+  // `_merge_overall_series`) - birden fazla sürecin wait'i ASLA
+  // ORTALANMAZ.
+  function waitTimeText(w) {
+    if (!w) return "—";
+    if (w.estimated_wait_minutes != null) {
+      return w.estimated_wait_minutes + " dk";
     }
-    if (current.utilization != null && current.utilization >= 1) {
+    if (w.utilization != null && w.utilization >= 1) {
       return "Kapasite aşıldı";
     }
     return "Hesaplanamıyor";
   }
 
-  // ADIM 6C-2 - Ortalama bekleme süresi: backend'in HER pencere için
-  // ZATEN hesapladığı `estimated_wait_minutes` değerlerinin basit
-  // aritmetik ortalaması. Bu YENİ bir Erlang-C/queue hesabı DEĞİLDİR -
-  // ρ/λ/μ'ye dokunulmuyor, sadece var olan sayıların özeti alınıyor
-  // (tıpkı backend'deki `overall_status`'un iki riski birleştirmesi
-  // gibi, ama burada ortalama). ρ≥1 olan (wait=null) pencereler
-  // ortalamaya KATILMIYOR - onları 0 saymak ortalamayı yapay şekilde
-  // aşağı çekerdi; kaç pencerenin dışarıda kaldığı AÇIKÇA gösteriliyor.
-  function averageWaitText(windows) {
-    if (!windows || !windows.length) return { text: "—", detail: "" };
-
-    var finite = windows
-      .map(function (w) { return w.estimated_wait_minutes; })
-      .filter(function (v) { return v != null; });
-
-    if (!finite.length) {
-      return { text: "Kapasite aşıldı", detail: windows.length + " pencerenin tümünde talep kapasiteyi aştı" };
-    }
-
-    var sum = finite.reduce(function (a, b) { return a + b; }, 0);
-    var avg = sum / finite.length;
-    var excluded = windows.length - finite.length;
-    var detail = finite.length + "/" + windows.length + " pencere üzerinden ortalama" +
-      (excluded ? " · " + excluded + " pencerede kapasite aşıldı (hesaba katılmadı)" : "");
-    return { text: avg.toFixed(1) + " dk", detail: detail };
+  function windowWaitText(key, w) {
+    return waitTimeText(w);
   }
 
-  function processBlockHtml(key, title, section) {
-    var current = section.current;
+  // ADIM 6D-2 G - her grafik BAĞIMSIZ tıklanabilir: `state.detail[key]`
+  // dolu ise o pencerenin KENDİ risk/wait'i gösterilir (başka bir
+  // pencerenin/`current`ın değeri ASLA karıştırılmaz); boşsa (henüz
+  // tıklanmamış) mevcut/"current" pencere gösterilir - eski davranışla
+  // (sayfa ilk açıldığında current gösterilmesi) tutarlı.
+  function graphSectionHtml(key, title, section) {
+    var windows = section.windows;
+    var idx = state.detail[key];
+    var displayWindow = (idx != null && windows[idx]) ? windows[idx] : section.current;
     var canvasId = "chart-" + key;
-    var chartArea = section.windows.length
+    var chartArea = windows.length
       ? '<div class="chart-wrap"><canvas id="' + canvasId + '"></canvas></div>'
       : '<div class="chart-empty">Bu havalimanı için henüz pencere yok.</div>';
 
-    var waitLine = "";
-    if (key === "passport") {
-      var avg = averageWaitText(section.windows);
-      var detailBits = [];
-      if (avg.detail) detailBits.push(avg.detail);
-      detailBits.push("şu anki pencere: " + waitTimeText(current));
-      waitLine =
-        '<div class="wait-line">Ortalama bekleme süresi: <b>' + avg.text + "</b></div>" +
-        '<div class="wait-detail">' + escapeHtml(detailBits.join(" · ")) + "</div>";
-    }
-
-    var currentRisk = current ? current.risk : null;
-    var currentLabel = current ? current.risk_label : null;
+    var rangeText = displayWindow ? (hhmm(displayWindow.window_start) + "–" + hhmm(displayWindow.window_end)) : "";
+    var suffix = displayWindow && idx == null ? " · şu anki pencere" : "";
+    var waitText = windowWaitText(key, displayWindow);
+    var risk = displayWindow ? displayWindow.risk : null;
+    var label = displayWindow ? displayWindow.risk_label : null;
 
     return (
       '<div class="process-block">' +
         "<h3>" + title + "</h3>" +
         chartArea +
-        '<div class="current-line">' + pillHtml(currentRisk, currentLabel) + "</div>" +
-        waitLine +
+        '<div class="current-line">' + pillHtml(risk, label) + "</div>" +
+        (rangeText ? '<div class="wait-detail">' + escapeHtml(rangeText + suffix) + "</div>" : "") +
+        '<div class="wait-line">Tahmini bekleme süresi: <b>' + escapeHtml(waitText) + "</b></div>" +
       "</div>"
     );
   }
@@ -509,7 +494,7 @@
     }
   }
 
-  function drawChart(windows, canvasId) {
+  function drawChart(windows, canvasId, key) {
     if (!windows.length) return;
     var canvas = document.getElementById(canvasId);
     if (!canvas) return;
@@ -527,6 +512,14 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        // ADIM 6D-2 G - bir çubuğa tıklamak SADECE bu grafiğin
+        // (`key`) kendi seçili penceresini değiştirir; hesaplama
+        // YAPILMAZ, sadece zaten yüklü `windows[idx]` gösterilir.
+        onClick: function (evt, elements) {
+          if (!elements.length) return;
+          state.detail[key] = elements[0].index;
+          renderContent();
+        },
         plugins: {
           legend: { display: false },
           tooltip: {

@@ -24,10 +24,12 @@ from app.queue.config import AirportConfigView
 from app.queue.constants import (
     DIRECTION_ARRIVAL,
     DIRECTION_DEPARTURE,
+    EXCLUDED_STATUSES,
     LOCATION_DOMESTIC,
     LOCATION_INTERNATIONAL,
     PROCESS_PASSPORT,
     PROCESS_SECURITY,
+    PROCESS_SECURITY_DOMESTIC,
     STATUS_CANCELLED,
     STATUS_DIVERTED,
 )
@@ -53,6 +55,9 @@ def roomy_config(airport=AIRPORT) -> AirportConfigView:
         airport_iata=airport,
         passport_counter_count=24,
         passport_staff_count=24,
+        passport_service_time_minutes=1.5,
+        security_lane_count=8,
+        security_service_time_minutes=1.0,
         passport_staff_per_counter=2.0,
         passport_service_rate_per_staff=0.5,
         passport_efficiency_multiplier=1.5,
@@ -169,10 +174,21 @@ def _old_path_predictions(flights, config, demand, baseline_fn, passenger_baseli
     results = []
     for process in PROCESSES:
         relevant = _PROCESS_FLIGHTS[process](flights)
-        for start in window_starts(relevant):
+        starts = window_starts(relevant)
+        capacity_rate = (
+            config.passport_counter_count / config.passport_service_time_minutes
+            if process == PROCESS_PASSPORT
+            else config.security_lane_count / config.security_service_time_minutes
+        )
+        backlog = 0.0
+        previous = None
+        for start in starts:
+            if previous is not None:
+                gap_windows = int((start - previous).total_seconds() // 3600) - 1
+                backlog = max(0.0, backlog - capacity_rate * 60 * gap_windows)
             baseline = baseline_fn(process, start)
             passenger_baseline = passenger_baseline_fn(process, start)
-            results.append(predict_window(
+            result = predict_window(
                 airport_iata=AIRPORT,
                 process=process,
                 window_start=start,
@@ -183,7 +199,14 @@ def _old_path_predictions(flights, config, demand, baseline_fn, passenger_baseli
                 aircraft_match_rate=match_rate,
                 aircraft_changes=None,
                 historical_passenger_baseline=passenger_baseline,
-            ))
+                backlog_start=backlog,
+            )
+            results.append(result)
+            backlog = max(
+                0.0,
+                backlog + result.expected_passengers - capacity_rate * 60,
+            )
+            previous = start
     return results
 
 
@@ -232,8 +255,25 @@ def test_bucket_based_predict_airport_matches_old_window_scan_algorithm():
     )
 
     assert len(old_results) > 0, "test uçuşları hiç pencereye düşmedi"
-    assert len(old_results) == len(new_results)
-    assert _as_comparable(old_results) == _as_comparable(new_results)
+
+    # PASSPORT→SECURITY zaman-kuplajı ADIM'ı: PROCESS_SECURITY (birleşik)
+    # ve PROCESS_SECURITY_INTL artık `predict_airport()` içindeki
+    # `_passport_security_hourly_coupling()`'den (passport'un TÜM uçuş
+    # listesi + saatlik backlog zinciri gerektirir) gelen zaman-kaydırmalı
+    # talep kullanıyor - bu, `predict_window()`'ın (bu dosyanın "eski
+    # yolu") TEK PENCERE, backlog_start'ı DIŞARIDAN alan API'siyle
+    # YAPISAL OLARAK temsil edilemez (kuplaj hesabı passport'un TÜM
+    # saatlik zincirini gerektirir, tek bir pencereyi değil). Bu yüzden
+    # eşdeğerlik SADECE kuplajdan ETKİLENMEYEN iki süreçte (PASSPORT,
+    # SECURITY_DOMESTIC) doğrulanıyor; PROCESS_SECURITY/SECURITY_INTL'in
+    # KENDİ doğruluğu `tests/test_production_shape_hourly_replay.py` ve
+    # `tests/test_passport_security_coupling.py`'de AYRICA kanıtlanıyor.
+    unaffected = {PROCESS_PASSPORT, PROCESS_SECURITY_DOMESTIC}
+    old_unaffected = [p for p in old_results if p.process in unaffected]
+    new_unaffected = [p for p in new_results if p.process in unaffected]
+    assert len(old_unaffected) > 0
+    assert len(old_unaffected) == len(new_unaffected)
+    assert _as_comparable(old_unaffected) == _as_comparable(new_unaffected)
 
 
 def test_bucket_based_matches_old_algorithm_with_no_baseline_at_all():
@@ -255,10 +295,24 @@ def test_bucket_based_matches_old_algorithm_with_no_baseline_at_all():
 
 
 # ========================================================================
-# 2) EFFECTIVE_TIME() ÇAĞRI SAYISI - tam olarak N kez (uçuş başına 1)
+# 2) EFFECTIVE_TIME() ÇAĞRI SAYISI - bucket başına bir kez + (SADECE
+#    passport) current-wait filtresi için pencere başına bir kez daha.
+#
+#    ADIM 6D-2 NOTU: `_bucket_flights_by_window()` HÂLÂ her uçuş için
+#    TAM OLARAK BİR KEZ `effective_time()` çağırıyor (bu ADIM'da
+#    DEĞİŞMEDİ). Ama ADIM 6D-2'nin gerçek "an itibariyle" (current)
+#    passport bekleme hesabı `effective_time(f) <= now` filtresini
+#    UYGULAMAK ZORUNDA (bkz. audit bulgusu - eski formül bunu hiç
+#    yapmıyordu, bu YÜZDEN yanlıştı) - bu da passport pencerelerinin
+#    KENDİ (küçük, ~N/W büyüklüğündeki) `window_flights` listesi
+#    üzerinde İKİNCİ bir `effective_time()` geçişi gerektiriyor.
+#    Bu, ADIM 5E-2'nin düzelttiği O(N×W) tam-liste taramasıyla AYNI
+#    ŞEY DEĞİL - sadece passport'un KENDİ (zaten bucket'lanmış, küçük)
+#    penceresi üzerinde, O(N_passport) sınırlı bir ek geçiş; security
+#    hiç etkilenmiyor (hâlâ tam olarak bir kez).
 # ========================================================================
 
-def test_effective_time_called_exactly_once_per_flight(monkeypatch):
+def test_effective_time_called_bounded_times_per_flight(monkeypatch):
     flights = _diverse_flight_set(n_per_kind=30)   # 60 uçuş
 
     import app.queue.engine as engine_mod
@@ -280,11 +334,51 @@ def test_effective_time_called_exactly_once_per_flight(monkeypatch):
     # security_flights = TÜM departure'lar, passport_flights = intl departure + intl arrival.
     n_security = len(security_flights(flights))
     n_passport = len(passport_flights(flights))
+    # ADIM (Security Domestic/International Split): iki EK süreç, her
+    # biri KENDİ (daha küçük) flight alt kümesi üzerinde AYRI bir
+    # `_bucket_flights_by_window()` geçişi yapıyor - security_flights'ın
+    # AYNI flight'ları için birden fazla kez sayılması DEĞİL, bu iki
+    # yeni sürecin KENDİ ayrı bucket'lama geçişleri.
+    from app.queue.domain.flows import (
+        security_domestic_flights,
+        security_international_flights,
+    )
+    n_security_dom = len(security_domestic_flights(flights))
+    n_security_intl = len(security_international_flights(flights))
+    # Ortak current-wait filtresi her süreçte talebe giren uçuşları
+    # ikinci kez tarar.
+    def included(items):
+        return len([f for f in items if f.status not in EXCLUDED_STATUSES])
 
-    assert calls["n"] == n_security + n_passport, (
-        "effective_time() her uçuş için process başına TAM OLARAK BİR "
-        "KEZ çağrılmalı - eskiden pencere sayısı kadar tekrar tekrar "
-        "çağrılıyordu."
+    # security (birleşik + domestic + international) + passport: her
+    # biri `predict_airport()`'ın ANA döngüsünde KENDİ bucket'lamasında
+    # TAM OLARAK bir kez (ADIM 5E-2 ilkesi korunuyor - her SÜREÇ kendi
+    # flight listesini bir kez tarıyor).
+    #
+    # PASSPORT→SECURITY zaman-kuplajı ADIM'ı iki şeyi değiştirdi:
+    #   1) PROCESS_SECURITY/PROCESS_SECURITY_INTL artık `current_arrived_
+    #      override` ile besleniyor (bkz. `_passport_security_hourly_
+    #      coupling`'in `current_released_by_hour`'ı) - bu yüzden KENDİ
+    #      current-wait effective_time<=now filtrelerini ARTIK
+    #      ÇALIŞTIRMIYORLAR (`_predict_window_core`'daki else dalı
+    #      atlanıyor). PASSPORT ve SECURITY_DOMESTIC bundan ETKİLENMEDİ -
+    #      hâlâ KENDİ current-wait filtrelerini çalıştırıyorlar.
+    #   2) `_passport_security_hourly_coupling()` KENDİ, main döngüden
+    #      TAMAMEN AYRI iki `_bucket_flights_by_window()` geçişi yapıyor
+    #      (passport_flights + security_domestic_flights) - kuplajın
+    #      kalkış/varış payını hesaplamak için passport'un TÜM uçuş
+    #      listesini KENDİ BAŞINA yeniden bucket'laması gerekiyor.
+    expected = (
+        n_security + n_security_dom + n_security_intl + n_passport
+        + included(passport_flights(flights))
+        + included(security_domestic_flights(flights))
+        + n_passport + n_security_dom
+    )
+    assert calls["n"] == expected, (
+        "effective_time() her süreç için kendi flight alt kümesinde TAM "
+        "OLARAK bir kez bucket'lanmalı (ADIM 5E-2 ilkesi); passport'ta "
+        "ayrıca current-wait effective_time<=now filtresi (1x, SADECE "
+        "talebe giren uçuşlar) - toplamda O(N×W) DEĞİL."
     )
 
 

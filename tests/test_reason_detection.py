@@ -185,9 +185,8 @@ def test_utilization_not_triggered_at_threshold():
     assert detect_utilization("passport", 0.9) is None
 
 
-def test_utilization_never_for_security():
-    """Security'de kapasite metriği YOKTUR."""
-    assert detect_utilization("security", 0.99) is None
+def test_utilization_applies_to_security_with_real_lane_capacity():
+    assert detect_utilization("security", 0.99) is not None
     assert detect_utilization("security", None) is None
 
 
@@ -224,11 +223,15 @@ def test_intl_share_never_for_security():
 # --------------------------------------------------------------------
 
 def test_arrival_bank_triggers_at_threshold():
+    """
+    ADIM 6D-2 HOURLY MIGRATION: `window_minutes` verilmediği için mesaj
+    production'ın güncel varsayılanını (60, artık saatlik) yansıtır.
+    """
     flights = [arrival(8, i, key=f"A{i}") for i in range(5)]
     reason = detect_arrival_bank("passport", flights, threshold=5)
     assert reason.code == "arrival_bank"
     assert reason.metric_value == 5.0
-    assert "5 uçuş aynı 15 dk pencerede iniyor" == reason.message
+    assert "5 uçuş aynı 60 dk pencerede iniyor" == reason.message
 
 
 def test_arrival_bank_respects_airport_override():
@@ -416,11 +419,11 @@ def test_all_codes_are_from_the_nine_detectors(calc):
 
 
 def test_security_process_excludes_passport_only_reasons(calc):
-    """Neden 4, 5, 6 security çıktısında ASLA görünmez."""
+    """Intl share/arrival bank passport-only; utilization ortaktır."""
     flights = [arrival(8, i, location="international", key=f"A{i}") for i in range(10)]
     reasons = run_all("security", flights, calc, rho=0.99)
     codes = {r.code for r in reasons}
-    assert "utilization" not in codes
+    assert "utilization" in codes
     assert "intl_share" not in codes
     assert "arrival_bank" not in codes
 

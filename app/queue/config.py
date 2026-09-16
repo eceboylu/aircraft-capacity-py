@@ -22,6 +22,9 @@ from .models import AirportOperationalConfig
 _CONFIG_FIELDS = (
     "passport_counter_count",
     "passport_staff_count",
+    "passport_service_time_minutes",
+    "security_lane_count",
+    "security_service_time_minutes",
     "passport_staff_per_counter",
     "passport_service_rate_per_staff",
     "passport_efficiency_multiplier",
@@ -47,6 +50,9 @@ class AirportConfigView:
     airport_iata: str
     passport_counter_count: int
     passport_staff_count: int
+    passport_service_time_minutes: float
+    security_lane_count: int
+    security_service_time_minutes: float
     passport_staff_per_counter: float
     passport_service_rate_per_staff: float
     passport_efficiency_multiplier: float

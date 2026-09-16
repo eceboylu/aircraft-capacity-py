@@ -214,12 +214,16 @@ def test_same_flight_count_different_capacity_gives_different_risk():
 
 
 def test_realistic_capacities_drive_demand():
-    """A320=180, A321=220, B738=189 - gerçekçi TEST kapasiteleri."""
+    """
+    A320=180, A321=220, B738=189 - gerçekçi TEST kapasiteleri. ADIM
+    (ICAO Demand Kalibrasyonu): passenger_demand artık load factor
+    UYGULAMADAN ham kapasiteyi kullanıyor - seat_capacity ile AYNI.
+    """
     calc = DemandCalculator(MockCapacityResolver())
     for icao, seats in (("A320", 180), ("A321", 220), ("B738", 189)):
         flight = departure(9, 0, aircraft=icao, location=LOCATION_DOMESTIC)
         assert calc.seat_capacity(flight) == seats
-        assert calc.passenger_demand(flight) == round(seats * 0.78)
+        assert calc.passenger_demand(flight) == seats
 
 
 # --------------------------------------------------------------------
@@ -283,8 +287,8 @@ def test_queue_layer_never_invents_its_own_capacity_number():
         MockCapacityResolver(capacities={"A320": 300})
     )
 
-    assert normal.passenger_demand(flight) == round(180 * 0.78)
-    assert swapped.passenger_demand(flight) == round(300 * 0.78)
+    assert normal.passenger_demand(flight) == 180
+    assert swapped.passenger_demand(flight) == 300
 
 
 def test_unknown_aircraft_uses_resolver_controlled_default_only():
@@ -294,8 +298,7 @@ def test_unknown_aircraft_uses_resolver_controlled_default_only():
     """
     calc = DemandCalculator(MockCapacityResolver(default_capacity=150))
     unknown = departure(9, 0, aircraft="ZZZZ", location=LOCATION_DOMESTIC)
-
-    assert calc.passenger_demand(unknown) == round(150 * 0.78)
+    assert calc.passenger_demand(unknown) == 150
 
 
 # --------------------------------------------------------------------

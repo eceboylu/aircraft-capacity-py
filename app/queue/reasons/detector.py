@@ -178,15 +178,12 @@ def detect_delay_compression(window_flights: Sequence) -> DetectedReason | None:
 
 
 # --------------------------------------------------------------------
-# Neden 4 - Utilization (SADECE passport)
+# Neden 4 - Utilization (passport + security)
 # --------------------------------------------------------------------
 
 def detect_utilization(process: str, rho: float | None) -> DetectedReason | None:
-    """
-    Security'de kapasite verisi olmadığı için bu metrik YOKTUR;
-    neden sadece passport çıktısında görünür.
-    """
-    if process != PROCESS_PASSPORT or rho is None:
+    """Fiziksel kapasitesi tanımlı tüm queue süreçlerinde kullanılır."""
+    if rho is None:
         return None
     if rho <= UTILIZATION_REASON_THRESHOLD:
         return None

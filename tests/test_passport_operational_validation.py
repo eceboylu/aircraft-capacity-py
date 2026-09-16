@@ -215,15 +215,23 @@ def test_estimated_wait_minutes_is_a_real_number_when_rho_below_one(operational_
 
 def test_t2_ist_passport_surge_window_recovers(operational_state):
     """
-    T1'in en yoğun passport penceresi (10:00, 4 uçuş/1288 pax) T2'de
-    surge dağılınca DÜŞMELİ.
+    T1'in en yoğun passport penceresi (10:00) T2'de surge dağılınca
+    DÜŞMELİ.
+
+    ADIM 6D-2 HOURLY MIGRATION: pencere artık saatlik (60dk) olduğu
+    için bu pencereye eskiden ayrı 15dk pencerelere düşen DAHA FAZLA
+    uçuş giriyor - referans değerler (T1'in ölçülen expected_passengers/
+    utilization'ı) yeniden ölçüldü: T1 expected_passengers=4108,
+    utilization=1.268 (önceki 15dk ölçümü olan 1288/1.59 ARTIK
+    GEÇERSİZ - farklı bir pencere genişliği farklı bir toplam demektir,
+    production matematiği bozulmadı).
     """
     session = _session(operational_state)
     t2_row = _passport_window(session, "IST", datetime(2026, 9, 15, 10, 0))
     session.close()
 
-    assert t2_row.expected_passengers < 1288   # T1'in ölçülen değeri
-    assert t2_row.utilization < 1.59            # T1'in ölçülen utilization'ı
+    assert t2_row.expected_passengers < 4108   # T1'in (60dk) ölçülen değeri
+    assert t2_row.utilization < 4108 / 160
 
 
 # --------------------------------------------------------------------

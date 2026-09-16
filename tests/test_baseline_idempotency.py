@@ -326,16 +326,30 @@ def test_run_predictions_skips_baseline_for_open_window(session):
 
 
 def test_run_predictions_records_baseline_for_closed_window(session):
+    """
+    ADIM 6D-2 HOURLY MIGRATION: departure(18,0) domestic -> security
+    buffer 45dk -> effective_time=17:15 -> saatlik pencere [17:00-18:00).
+    Bu pencere ESKİDEN (15dk) 17:45'te çoktan kapanmıştı; ŞİMDİ (60dk)
+    18:00'da kapanıyor - `now` buna göre güncellendi.
+    """
     store(session, [departure(18, 0, key="D1", number="1", aircraft="A320")])
     resolver = MockCapacityResolver()
 
-    result = run_predictions(session, resolver, now=at(17, 45))
+    result = run_predictions(session, resolver, now=at(18, 1))
 
     assert result["predictions"] >= 1
     assert observation_count(session) >= 1
 
 
 def test_run_predictions_five_refreshes_of_closed_window_yield_one_observation(session):
+    """
+    ADIM (Security Domestic/International Split): domestic departure
+    artık İKİ security sürecini besliyor (birleşik `security` +
+    `security_dom`) - her biri KENDİ BaselineObservation defterine
+    yazıyor, bu yüzden idempotent 1 gözlem/süreç x 2 süreç = 2 (1
+    DEĞİL). Her sürecin KENDİ İÇİNDE hâlâ idempotent olduğu (5 kez
+    çağrılsa da süreç başına TEK gözlem) asıl doğrulanan şey.
+    """
     store(session, [departure(18, 0, key="D1", number="1", aircraft="A320")])
     resolver = MockCapacityResolver()
     now = at(19, 0)     # pencere kesinlikle kapanmış
@@ -343,7 +357,7 @@ def test_run_predictions_five_refreshes_of_closed_window_yield_one_observation(s
     for _ in range(5):
         run_predictions(session, resolver, now=now)
 
-    assert observation_count(session) == 1
+    assert observation_count(session) == 2
 
 
 def test_run_predictions_default_now_uses_real_clock(session):

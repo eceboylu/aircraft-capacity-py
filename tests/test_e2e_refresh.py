@@ -75,21 +75,25 @@ REAL_AIRPORTS_SQL = os.path.join(
 )
 
 # Pencere-kayması kanıtı toplanacak (havalimanı, süreç, pencere)
-# üçlüleri. Hesaplar (bkz. conversation özeti):
+# üçlüleri. Hesaplar - ADIM 6D-2 HOURLY MIGRATION'dan itibaren SAATLİK
+# (60dk) pencereler kullanılıyor:
 #   PC101 (IST->CDG, 620dk -> 90dk security buffer):
-#     T0 dep_estimated=23:22 -> effective 21:52 -> pencere 21:45
-#     T1 dep_estimated=23:45 -> effective 22:15 -> pencere 22:15
-#   AF204 (DXB->IST varış, sabit 15dk passport buffer):
-#     T0 arr_estimated=04:43 (actual yok) -> effective 04:58 -> pencere 04:45
-#     T1 arr_actual=04:50 (artık actual var) -> effective 05:05 -> pencere 05:00
+#     T0 dep_estimated=23:22 -> effective 21:52 -> pencere 21:00-22:00
+#     T1 dep_estimated=23:45 -> effective 22:15 -> pencere 22:00-23:00
+#   AF204 (DXB->IST varış, sabit 15dk passport buffer - DEMAND_WINDOW_
+#   MINUTES'TEN BAĞIMSIZ, coincidental aynı sayı):
+#     T0 arr_estimated=04:43 (actual yok) -> effective 04:58 -> pencere 04:00-05:00
+#     T1 arr_actual=04:50 (artık actual var) -> effective 05:05 -> pencere 05:00-06:00
 _TRACKED_WINDOWS = [
     # (airport, process, window_start) - T0 SONRASI ve T1 SONRASI ayrı
     # ayrı snapshot alınacak pencereler.
-    ("IST", PROCESS_SECURITY, datetime(2026, 9, 15, 21, 45)),   # PC101 T0 penceresi
-    ("IST", PROCESS_SECURITY, datetime(2026, 9, 15, 22, 15)),   # PC101 T1 penceresi
-    ("IST", PROCESS_PASSPORT, datetime(2026, 9, 15, 21, 45)),
-    ("IST", PROCESS_PASSPORT, datetime(2026, 9, 15, 22, 15)),
-    ("IST", PROCESS_PASSPORT, datetime(2026, 9, 16, 4, 45)),    # AF204 T0 penceresi
+    # ADIM 6D-2 HOURLY MIGRATION: pencereler artık saatlik (60dk) -
+    # PC101 21:52->21:00, 22:15->22:00; AF204 04:58->04:00, 05:05->05:00.
+    ("IST", PROCESS_SECURITY, datetime(2026, 9, 15, 21, 0)),    # PC101 T0 penceresi
+    ("IST", PROCESS_SECURITY, datetime(2026, 9, 15, 22, 0)),    # PC101 T1 penceresi
+    ("IST", PROCESS_PASSPORT, datetime(2026, 9, 15, 21, 0)),
+    ("IST", PROCESS_PASSPORT, datetime(2026, 9, 15, 22, 0)),
+    ("IST", PROCESS_PASSPORT, datetime(2026, 9, 16, 4, 0)),     # AF204 T0 penceresi
     ("IST", PROCESS_PASSPORT, datetime(2026, 9, 16, 5, 0)),     # AF204 T1 penceresi
 ]
 
@@ -277,13 +281,13 @@ def test_tk999_new_flight_appears_only_after_t1(e2e_state):
     "flight_key,old_window,new_window,process",
     [
         ("PC_101_2026-09-15_IST_departure",
-         datetime(2026, 9, 15, 21, 45), datetime(2026, 9, 15, 22, 15),
+         datetime(2026, 9, 15, 21, 0), datetime(2026, 9, 15, 22, 0),
          PROCESS_SECURITY),
         ("PC_101_2026-09-15_IST_departure",
-         datetime(2026, 9, 15, 21, 45), datetime(2026, 9, 15, 22, 15),
+         datetime(2026, 9, 15, 21, 0), datetime(2026, 9, 15, 22, 0),
          PROCESS_PASSPORT),
         ("AF_204_2026-09-16_IST_arrival",
-         datetime(2026, 9, 16, 4, 45), datetime(2026, 9, 16, 5, 0),
+         datetime(2026, 9, 16, 4, 0), datetime(2026, 9, 16, 5, 0),
          PROCESS_PASSPORT),
     ],
 )

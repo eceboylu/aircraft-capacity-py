@@ -111,7 +111,7 @@ def test_prediction_rows_carry_reasons_as_json(session):
     assert row.confidence > 0
 
 
-def test_security_rows_never_store_wait_minutes(session):
+def test_security_rows_store_real_wait_minutes(session):
     store(session, [
         departure(9, m, key=f"S{m}", number=str(m), location=LOCATION_DOMESTIC)
         for m in (0, 3, 6)
@@ -125,8 +125,8 @@ def test_security_rows_never_store_wait_minutes(session):
     ).scalars().all()
 
     assert rows
-    assert all(r.estimated_wait_minutes is None for r in rows)
-    assert all(r.utilization is None for r in rows)
+    assert all(r.estimated_wait_minutes is not None for r in rows)
+    assert all(r.utilization is not None for r in rows)
 
 
 # --------------------------------------------------------------------
@@ -140,14 +140,14 @@ def test_baseline_accumulates_only_after_observation(session):
     ])
     resolver = MockCapacityResolver()
 
-    # İlk çalıştırmada geçmiş yok: UNKNOWN, uydurma oran yok.
+    # İlk çalıştırmada geçmiş oran yok; queue riski fiziksel kapasiteden gelir.
     run_predictions(session, resolver, update_baseline=True)
     first = session.execute(
         select(QueuePrediction).where(
             QueuePrediction.process == PROCESS_SECURITY
         )
     ).scalars().first()
-    assert first.risk == RISK_UNKNOWN
+    assert first.risk == "CRITICAL"
     assert first.baseline_ratio is None
 
     # Gözlem kaydedildi; ikinci çalıştırma artık karşılaştırabiliyor.
@@ -237,7 +237,7 @@ def test_hourly_report_never_lists_domestic_arrival(session):
         }
 
 
-def test_hourly_report_security_block_has_no_minutes(session):
+def test_hourly_report_security_block_has_real_minutes(session):
     store(session, [
         departure(9, m, key=f"M{m}", number=str(m), location=LOCATION_DOMESTIC)
         for m in (0, 3, 6)
@@ -252,8 +252,8 @@ def test_hourly_report_security_block_has_no_minutes(session):
         if entry[PROCESS_SECURITY]
     ]
     assert blocks
-    assert all(b["estimated_wait_minutes"] is None for b in blocks)
-    assert all(b["utilization"] is None for b in blocks)
+    assert all(b["estimated_wait_minutes"] is not None for b in blocks)
+    assert all(b["utilization"] is not None for b in blocks)
 
 
 def test_hourly_report_reasons_are_deduplicated_by_code(session):

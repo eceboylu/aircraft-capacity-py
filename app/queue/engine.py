@@ -7,7 +7,7 @@ birleştirir:
     uçuş listesi
       -> süreç filtresi (security / passport)
       -> 15 dk pencereler
-      -> skor (security: yoğunluk sinyali, passport: Erlang-C)
+      -> skor (security + passport: ortak Erlang-C/backlog çekirdeği)
       -> 9 neden tespiti
       -> confidence
       -> QueuePrediction upsert
@@ -38,6 +38,8 @@ from .constants import (
     PASSPORT_OVERLOAD_MESSAGE,
     PROCESS_PASSPORT,
     PROCESS_SECURITY,
+    PROCESS_SECURITY_DOMESTIC,
+    PROCESS_SECURITY_INTL,
     REASON_CAPACITY_EXCEEDED,
     REASON_NO_BASELINE,
     SEVERITY_CRITICAL,
@@ -45,23 +47,41 @@ from .constants import (
 )
 from .core.scoring import (
     confidence_score,
-    passport_effective_service_rate,
+    passport_capacity_rate,
     passport_queue_model,
+    security_capacity_rate,
     security_density_score,
+    security_queue_model,
 )
 from .domain.demand import DemandCalculator, effective_time, flights_in_window
-from .domain.flows import passport_flights, security_flights
+from .domain.flows import (
+    passport_flights,
+    security_domestic_flights,
+    security_flights,
+    security_international_flights,
+)
 from .models import Flight, QueuePrediction
 from .reasons.detector import DetectedReason, detect_reasons
 
 logger = logging.getLogger(__name__)
 
-PROCESSES = (PROCESS_SECURITY, PROCESS_PASSPORT)
+# ADIM (Security Domestic/International Split) - birleşik PROCESS_SECURITY
+# (TÜM kalkışlar) GERİYE DÖNÜK UYUMLULUK için AYNEN üretilmeye devam
+# ediyor (silinmedi); PROCESS_SECURITY_DOMESTIC/PROCESS_SECURITY_INTL bunun
+# yanında EK olarak üretilir. Her üç security süreci AYNI ortak queue
+# çekirdeğini kendi flight alt kümesi üzerinde çağırır; tarihsel density
+# oranları yalnız açıklayıcı/baseline metrik olarak korunur.
+PROCESSES = (
+    PROCESS_SECURITY, PROCESS_PASSPORT,
+    PROCESS_SECURITY_DOMESTIC, PROCESS_SECURITY_INTL,
+)
 
 # Hangi sürecin hangi uçuşlarla beslendiği (AŞAMA 2).
 _PROCESS_FLIGHTS = {
     PROCESS_SECURITY: security_flights,
     PROCESS_PASSPORT: passport_flights,
+    PROCESS_SECURITY_DOMESTIC: security_domestic_flights,
+    PROCESS_SECURITY_INTL: security_international_flights,
 }
 
 
@@ -81,7 +101,7 @@ class WindowPrediction:
     risk: str
     confidence: float
     # MADDE 7 - security'de baseline_ratio bu iki bileşenin ağırlıklı
-    # ortalamasıdır. Passport'ta ikisi de None kalır.
+    # ortalamasıdır. Queue risk/wait hesabından bağımsız tanı metrikleridir.
     flight_ratio: float | None = None
     passenger_ratio: float | None = None
     reasons: list[DetectedReason] = field(default_factory=list)
@@ -229,6 +249,9 @@ def _predict_window_core(
     window_minutes: int = DEMAND_WINDOW_MINUTES,
     historical_passenger_baseline: float | None = None,
     backlog_start: float = 0.0,
+    now: datetime | None = None,
+    demand_override: float | None = None,
+    current_arrived_override: float | None = None,
 ) -> WindowPrediction:
     """
     `predict_window()`'ın ASIL hesap gövdesi - ADIM 5E-2'de buradan
@@ -238,24 +261,68 @@ def _predict_window_core(
     `predict_window()` (geriye dönük uyumluluk, doğrudan çağıranlar için)
     hem de `predict_airport()`'ın yeni bucket tabanlı hızlı yolu BU
     fonksiyonu çağırır; böylece iki yol arasında sonuç farkı OLAMAZ.
+
+    now : ADIM 6D-2 - queue "an itibariyle" (current) bekleme hesabı
+          için "şu an". Verilmezse `domain_now()` (gerçek saat)
+          kullanılır - `run_predictions()`'ın `now` parametresiyle AYNI
+          desen. Passport ve security aynı current-arrived semantiğini
+          kullanır.
+    demand_override / current_arrived_override
+        : PASSPORT→SECURITY zaman-kuplajı için (bkz. `predict_airport`,
+          `_passport_security_hourly_coupling`) - SADECE
+          PROCESS_SECURITY/PROCESS_SECURITY_INTL için, `window_flights`'ın
+          KENDİ toplamı yerine kuplaj hesabından gelen GERÇEK
+          (zaman-kaydırmalı) talep kullanılır. `window_flights` bu
+          durumda yine de `flight_count`/neden tespiti için okunur.
+          Verilmezse (None, passport ve security_domestic için hep
+          None) eski davranış birebir korunur.
     """
     window_end = window_start + timedelta(minutes=window_minutes)
+
+    _now = now if now is not None else domain_now()
+    elapsed_minutes = max(0.0, min(
+        (_now - window_start).total_seconds() / 60.0, window_minutes
+    ))
+    if current_arrived_override is not None:
+        current_arrived_demand = current_arrived_override
+    else:
+        # ADIM 6D-2 §D - SADECE effective_time(f) <= now olan uçuşlar
+        # "an itibariyle" kuyruğa girer. Henüz gelmemiş uçuşlar current
+        # wait'e girmez; tam pencere demand/backlog recurrence'ına girer.
+        current_arrived_demand = sum(
+            demand.passenger_demand(f) for f in window_flights
+            if (t := effective_time(f)) is not None and t <= _now
+        )
 
     if process == PROCESS_PASSPORT:
         score = passport_queue_model(
             window_flights, config, demand.passenger_demand, window_minutes,
             backlog_start=backlog_start,
+            current_arrived_demand=current_arrived_demand,
+            elapsed_minutes=elapsed_minutes,
         )
-        rho = score["utilization"]
     else:
-        score = security_density_score(
+        score = security_queue_model(
+            window_flights, config, demand.passenger_demand, window_minutes,
+            backlog_start=backlog_start,
+            current_arrived_demand=current_arrived_demand,
+            elapsed_minutes=elapsed_minutes,
+            demand_override=demand_override,
+        )
+        density = security_density_score(
             window_flights,
             historical_baseline,
             demand.passenger_demand,
             historical_passenger_baseline,
         )
-        # Security'de kapasite verisi yok; utilization da dakika da üretilmez.
-        rho = None
+        # Tarihsel karşılaştırmalar queue riskinin yerine geçmez; yalnız
+        # mevcut API alanlarında açıklayıcı metrik olarak korunur.
+        score["baseline_ratio"] = density.get("baseline_ratio")
+        score["flight_ratio"] = density.get("flight_ratio")
+        score["passenger_ratio"] = density.get("passenger_ratio")
+        score["reasons"] = score.get("reasons", []) + density.get("reasons", [])
+
+    rho = score["utilization"]
 
     # MADDE 8: her aircraft-change event'i, FLIGHT'ın şu anki konumuna
     # göre değil, KENDİ flight_effective_time'ına göre bu pencereye
@@ -331,13 +398,16 @@ def predict_window(
     window_minutes: int = DEMAND_WINDOW_MINUTES,
     historical_passenger_baseline: float | None = None,
     backlog_start: float = 0.0,
+    now: datetime | None = None,
 ) -> WindowPrediction:
     """
     Tek pencere hesabı. Veritabanına dokunmaz. PUBLIC API - imza ve
     davranış ADIM 5E-2'de DEĞİŞMEDİ (doğrudan çağıranlar/testler için
     korundu); ADIM 6D SADECE opsiyonel `backlog_start` parametresini
     EKLEDİ (varsayılan 0.0 - vermeyen eski çağıranlar ESKİ davranışla
-    birebir aynı sonucu alır, bkz. passport_queue_model docstring'i).
+    birebir aynı sonucu alır, bkz. passport_queue_model docstring'i);
+    ADIM 6D-2 SADECE opsiyonel `now` parametresini EKLEDİ (verilmezse
+    `domain_now()`).
 
     process_flights : bu havalimanının, bu süreci besleyen uçuşları
                       (AŞAMA 2 filtresinden geçmiş)
@@ -345,11 +415,13 @@ def predict_window(
                     : MADDE 7 - security'nin yolcu oranı için geçmiş
                       ortalama yolcu talebi. Yoksa None; passenger_ratio
                       hesaplanmaz, uydurulmaz.
-    backlog_start   : SADECE process=passport için anlamlıdır (security
-                      hiç kullanmaz). Bu fonksiyon TEK bir pencereyi
+    backlog_start   : passport ve security için önceki saatten devreden
+                      kuyruk. Bu fonksiyon TEK bir pencereyi
                       hesapladığı için önceki pencereden gelen backlog'u
                       KENDİSİ HESAPLAMAZ - çağıran taraf (kronolojik
                       zincir `predict_airport`'ta) besler.
+    now             : ADIM 6D-2 - passport/security "an itibariyle"
+                      (current) bekleme hesabı için "şu an".
 
     NOT: Bu fonksiyon HÂLÂ `flights_in_window()` ile process_flights'ın
     TAMAMINI tarar (eski O(N) davranış) - `run_predictions()`'ın gerçek
@@ -380,17 +452,18 @@ def predict_window(
         window_minutes=window_minutes,
         historical_passenger_baseline=historical_passenger_baseline,
         backlog_start=backlog_start,
+        now=now,
     )
 
 
-def _passport_backlog_starts(
+def _queue_backlog_starts(
     buckets: dict[datetime, list],
-    config: AirportConfigView,
+    capacity_rate: float,
     demand_fn,
     window_minutes: int,
 ) -> dict[datetime, float]:
     """
-    AŞAMA 6D - passport için, bu havalimanının KENDİ pencereleri
+    Passport/security için, bu havalimanı+sürecin KENDİ pencereleri
     üzerinde KRONOLOJİK backlog zinciri.
 
     `buckets` sadece uçuşu OLAN pencereleri içerir (bkz. `window_starts`
@@ -404,15 +477,10 @@ def _passport_backlog_starts(
     dolu pencereler için `backlog_start` DÖNDÜRÜLÜR, ama boş
     pencerelerin de servis kapasitesi backlog'dan düşülür.
 
-    Recurrence (bkz. passport_queue_model docstring'i - AYNI formül,
-    burada SADECE zincirleme amaçlı önceden yürütülür):
+    Recurrence (ortak queue modelindeki AYNI formül):
 
         service_capacity = (c * mu) * window_minutes    (kişi)
         backlog_end = max(0, backlog_start + demand - service_capacity)
-
-    c/mu, `passport_queue_model`'in KULLANDIĞI AYNI
-    `passport_effective_service_rate()` ile hesaplanır - yeni/farklı
-    bir servis hızı İCAT EDİLMEZ.
 
     Tamamen bu havalimanının kendi `buckets`'ından türetildiği ve hiçbir
     DB'den önceki çalışmanın backlog'unu OKUMADIĞI için, aynı `flights`
@@ -422,10 +490,7 @@ def _passport_backlog_starts(
     if not starts:
         return {}
 
-    mu = passport_effective_service_rate(config)
-    c = config.passport_counter_count
-    capacity_rate = c * mu
-    service_capacity = capacity_rate * window_minutes if capacity_rate > 0 else 0.0
+    service_capacity = capacity_rate * window_minutes
 
     backlog_starts: dict[datetime, float] = {}
     backlog = 0.0
@@ -443,15 +508,294 @@ def _passport_backlog_starts(
         if current in buckets:
             backlog_starts[current] = backlog
 
-        if capacity_rate > 0:
-            backlog = max(0.0, backlog + demand - service_capacity)
-        else:
-            # Servis kapasitesi yok - backlog hiç boşalmaz, sadece büyür.
-            backlog = backlog + demand
+        backlog = max(0.0, backlog + demand - service_capacity)
 
         current += step
 
     return backlog_starts
+
+
+def _hourly_backlog_chain(
+    demand_by_hour: dict[datetime, float],
+    capacity_rate: float,
+    window_minutes: int,
+) -> dict[datetime, float]:
+    """
+    `_queue_backlog_starts()` ile BİREBİR AYNI recurrence
+    (`backlog_end = max(0, backlog_start + demand - service_capacity)`),
+    ama Flight nesneleri yerine ÖNCEDEN hesaplanmış saatlik
+    `demand_by_hour` sözlüğü üzerinde çalışır - `security`/`security_intl`
+    için passport'tan zaman-kaydırmalı devralınan talep artık gerçek
+    Flight listesi değil, düz bir sayı (bkz.
+    `_passport_security_hourly_coupling`). Formülün KENDİSİ hiç
+    değişmedi, sadece girdi kaynağı farklı.
+
+    İlk/son dolu saat arasındaki BOŞ saatler de dolaşılır (gişeler o
+    saatlerde de servise devam eder) - `_queue_backlog_starts` ile AYNI
+    ilke.
+    """
+    starts = sorted(demand_by_hour)
+    if not starts:
+        return {}
+
+    service_capacity = capacity_rate * window_minutes
+    backlog_start: dict[datetime, float] = {}
+
+    backlog = 0.0
+    current = starts[0]
+    last = starts[-1]
+    step = timedelta(minutes=window_minutes)
+
+    while current <= last:
+        demand_here = demand_by_hour.get(current, 0.0)
+        backlog_start[current] = backlog
+        backlog = max(0.0, backlog + demand_here - service_capacity)
+        current += step
+
+    return backlog_start
+
+
+def _passport_security_hourly_coupling(
+    flights: list,
+    config: AirportConfigView,
+    demand: DemandCalculator,
+    window_minutes: int = DEMAND_WINDOW_MINUTES,
+    now: datetime | None = None,
+) -> dict:
+    """
+    PASSPORT → SECURITY zaman-akışlı kuplaj (bu ADIM'ın ana özelliği).
+
+    NEDEN GEREKLİ: `security_flights()`/`security_international_flights()`
+    uluslararası kalkış talebini KENDİ `effective_time()`'ında (kalkıştan
+    önceki dinamik security buffer anı) security kuyruğuna sayardı - bu,
+    passport'u HİÇ ATLAMADAN, passport ile security'nin AYNI ANDA/BAĞIMSIZ
+    çalıştığı YANLIŞ bir varsayımdı. Gerçekte bu yolcu ÖNCE passport'a
+    girer, security'ye ancak passport'tan SERBEST BIRAKILDIKTAN SONRA
+    ulaşır.
+
+    ZAMANLAMA - YENİ bir varsayım İCAT EDİLMEDİ: uluslararası kalkış
+    uçuşunun MEVCUT `effective_time(f)`'ı (değişmedi) hâlâ "bu yolcu
+    passport kuyruğuna GİRER" anıdır - sistemde bu yolcu için tanımlı
+    TEK zaman damgası zaten bu. Uluslararası varış (`effective_time` =
+    varış + sabit 15dk buffer, DEĞİŞMEDİ) SADECE passport'a girer,
+    security'ye hiç GİRMEZ (yolculuk burada bitiyor). Domestic kalkış
+    (`effective_time` = kalkış - dinamik security buffer, DEĞİŞMEDİ)
+    passport'u ATLAYIP DOĞRUDAN security'ye girer.
+
+    NEDEN SAATLİK, DAKİKA-ÇÖZÜNÜRLÜKLÜ DEĞİL: ilk denemede bağımsız bir
+    dakika-simülasyonu kuruldu, ama bu simülasyon passport'un KENDİ
+    RESMİ saatlik backlog zincirinden (`_queue_backlog_starts` +
+    `passport_queue_model`, DEĞİŞTİRİLMEDİ) SESSİZCE SAPIYORDU: saatlik
+    model bir saatin TÜM kapasitesini o saatin BAŞINDAN itibaren
+    kullanılabilir sayarken (`service_capacity = capacity_rate *
+    window_minutes`, DEĞİŞMEDİ), dakikalık model talebin GERÇEK varış
+    dakikasından SONRAKİ kalan dakikalarla sınırlıyordu - aynı kuyruk
+    için iki FARKLI backlog sonucu (passport'un kendi grafiğinde
+    gösterilenle security'nin girdisi TUTARSIZ olurdu). Bu SAPMAYI
+    önlemek için: passport'un RESMİ saatlik backlog_start/backlog_end'i
+    (aşağıda `_queue_backlog_starts` ile AYNEN yeniden hesaplanır, hiç
+    DEĞİŞTİRİLMEDEN) OTORİTER kabul edilir; SADECE o saat içinde
+    SERBEST BIRAKILAN TOPLAMIN kalkış-bağlantılı/varış-bağlantılı PAYI
+    saatlik kompozisyon oranıyla türetilir - bir saatin TOPLAM talebi/
+    backlog'u için granülarite matematiksel olarak fark ETMEZ (doğrusal
+    kapasite/talep muhasebesi); SADECE "bu saatte NE KADARI kalkış-
+    bağlantılıydı" sorusu bu oranla cevaplanır.
+
+    MODELLEME KARARI (açıkça belgelendi, gizlenmiyor): passport kuyruğu
+    aynı anda iki "kaderde" yolcu taşıyabilir - kalkış-bağlantılı
+    (security'ye devam edecek) ve varış-bağlantılı (burada biter).
+    Fiziksel gişeler bu ikisi arasında ayrım YAPMAZ (aynı havuzdan
+    servis eder); yolcu bazında GERÇEK bir FIFO sırası veride YOK
+    (Flight tablosu tek-bacaklı, yolcu kimliği taşımıyor). Bu yüzden
+    her saat serbest bırakılan TOPLAM kişi sayısı, o saatin kalkış/
+    varış KOMPOZİSYON PAYINA orantılı bölünür - conservation (giren =
+    işlenen + kalan kuyruk) HER saat kesindir (bkz. testler).
+
+    `PROCESS_SECURITY_DOMESTIC` bu fonksiyondan HİÇ ETKİLENMEZ (domestic
+    kalkış zaten passport'u atlıyor - eski, bağımsız/kendi tam
+    kapasiteli hesap yolu AYNEN korunuyor, bkz. `predict_airport`).
+    `PROCESS_SECURITY` (birleşik) ve `PROCESS_SECURITY_INTL` KENDİ
+    BAĞIMSIZ/tam kapasiteli (480 pax/saat) kuyruğuna sahip AYRI simüle
+    edilir - mevcut domestic/international split mimarisiyle TUTARLI;
+    bu ADIM'da paylaşımlı/havuzlanmış TEK bir security kapasitesi
+    modeline GEÇİLMEDİ (kapsam dışı, YASAKLAR'da "security 8 lane'i
+    değiştirme").
+
+    now : security'nin "an itibariyle" (current) kısmi serbest bırakma
+          toplamı için (bkz. dönen `current_released_by_hour`) -
+          `_predict_window_core`'un `current_arrived_demand`
+          mantığıyla AYNI "sadece şimdiye kadar gerçekleşen" ilkesi;
+          KAPALI (window_end<=now) saatler TAM değeri, AÇIK (şu anki)
+          saat passport'un o saat içindeki geçen-süre ORANINI, GELECEK
+          saatler 0 taşır - bu da YENİ bir zamanlama varsayımı değil,
+          passport'un KENDİ `elapsed_minutes` oranının security'nin
+          devraldığı paya uygulanmasıdır.
+
+    Dönen sözlük: `demand_by_hour[process][hour]`,
+    `backlog_start_by_hour[process][hour]`,
+    `current_released_by_hour[process][hour]` (process = PROCESS_SECURITY
+    veya PROCESS_SECURITY_INTL).
+    """
+    from .domain.flows import (
+        is_international_departure,
+        is_international_arrival,
+        passport_flights,
+        security_domestic_flights,
+    )
+
+    _now = now if now is not None else domain_now()
+
+    passport_bucket = _bucket_flights_by_window(passport_flights(flights), window_minutes)
+    domestic_bucket = _bucket_flights_by_window(
+        security_domestic_flights(flights), window_minutes
+    )
+
+    empty_result = {
+        "demand_by_hour": {PROCESS_SECURITY: {}, PROCESS_SECURITY_INTL: {}},
+        "backlog_start_by_hour": {PROCESS_SECURITY: {}, PROCESS_SECURITY_INTL: {}},
+        "current_released_by_hour": {PROCESS_SECURITY: {}, PROCESS_SECURITY_INTL: {}},
+    }
+    if not passport_bucket and not domestic_bucket:
+        return empty_result
+
+    passport_rate = passport_capacity_rate(config)
+    security_rate = security_capacity_rate(config)
+
+    security_intl_demand_by_hour: dict[datetime, float] = {}
+
+    if passport_bucket:
+        # 1) Passport'un RESMİ saatlik backlog RECURRENCE'ı (DEĞİŞMEDİ -
+        #    `_queue_backlog_starts`'ın KULLANDIĞI AYNI formül:
+        #    `backlog_end = max(0, backlog_start + demand - service_capacity)`)
+        #    - BURADA, GAP saatler (13:00/14:00 gibi hiç uçuşu olmayan ama
+        #    ilk/son dolu saat arasında kalan saatler) DAHİL, HER saat
+        #    için KENDİ İÇİNDE yeniden hesaplanır. `_queue_backlog_starts`'ın
+        #    KENDİSİ ÇAĞRILMADI: o fonksiyon gap saatleri de dahili olarak
+        #    doğru şekilde boşaltıyor ama DÖNDÜRDÜĞÜ sözlük SADECE dolu
+        #    saatler için anahtar taşıyor - gap saatlerinde `.get(hour,
+        #    0.0)` YANLIŞ biçimde 0'a düşüp kalkış-bağlantılı backlog'u
+        #    gap saatlerinde SESSİZCE SIFIRLARDI (bu, ilk denemede
+        #    yakalanan gerçek bir hata). Bu yüzden official backlog burada
+        #    HER saat (gap dahil) için KENDİ döngüsünde takip edilir -
+        #    formülün KENDİSİ `_queue_backlog_starts` ile BİREBİR AYNI.
+        service_capacity = passport_rate * window_minutes
+        dep_backlog = 0.0
+        arr_backlog = 0.0
+        official_backlog = 0.0
+        starts = sorted(passport_bucket)
+        current = starts[0]
+        last = starts[-1]
+        step = timedelta(minutes=window_minutes)
+        # Görev madde 7 - "08:59'da passport'tan çıkan yolcu security
+        # açısından kaybolmamalı": son GERÇEK uçuş saatinden SONRA da,
+        # backlog (dep_backlog+arr_backlog, `official_backlog` ile AYNI
+        # toplam) tamamen boşalana kadar dolaşmaya DEVAM edilir - aksi
+        # halde `last`'ten sonraki saatlerde hâlâ serbest bırakılacak
+        # kalkış-bağlantılı yolcular security'ye HİÇ ulaşmadan "kaybolur".
+        #
+        # SINIRLI ufuk (24 saat/`last`'ten sonra) - BİLİNÇLİ bir sınır:
+        # passport'un KENDİ resmi backlog zinciri (`_queue_backlog_starts`,
+        # DEĞİŞMEDİ) de `last`'ten SONRA hiç devam ETMEZ - son gerçek
+        # uçuş saatinden sonraki kalıntı hiçbir zaman gösterilmez (mevcut,
+        # onaylanmış bir sınırlama). Gerçek-ölçekli bir operasyonel
+        # veri kümesinde (bkz. rapor - passport kapasitesi saatte 320
+        # yolcu, gerçekçi bir günün toplam uluslararası talebinin
+        # ÇOK altında kalabiliyor) bu SINIR OLMADAN backlog günler/
+        # haftalarca "boşalmaya devam eder" gibi görünüp saatlik
+        # grafiklerde anlamsız, çok uzak gelecek pencereleri üretirdi.
+        # 24 saatlik ufuk, yakın saat/gün sınırı aktarımını (görevin
+        # istediği asıl senaryo) doğru şekilde yakalar, ama passport'un
+        # KENDİ sınırlamasıyla TUTARLI kalarak sınırsız ileri sürüklenmeyi
+        # önler. Bu ufkun ötesinde kalan kalıntı security'ye YANSIMAZ -
+        # AÇIKÇA belgelenen bir sınırlama (bkz. rapor), sessizce gizlenmiyor.
+        horizon = last + timedelta(minutes=window_minutes * 24)
+
+        while current <= last or (official_backlog > 1e-9 and current <= horizon):
+            window_all = passport_bucket.get(current, [])
+            window_flights = [f for f in window_all if f.status not in EXCLUDED_STATUSES]
+            demand_dep = sum(
+                demand.passenger_demand(f) for f in window_flights
+                if is_international_departure(f)
+            )
+            demand_arr = sum(
+                demand.passenger_demand(f) for f in window_flights
+                if is_international_arrival(f)
+            )
+            demand_total = demand_dep + demand_arr
+
+            backlog_start_official = official_backlog
+            backlog_end_official = max(
+                0.0, backlog_start_official + demand_total - service_capacity
+            )
+            official_backlog = backlog_end_official
+            served_total = backlog_start_official + demand_total - backlog_end_official
+
+            pre_dep = dep_backlog + demand_dep
+            pre_arr = arr_backlog + demand_arr
+            pre_total = pre_dep + pre_arr
+            served_dep = served_total * (pre_dep / pre_total) if pre_total > 0 else 0.0
+            served_arr = served_total - served_dep
+
+            dep_backlog = max(0.0, pre_dep - served_dep)
+            arr_backlog = max(0.0, pre_arr - served_arr)
+            # served_arr (varış-bağlantılı) burada KAYBOLUYOR - yolculuk
+            # bitti, hiçbir kuyruğa AKTARILMIYOR (double-count YOK).
+
+            if served_dep > 0 or current in security_intl_demand_by_hour:
+                security_intl_demand_by_hour[current] = (
+                    security_intl_demand_by_hour.get(current, 0.0) + served_dep
+                )
+
+            current += step
+
+    # 2) Domestic kalkış - passport'u ATLAYIP doğrudan security'ye
+    #    (kendi RAW effective_time'ında, DEĞİŞMEDİ).
+    direct_demand_by_hour: dict[datetime, float] = {}
+    for hour, window_all in domestic_bucket.items():
+        window_flights = [f for f in window_all if f.status not in EXCLUDED_STATUSES]
+        total = sum(demand.passenger_demand(f) for f in window_flights)
+        if total > 0:
+            direct_demand_by_hour[hour] = total
+
+    combined_demand_by_hour: dict[datetime, float] = {}
+    for hour in set(direct_demand_by_hour) | set(security_intl_demand_by_hour):
+        total = direct_demand_by_hour.get(hour, 0.0) + security_intl_demand_by_hour.get(hour, 0.0)
+        if total > 0:
+            combined_demand_by_hour[hour] = total
+
+    demand_by_hour = {
+        PROCESS_SECURITY: combined_demand_by_hour,
+        PROCESS_SECURITY_INTL: security_intl_demand_by_hour,
+    }
+    backlog_start_by_hour = {
+        PROCESS_SECURITY: _hourly_backlog_chain(
+            combined_demand_by_hour, security_rate, window_minutes
+        ),
+        PROCESS_SECURITY_INTL: _hourly_backlog_chain(
+            security_intl_demand_by_hour, security_rate, window_minutes
+        ),
+    }
+
+    # 3) "An itibariyle" (current) kısmi pay - KAPALI saatler TAM değeri,
+    #    AÇIK (şu anki) saat elapsed-oranını, GELECEK saatler 0 taşır.
+    current_released_by_hour = {PROCESS_SECURITY: {}, PROCESS_SECURITY_INTL: {}}
+    for process, by_hour in demand_by_hour.items():
+        for hour, value in by_hour.items():
+            hour_end = hour + timedelta(minutes=window_minutes)
+            if hour_end <= _now:
+                current_released_by_hour[process][hour] = value
+            elif hour <= _now < hour_end:
+                fraction = max(0.0, min(
+                    (_now - hour).total_seconds() / 60.0, window_minutes
+                )) / window_minutes
+                current_released_by_hour[process][hour] = value * fraction
+            # gelecekteki saat -> hiç girilmiyor (0.0 varsayılan)
+
+    return {
+        "demand_by_hour": demand_by_hour,
+        "backlog_start_by_hour": backlog_start_by_hour,
+        "current_released_by_hour": current_released_by_hour,
+    }
 
 
 def predict_airport(
@@ -464,6 +808,7 @@ def predict_airport(
     aircraft_changes: dict[str, tuple[str | None, str | None]] | None = None,
     window_minutes: int = DEMAND_WINDOW_MINUTES,
     passenger_baseline_fn=None,
+    now: datetime | None = None,
 ) -> list[WindowPrediction]:
     """
     Bir havalimanının iki süreci için tüm pencereler.
@@ -476,6 +821,9 @@ def predict_airport(
                   MADDE 7 - geçmiş ortalama YOLCU talebi. Ayrı bir
                   fonksiyondur çünkü yolcu örneklemi uçuş örnekleminden
                   bağımsız birikir; biri varken diğeri henüz olmayabilir.
+    now         : ADIM 6D-2 - queue "an itibariyle" (current) bekleme
+                  hesabı için "şu an" (bkz. `_predict_window_core`).
+                  Verilmezse `domain_now()`.
 
     ADIM 5E-2 - performans: process başına uçuşlar TEK bir geçişte
     (`_bucket_flights_by_window`) 15 dk pencerelere önceden gruplanır -
@@ -485,26 +833,79 @@ def predict_airport(
     (bkz. `_bucket_flights_by_window` docstring'indeki eşdeğerlik kanıtı)
     - ikisi de aynı `_predict_window_core()`'u çağırır.
     """
+    # Invalid config gerçek overload gibi persist edilmez. Ortak helper'lar
+    # server count ve service time'ın pozitif olduğunu açıkça doğrular.
+    try:
+        passport_rate = passport_capacity_rate(config)
+        security_rate = security_capacity_rate(config)
+    except ValueError as exc:
+        raise ValueError(f"{airport_iata}: geçersiz queue config - {exc}") from exc
+
     if aircraft_match_rate is None:
         aircraft_match_rate = flight_match_rate(flights)
 
     predictions: list[WindowPrediction] = []
 
+    # PASSPORT→SECURITY zaman-kuplajı: PROCESS_SECURITY (birleşik) ve
+    # PROCESS_SECURITY_INTL için passport'un RESMİ saatlik backlog
+    # zincirinden türetilen saatlik kuplaj (bkz. fonksiyon docstring'i).
+    # PROCESS_PASSPORT ve PROCESS_SECURITY_DOMESTIC bundan ETKİLENMEZ
+    # (aşağıdaki eski/değişmemiş yol üzerinden hesaplanmaya devam eder).
+    coupling = _passport_security_hourly_coupling(
+        flights, config, demand, window_minutes=window_minutes, now=now
+    )
+
     for process in PROCESSES:
         relevant = _PROCESS_FLIGHTS[process](flights)
         buckets = _bucket_flights_by_window(relevant, window_minutes)
 
-        # AŞAMA 6D: SADECE passport için kronolojik backlog zinciri.
-        # Security'nin döngüsü bu satırdan HİÇ etkilenmez - kendi
-        # zinciri boş dict olur, backlog_start her zaman 0.0'a düşer
-        # (aşağıdaki .get(start, 0.0) ile), yani security matematiği
-        # BİREBİR eskisi gibi çalışır.
-        if process == PROCESS_PASSPORT:
-            backlog_starts = _passport_backlog_starts(
-                buckets, config, demand.passenger_demand, window_minutes
-            )
-        else:
-            backlog_starts = {}
+        if process in (PROCESS_SECURITY, PROCESS_SECURITY_INTL):
+            coupled_demand = coupling["demand_by_hour"][process]
+            coupled_backlog = coupling["backlog_start_by_hour"][process]
+            coupled_current = coupling["current_released_by_hour"][process]
+            # window_starts = RAW uçuş pencereleri (flight_count/neden
+            # tespiti için) BİRLEŞİMİ simülasyonun ürettiği saatlerle
+            # (backlog boşalma saatleri RAW uçuş içermeyebilir - ör.
+            # passport geç serbest bıraktığı için security'ye ancak bir
+            # SONRAKİ saatte ulaşan yolcular).
+            starts = sorted(set(buckets) | set(coupled_demand))
+            for start in starts:
+                window_all = buckets.get(start, [])
+                window_flights = [
+                    f for f in window_all if f.status not in EXCLUDED_STATUSES
+                ]
+                baseline = baseline_fn(process, start) if baseline_fn else None
+                passenger_baseline = (
+                    passenger_baseline_fn(process, start)
+                    if passenger_baseline_fn else None
+                )
+                predictions.append(_predict_window_core(
+                    airport_iata=airport_iata,
+                    process=process,
+                    window_start=start,
+                    window_flights=window_flights,
+                    window_all=window_all,
+                    config=config,
+                    demand=demand,
+                    historical_baseline=baseline,
+                    aircraft_match_rate=aircraft_match_rate,
+                    backlog_start=coupled_backlog.get(start, 0.0),
+                    aircraft_changes=aircraft_changes,
+                    window_minutes=window_minutes,
+                    historical_passenger_baseline=passenger_baseline,
+                    now=now,
+                    demand_override=coupled_demand.get(start, 0.0),
+                    current_arrived_override=coupled_current.get(start, 0.0),
+                ))
+            continue
+
+        # PROCESS_PASSPORT / PROCESS_SECURITY_DOMESTIC - DEĞİŞMEDİ.
+        capacity_rate = (
+            passport_rate if process == PROCESS_PASSPORT else security_rate
+        )
+        backlog_starts = _queue_backlog_starts(
+            buckets, capacity_rate, demand.passenger_demand, window_minutes
+        )
 
         for start in sorted(buckets):
             window_all = buckets[start]
@@ -535,6 +936,7 @@ def predict_airport(
                 aircraft_changes=aircraft_changes,
                 window_minutes=window_minutes,
                 historical_passenger_baseline=passenger_baseline,
+                now=now,
             ))
 
     return predictions
@@ -768,6 +1170,12 @@ def run_predictions(
     """
     from .ingestion.refresh import aircraft_changes_for_airport
 
+    # ADIM 6D-2: passport "an itibariyle" (current) bekleme hesabı
+    # (predict_airport) VE açık/kapalı pencere kararı (record_baseline_
+    # observations) AYNI "now" anını kullanmalı - burada BİR KEZ çözülüp
+    # her ikisine de aynen geçilir.
+    resolved_now = now if now is not None else domain_now()
+
     codes = airports if airports is not None else airport_codes(session)
     configs = get_configs(session, codes)
 
@@ -792,6 +1200,7 @@ def run_predictions(
                 passenger_baseline_fn=_db_passenger_baseline_fn(session, code),
                 aircraft_changes=aircraft_changes_for_airport(session, code),
                 window_minutes=window_minutes,
+                now=resolved_now,
             )
             per_airport[code] = len(predictions)
             total.extend(predictions)
@@ -816,7 +1225,7 @@ def run_predictions(
     written = persist_predictions(session, total)
 
     if update_baseline:
-        record_baseline_observations(session, total, now=now)
+        record_baseline_observations(session, total, now=resolved_now)
 
     return {
         "airports": per_airport,

@@ -2,8 +2,8 @@
 Standart Erlang-C formülü. SAF FONKSİYON - veritabanı, dosya veya
 ağ bağımlılığı yoktur, sadece sayı alır sayı döndürür.
 
-Bu modül SADECE passport süreci için kullanılır. Security için
-kuyruk teorisi formülü KURULMAZ (gerçek kanal sayısı bilinmiyor).
+Passport ve security aynı matematik çekirdeğinden bu fonksiyonları
+kullanır; server sayısı ve servis hızı süreç config'inden gelir.
 """
 
 import math

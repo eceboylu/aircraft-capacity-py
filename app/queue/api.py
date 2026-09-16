@@ -8,11 +8,12 @@ confidence, reasons - bunların TEK doğruluk kaynağı `engine.py` +
 hesaplanmış `QueuePrediction` satırları okunup JSON-uyumlu sözlüklere
 çevrilir.
 
-`reporting.py` (AŞAMA 9) ile KARIŞTIRILMAMALI: o modül SAATLİK özet
-üretir (birden fazla 15 dk penceresini bir saate toplar). Frontend
-burada GERÇEK 15 dakikalık pencereleri, birbirine karıştırılmadan,
-zaman serisi olarak görmek istiyor - bu yüzden ham `QueuePrediction`
-satırları (opsiyonel bir `since` filtresiyle) doğrudan döner.
+`reporting.py` (AŞAMA 9) ile KARIŞTIRILMAMALI: o modül birden fazla
+`QueuePrediction` penceresini post-hoc (worst-risk/max-wait) BİRLEŞTİRİR.
+Burada ise ham `QueuePrediction` satırları (opsiyonel bir `since`
+filtresiyle) HİÇ birleştirilmeden, production motorunun ürettiği
+GERÇEK pencere genişliğiyle (bkz. `DEMAND_WINDOW_MINUTES`, ADIM 6D-2
+Hourly Migration'dan itibaren 60 dk/saatlik) doğrudan döner.
 """
 
 import json
@@ -29,6 +30,8 @@ from .constants import (
     LOCATION_INTERNATIONAL,
     PROCESS_PASSPORT,
     PROCESS_SECURITY,
+    PROCESS_SECURITY_DOMESTIC,
+    PROCESS_SECURITY_INTL,
     RISK_CRITICAL,
     RISK_HIGH,
     RISK_LOW,
@@ -74,36 +77,42 @@ def ui_label_for_risk(risk: str | None) -> str | None:
     return RISK_TO_UI_LABEL.get(risk, risk)
 
 
-def overall_status(security_risk: str | None, passport_risk: str | None) -> dict:
+def overall_status(*risks: str | None) -> dict:
     """
-    ADIM 6A §13-16 - GENEL havalimanı yoğunluğu. SADECE presentation/
-    aggregation - hiçbir YENİ risk hesabı yapmaz, security/passport
-    formüllerine dokunmaz.
+    ADIM 6A §13-16 (ADIM G'de N-YOLLU hale getirildi) - GENEL havalimanı
+    yoğunluğu. SADECE presentation/aggregation - hiçbir YENİ risk hesabı
+    yapmaz, security/passport formüllerine dokunmaz.
 
-    Kural: iki sürecin CURRENT riskinden EN YÜKSEK severity kazanır
-    (`RISK_ORDER` - AŞAMA 9'da "saatin en kötü penceresi" için
+    Kural: verilen süreçlerin CURRENT riskinden EN YÜKSEK severity
+    kazanır (`RISK_ORDER` - AŞAMA 9'da "saatin en kötü penceresi" için
     kullanılan AYNI sıralama, burada TEKRAR TANIMLANMADI):
 
         LOW < MEDIUM < HIGH < CRITICAL
 
     UNKNOWN bir "gerçek risk" DEĞİLDİR - `RISK_ORDER`'da en altta
-    durur, bu yüzden diğer taraf gerçek bir risk taşıyorsa asla onu
-    ezmez (`HIGH + UNKNOWN -> HIGH`). Sadece HER İKİ taraf da UNKNOWN
+    durur, bu yüzden diğer taraflar gerçek bir risk taşıyorsa asla onu
+    ezmez (`HIGH + UNKNOWN -> HIGH`). Sadece TÜM taraflar UNKNOWN
     (veya biri UNKNOWN biri no-data) olduğunda sonuç UNKNOWN'dır
     (`UNKNOWN + UNKNOWN -> UNKNOWN`, label "BİLİNMİYOR").
 
-    Girdilerin İKİSİ de `None` ise (bu havalimanı için security VE
-    passport'un HİÇBİRİNDE satır yok) `{"risk": None, "label": None}`
-    döner - ADIM 5H'nin "no-data ASLA NORMAL değildir, hatta
-    BİLİNMİYOR ile de karıştırılmaz" ayrımı overall'da da korunur;
-    frontend bunu "Veri bulunamadı" ile gösterir.
+    Girdilerin HEPSİ `None` ise (bu havalimanı için hiçbir sürecin
+    HİÇBİRİNDE satır yok) `{"risk": None, "label": None}` döner -
+    ADIM 5H'nin "no-data ASLA NORMAL değildir, hatta BİLİNMİYOR ile de
+    karıştırılmaz" ayrımı overall'da da korunur; frontend bunu "Veri
+    bulunamadı" ile gösterir.
 
-    Sadece `security.current`/`passport.current` (ŞU ANKİ pencere)
-    kullanılır - serideki geçmiş/gelecek pencerelerin maksimumu
-    KULLANILMAZ (bir havalimanı geçmişte bir yerde HIGH göstermiş
-    diye sürekli HIGH görünmez).
+    ADIM G: artık İKİ (security+passport, GERİYE DÖNÜK UYUMLU çağrı
+    şekli) veya ÜÇ (domestic_security+international_security+passport,
+    yeni GENEL HAVALİMANI YOĞUNLUĞU tanımı) risk ile çağrılabilir -
+    fonksiyonun kendisi kaç argüman verildiğinden bağımsız, sadece
+    "verilenlerin en kötüsü" mantığını uygular.
+
+    Sadece `current` (ŞU ANKİ pencere) risk değerleri kullanılır -
+    serideki geçmiş/gelecek pencerelerin maksimumu KULLANILMAZ (bir
+    havalimanı geçmişte bir yerde HIGH göstermiş diye sürekli HIGH
+    görünmez).
     """
-    candidates = [r for r in (security_risk, passport_risk) if r is not None]
+    candidates = [r for r in risks if r is not None]
     if not candidates:
         return {"risk": None, "label": None}
 
@@ -361,34 +370,138 @@ def process_series(
     }
 
 
+def _pick_current_window(windows: list[dict], now: datetime) -> dict | None:
+    """
+    BUG-02 düzeltmesi - `_pick_current()` ile AYNI üç kollu mantık
+    (kapsayan / en yakın geçmiş / en yakın gelecek), ama BURADA zaten
+    AYNI `window_start`'a göre birleştirilmiş `windows` listesi
+    üzerinde çalışır. `windows` `sorted(by_window)`'dan geldiği için
+    (bkz. `_merge_overall_series`) hâlâ kronolojik sıralı.
+    """
+    if not windows:
+        return None
+
+    containing = [
+        w for w in windows
+        if datetime.fromisoformat(w["window_start"]) <= now < datetime.fromisoformat(w["window_end"])
+    ]
+    if containing:
+        return containing[-1]
+
+    past = [w for w in windows if datetime.fromisoformat(w["window_start"]) <= now]
+    if past:
+        return past[-1]
+
+    return windows[0]
+
+
+def _merge_overall_series(*process_results: dict, now: datetime) -> dict:
+    """
+    ADIM G - GENEL HAVALİMANI YOĞUNLUĞU serisi. Verilen süreç
+    sonuçlarının (`process_series()` çıktıları - ör. domestic_security,
+    international_security, passport) `windows`'larını AYNI
+    `window_start`'a göre birleştirip HER pencerede EN YÜKSEK severity'yi
+    (`RISK_ORDER`) seçer. YENİ bir risk/skor formülü YOK - sadece zaten
+    hesaplanmış `risk` değerleri arasında MAX.
+
+    ADIM 6D-2 H2 - wait KAYNAĞI iki adımlı seçilir (risk matematiği bu
+    adımda DEĞİŞMEDİ, sadece wait'in HANGİ sürecin satırından
+    taşınacağı düzeltildi):
+
+      1) Önce en yüksek severity bulunur (yukarıdaki risk seçimiyle
+         AYNI `RISK_ORDER`).
+      2) O severity'yi taşıyan süreçler arasında (birden fazla olabilir -
+         ör. security_intl VE passport aynı anda CRITICAL) gerçek/finite
+         bir `estimated_wait_minutes`'ı OLAN ilk süreç tercih edilir;
+         hiçbirinde yoksa (hepsi security gibi wait modelsizse)
+         `estimated_wait_minutes = None` kalır.
+
+    Böylece DÜŞÜK severity'deki bir sürecin wait'i overall'a HİÇBİR
+    ZAMAN taşınmaz (ör. security_intl=CRITICAL/wait=None VE
+    passport=HIGH/wait=40 iken overall CRITICAL/None döner - HIGH'ın
+    wait'i "ödünç" alınmaz). Kazanan pencerenin KENDİ
+    `estimated_wait_minutes`'ı OLDUĞU GİBİ taşınır; ayrı bir "overall
+    wait" ORTALAMASI ASLA hesaplanmaz (birden fazla sürecin wait'i
+    toplanıp/ortalanıp YENİ bir sayı üretilmez). Aynı `_worst_of()`
+    hem `windows` serisi hem `current` için kullanılır - ikisi arasında
+    FARKLI bir tie-break kuralı YOK.
+
+    Bir pencerede sadece TEK bir süreçten veri varsa (ör. o saatte
+    sadece domestic kalkış oldu) o sürecin riski/wait'i AYNEN kullanılır.
+    """
+    by_window: dict[str, list[dict]] = {}
+    for result in process_results:
+        for window in result["windows"]:
+            by_window.setdefault(window["window_start"], []).append(window)
+
+    def _worst_of(entries: list[dict]) -> dict:
+        top_severity = max(RISK_ORDER.get(w["risk"], -1) for w in entries)
+        top_entries = [w for w in entries if RISK_ORDER.get(w["risk"], -1) == top_severity]
+        base = top_entries[0]
+        wait = next(
+            (w["estimated_wait_minutes"] for w in top_entries if w["estimated_wait_minutes"] is not None),
+            None,
+        )
+        return {
+            "window_start": base["window_start"],
+            "window_end": base["window_end"],
+            "risk": base["risk"],
+            "risk_label": base["risk_label"],
+            "estimated_wait_minutes": wait,
+        }
+
+    windows = [_worst_of(by_window[start]) for start in sorted(by_window)]
+
+    # BUG-02 düzeltmesi - `current` artık her sürecin KENDİ (farklı
+    # saatlere düşebilen) fallback current'ından DEĞİL, zaten aynı
+    # `window_start`'a göre birleştirilmiş `windows` listesinden
+    # `_pick_current`'la AYNI üç kollu mantıkla seçilir. Böylece
+    # farklı saatlerdeki süreç current'ları asla birbiriyle severity
+    # karşılaştırmasına girmez - sadece `now`'ı kapsayan (veya en
+    # yakın) TEK saatin zaten birleştirilmiş sonucu kullanılır.
+    current = _pick_current_window(windows, now)
+
+    return {"process": "overall", "current": current, "windows": windows}
+
+
 def airport_predictions(
     session, airport_iata: str, since: datetime | None = None, now: datetime | None = None
 ) -> dict:
     """
-    Bir havalimanının security + passport serisi + genel durum -
-    frontend'in tek çağrısı (`GET /api/airports/{iata}/predictions`'ın
-    gövdesi).
+    Bir havalimanının süreç serileri + genel durum - frontend'in tek
+    çağrısı (`GET /api/airports/{iata}/predictions`'ın gövdesi).
 
-    ADIM 6A: `overall` alanı EKLENDİ - mevcut `security`/`passport`
-    alanları KALDIRILMADI/yeniden adlandırılmadı (geriye dönük uyumlu).
+    ADIM 6A: `overall` alanı EKLENDİ. ADIM (Security Domestic/
+    International Split) + ADIM G: `domestic_security`/
+    `international_security`/`international_passport` alanları EKLENDİ;
+    `security`/`passport` (ESKİ, birleşik) alanları KALDIRILMADI -
+    geriye dönük uyumlu. `overall` artık (ADIM G) domestic_security +
+    international_security + passport üzerinden hesaplanıyor (eskiden
+    birleşik security + passport'tu) - bu, "GENEL havalimanı yoğunluğu"
+    tanımının ADIM G'de netleşen hâli; `overall_status()` fonksiyonunun
+    kendisi hâlâ genel/2-argümanlı kullanılabilir (geriye dönük), sadece
+    BURADAKİ çağıran taraf artık 3 girdi kullanıyor.
 
-    ADIM 6A-UI: `now` BİR KEZ hesaplanıp security VE passport'a AYNI
-    değer geçirilir - ikisi ayrı ayrı "gerçek an"ı sorgularsa, ikisi
-    arasındaki milisaniyelik gecikme bir pencere sınırını geçip
-    security/passport'un FARKLI anlara göre "current" seçmesine yol
-    açabilirdi (nadir ama gerçek bir tutarsızlık riski).
+    ADIM 6A-UI: `now` BİR KEZ hesaplanıp TÜM süreçlere AYNI değer
+    geçirilir - ayrı ayrı "gerçek an"ı sorgulamak, aralarındaki
+    milisaniyelik gecikmenin bir pencere sınırını geçip süreçlerin
+    FARKLI anlara göre "current" seçmesine yol açabilirdi.
     """
     now = now if now is not None else _utcnow()
     security = process_series(session, airport_iata, PROCESS_SECURITY, since, now)
     passport = process_series(session, airport_iata, PROCESS_PASSPORT, since, now)
+    domestic_security = process_series(session, airport_iata, PROCESS_SECURITY_DOMESTIC, since, now)
+    international_security = process_series(session, airport_iata, PROCESS_SECURITY_INTL, since, now)
 
-    security_risk = security["current"]["risk"] if security["current"] else None
-    passport_risk = passport["current"]["risk"] if passport["current"] else None
+    overall = _merge_overall_series(domestic_security, international_security, passport, now=now)
 
     return {
         "airport": airport_iata,
         "breakdown": traffic_breakdown(session, airport_iata, now),
-        "overall": overall_status(security_risk, passport_risk),
+        "domestic_security": domestic_security,
+        "international_security": international_security,
+        "international_passport": passport,
+        "overall": overall,
         "security": security,
         "passport": passport,
     }

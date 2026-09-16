@@ -17,6 +17,8 @@ from app.queue.constants import (
     LOCATION_INTERNATIONAL,
     PROCESS_PASSPORT,
     PROCESS_SECURITY,
+    PROCESS_SECURITY_DOMESTIC,
+    PROCESS_SECURITY_INTL,
     REASON_AIRCRAFT_CHANGE,
     REASON_ARRIVAL_BANK,
     REASON_CANCELLATION,
@@ -31,6 +33,7 @@ from app.queue.constants import (
     RISK_CRITICAL,
     RISK_HIGH,
     RISK_LOW,
+    RISK_MEDIUM,
     RISK_UNKNOWN,
 )
 from app.queue.domain.demand import DemandCalculator
@@ -68,6 +71,9 @@ def roomy_config(airport="AAA") -> AirportConfigView:
         airport_iata=airport,
         passport_counter_count=24,
         passport_staff_count=24,
+        passport_service_time_minutes=1.5,
+        security_lane_count=8,
+        security_service_time_minutes=1.0,
         passport_staff_per_counter=2.0,
         passport_service_rate_per_staff=0.5,
         passport_efficiency_multiplier=1.5,
@@ -119,10 +125,12 @@ def intl_departure(hour, minute=0, **kwargs):
 # Pencere hizalama
 # --------------------------------------------------------------------
 
-def test_floor_to_window_aligns_to_quarter_hour():
-    assert floor_to_window(at(8, 14)) == at(8, 0)
-    assert floor_to_window(at(8, 15)) == at(8, 15)
-    assert floor_to_window(at(8, 59)) == at(8, 45)
+def test_floor_to_window_aligns_to_the_hour():
+    """ADIM 6D-2 HOURLY MIGRATION: pencere artık 15 dk değil, tam saat."""
+    assert floor_to_window(at(7, 59)) == at(7, 0)     # önceki saat
+    assert floor_to_window(at(8, 0)) == at(8, 0)       # [08:00-09:00)
+    assert floor_to_window(at(8, 59)) == at(8, 0)      # hâlâ [08:00-09:00)
+    assert floor_to_window(at(9, 0)) == at(9, 0)       # [09:00-10:00)
 
 
 def test_window_starts_are_sorted_and_unique():
@@ -133,17 +141,23 @@ def test_window_starts_are_sorted_and_unique():
 
 
 def test_empty_hours_produce_no_prediction_rows():
-    """Uçuşu olmayan pencereye satır yazılmaz - tablo şişmez."""
+    """
+    Uçuşu olmayan pencereye satır yazılmaz - tablo şişmez.
+
+    ADIM (Security Domestic/International Split): international departure
+    artık ÜÇ süreci besler - birleşik security (geriye dönük uyumluluk),
+    passport, VE security_intl (security_dom'u BESLEMEZ - bu uçuş
+    domestic değil).
+    """
     predictions = predict_airport(
         airport_iata="AAA",
         flights=[departure(9, 0, location=LOCATION_INTERNATIONAL)],
         config=roomy_config(),
         demand=make_demand(),
     )
-    # Bir uçuş iki süreci de besler: security + passport, ikişer değil.
-    assert len(predictions) == 2
+    assert len(predictions) == 3
     assert {p.process for p in predictions} == {
-        PROCESS_SECURITY, PROCESS_PASSPORT
+        PROCESS_SECURITY, PROCESS_PASSPORT, PROCESS_SECURITY_INTL,
     }
 
 
@@ -151,16 +165,17 @@ def test_empty_hours_produce_no_prediction_rows():
 # Senaryo 1 - Normal trafik
 # --------------------------------------------------------------------
 
-def test_scenario_01_normal_traffic_security_unknown_passport_low():
+def test_scenario_01_normal_traffic_security_queue_and_passport_low():
     flights = [
         intl_departure(9, 0, key="A1", number="101", aircraft="E190"),
         intl_departure(9, 5, key="A2", number="102", aircraft="E190"),
     ]
 
     security = run_window(flights, PROCESS_SECURITY)
-    assert security.risk == RISK_UNKNOWN          # baseline yok
+    assert security.risk == RISK_LOW
     assert security.baseline_ratio is None
     assert REASON_NO_BASELINE in codes(security)
+    assert security.estimated_wait_minutes is not None
 
     passport = run_window(flights, PROCESS_PASSPORT)
     assert passport.risk == RISK_LOW
@@ -193,7 +208,7 @@ def test_scenario_02_departure_clustering_high_risk():
 
     assert security.flight_count == 10
     assert security.baseline_ratio == pytest.approx(1.67, abs=0.01)
-    assert security.risk == RISK_HIGH
+    assert security.risk == RISK_CRITICAL
     assert REASON_CLUSTERING in codes(security)
 
 
@@ -398,6 +413,12 @@ def test_scenario_10_buffer_separates_flights_into_different_windows():
     """
     Aynı saatte kalkan iki uçuş, buffer farkı yüzünden farklı
     security penceresine düşer.
+
+    ADIM 6D-2 HOURLY MIGRATION: long_haul effective=12:00-90dk=10:30 ->
+    saatlik pencere 10:00-11:00; short_haul effective=12:00-45dk=11:15
+    -> saatlik pencere 11:00-12:00. Hâlâ İKİ FARKLI pencere (buffer farkı
+    hâlâ bir saat sınırını geçiyor) - sadece pencere başlangıçları artık
+    çeyrek saat değil, tam saat.
     """
     long_haul = intl_departure(
         12, 0, key="L1", number="801", duration_minutes=600
@@ -406,7 +427,7 @@ def test_scenario_10_buffer_separates_flights_into_different_windows():
         12, 0, key="S1", number="802", duration_minutes=90
     )
     starts = window_starts([long_haul, short_haul])
-    assert starts == [at(10, 30), at(11, 15)]
+    assert starts == [at(10, 0), at(11, 0)]
 
 
 # --------------------------------------------------------------------
@@ -470,23 +491,24 @@ def test_scenario_11_airport_config_override_changes_only_its_own_result():
 # Senaryo 12 - Baseline yokken sahte değer üretilmiyor
 # --------------------------------------------------------------------
 
-def test_scenario_12_security_without_baseline_is_unknown():
+def test_scenario_12_security_without_baseline_keeps_queue_risk():
     security = run_window(
         [departure(9, 0), departure(9, 5)], PROCESS_SECURITY, baseline=None
     )
-    assert security.risk == RISK_UNKNOWN
+    assert security.risk == RISK_MEDIUM
     assert security.baseline_ratio is None
-    assert security.estimated_wait_minutes is None
+    assert security.estimated_wait_minutes is not None
+    assert security.utilization is not None
     assert REASON_CLUSTERING not in codes(security)
 
 
-def test_scenario_12_security_never_produces_wait_minutes():
-    """Her baseline değerinde security dakikası None kalmalı."""
+def test_scenario_12_security_produces_wait_independent_of_baseline():
+    """Baseline yalnız tanı metriğidir; queue wait her durumda gerçektir."""
     flights = [departure(9, m, key=f"N{m}", number=str(m)) for m in range(12)]
     for baseline in (None, 1.0, 5.0, 20.0):
         security = run_window(flights, PROCESS_SECURITY, baseline=baseline)
-        assert security.estimated_wait_minutes is None
-        assert security.utilization is None
+        assert security.estimated_wait_minutes is not None
+        assert security.utilization is not None
 
 
 # --------------------------------------------------------------------
@@ -565,6 +587,13 @@ def test_domestic_arrival_feeds_neither_process():
 
 
 def test_domestic_departure_feeds_security_only():
+    """
+    ADIM (Security Domestic/International Split): domestic departure
+    hâlâ passport'u HİÇ beslemiyor (değişmedi); artık iki security
+    süreci besliyor - birleşik `security` (TÜM kalkışlar, geriye dönük
+    uyumluluk) VE `security_dom` (sadece domestic) - `security_intl`'i
+    BESLEMİYOR.
+    """
     flights = [
         departure(9, 0, location=LOCATION_DOMESTIC, key="DD1", number="1")
     ]
@@ -574,10 +603,17 @@ def test_domestic_departure_feeds_security_only():
         config=roomy_config(),
         demand=make_demand(),
     )
-    assert [p.process for p in predictions] == [PROCESS_SECURITY]
+    assert sorted(p.process for p in predictions) == sorted([
+        PROCESS_SECURITY, PROCESS_SECURITY_DOMESTIC,
+    ])
 
 
-def test_international_departure_feeds_both_processes():
+def test_international_departure_feeds_security_passport_and_security_intl():
+    """
+    ADIM (Security Domestic/International Split): international
+    departure ÜÇ süreci besler - birleşik `security`, `passport`, VE
+    `security_intl` (`security_dom`'u BESLEMEZ).
+    """
     flights = [intl_departure(9, 0, key="ID1", number="1")]
     predictions = predict_airport(
         airport_iata="AAA",
@@ -585,9 +621,9 @@ def test_international_departure_feeds_both_processes():
         config=roomy_config(),
         demand=make_demand(),
     )
-    assert sorted(p.process for p in predictions) == [
-        PROCESS_PASSPORT, PROCESS_SECURITY
-    ]
+    assert sorted(p.process for p in predictions) == sorted([
+        PROCESS_PASSPORT, PROCESS_SECURITY, PROCESS_SECURITY_INTL,
+    ])
 
 
 def test_general_aviation_flight_adds_no_passengers():
@@ -621,4 +657,4 @@ def test_window_end_is_exactly_one_window_long():
     passport = run_window(
         [intl_departure(9, 0, key="W1", number="1")], PROCESS_PASSPORT
     )
-    assert passport.window_end - passport.window_start == timedelta(minutes=15)
+    assert passport.window_end - passport.window_start == timedelta(minutes=60)

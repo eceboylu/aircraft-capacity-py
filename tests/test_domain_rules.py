@@ -202,18 +202,35 @@ def test_window_skips_flight_without_usable_time():
 # passenger_demand - Madde 1 entegrasyonu (mock resolver ile)
 # --------------------------------------------------------------------
 
-def test_passenger_demand_applies_route_load_factor():
-    """A320 180 koltuk x 0.78 (domestic) = 140.4 -> 140"""
+def test_passenger_demand_uses_raw_icao_capacity_not_load_factor():
+    """
+    ADIM (ICAO Demand Kalibrasyonu): A320 180 koltuk -> demand=180
+    DOĞRUDAN (eski davranış: x0.78 domestic load factor = 140.4->140,
+    ARTIK GEÇERLİ DEĞİL).
+    """
     calc = DemandCalculator(MockCapacityResolver())
     flight = departure(8, location="domestic", aircraft="A320")
-    assert calc.passenger_demand(flight) == 140
+    assert calc.passenger_demand(flight) == 180
 
 
-def test_passenger_demand_long_haul_uses_higher_load_factor():
-    """B77W 350 koltuk x 0.88 (uzun menzil) = 308"""
+def test_passenger_demand_equals_raw_capacity_regardless_of_route_type():
+    """
+    ADIM (ICAO Demand Kalibrasyonu): `route_based_load_factor()` artık
+    passenger_demand'e HİÇ girmiyor - B77W (350 koltuk) hangi rotada
+    uçarsa uçsun (uzun/orta/kısa menzil, domestic/international) demand
+    HER ZAMAN 350'dir. Eski davranış (uzun menzilde 0.88 ile çarpıp
+    308 üretmek) ARTIK GEÇERLİ DEĞİL - fonksiyonun kendisi (bkz.
+    test_engine.py/test_domain_rules.py'deki `route_based_load_factor`
+    testleri) hâlâ doğru çalışıyor, sadece prediction zincirinden
+    AYRILDI.
+    """
     calc = DemandCalculator(MockCapacityResolver())
-    flight = departure(8, location="international", aircraft="B77W", duration_minutes=500)
-    assert calc.passenger_demand(flight) == 308
+    long_haul = departure(8, location="international", aircraft="B77W",
+                           duration_minutes=500, key="LONG")
+    short_haul = departure(8, location="domestic", aircraft="B77W",
+                            duration_minutes=60, key="SHORT")
+    assert calc.passenger_demand(long_haul) == 350
+    assert calc.passenger_demand(short_haul) == 350
 
 
 def test_passenger_demand_zero_for_general_aviation():
@@ -224,17 +241,23 @@ def test_passenger_demand_zero_for_general_aviation():
     assert calc.seat_capacity(flight) == 0
 
 
-def test_seat_capacity_is_raw_not_load_adjusted():
+def test_seat_capacity_equals_passenger_demand_no_load_factor():
+    """
+    ADIM (ICAO Demand Kalibrasyonu): load factor kaldırıldığı için
+    `seat_capacity()` (her zaman ham kapasiteydi) ve `passenger_demand()`
+    (artık ham kapasiteyi DOĞRUDAN kullanıyor) AYNI değeri üretir.
+    """
     calc = DemandCalculator(MockCapacityResolver())
     flight = departure(8, aircraft="B77W", location="international", duration_minutes=500)
     assert calc.seat_capacity(flight) == 350
-    assert calc.passenger_demand(flight) == 308
+    assert calc.passenger_demand(flight) == 350
+    assert calc.seat_capacity(flight) == calc.passenger_demand(flight)
 
 
 def test_unknown_aircraft_falls_back_to_resolver_default():
     calc = DemandCalculator(MockCapacityResolver(default_capacity=150))
     flight = departure(8, location="domestic", aircraft="ZZZZ")
-    assert calc.passenger_demand(flight) == round(150 * 0.78)
+    assert calc.passenger_demand(flight) == 150
 
 
 def test_demand_calculator_caches_resolver_calls():

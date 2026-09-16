@@ -28,6 +28,7 @@ from ..constants import (
     EVENT_CANCELLED,
     EVENT_DELAYED,
     EVENT_DIVERTED,
+    EXCLUDED_STATUSES,
     STATUS_CANCELLED,
     STATUS_DIVERTED,
 )
@@ -172,6 +173,15 @@ def _refresh_one_row(session, row: dict, now: datetime) -> dict:
     payload["last_refreshed_at"] = now
     if existing is not None:
         payload["id"] = existing.id
+        # BUG-01 düzeltmesi - CANCELLED/DIVERTED TERMİNAL bir durumdur:
+        # daha ESKİ/gecikmeli bir kaynak satırı (ör. active/scheduled)
+        # bu durumu asla geri ALAMAZ (resurrect edemez). Diğer tüm
+        # alanlar (zaman/uçak tipi/vb.) yine de normal şekilde
+        # güncellenir - SADECE `status` alanı terminal kalır.
+        old_status = (existing.status or "").lower()
+        new_status = (row.get("status") or "").lower()
+        if old_status in EXCLUDED_STATUSES and new_status not in EXCLUDED_STATUSES:
+            payload["status"] = existing.status
 
     session.merge(Flight(**payload))
     session.commit()

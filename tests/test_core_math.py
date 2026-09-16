@@ -16,6 +16,7 @@ from app.queue.core.scoring import (
     passport_queue_model,
     passport_staff_count_mismatch,
     security_density_score,
+    security_queue_model,
 )
 
 
@@ -26,12 +27,18 @@ class MockConfig:
         self,
         passport_counter_count=4,
         passport_staff_count=8,
+        passport_service_time_minutes=1.5,
+        security_lane_count=8,
+        security_service_time_minutes=1.0,
         passport_staff_per_counter=2.0,
         passport_service_rate_per_staff=0.5,
         passport_efficiency_multiplier=1.5,
     ):
         self.passport_counter_count = passport_counter_count
         self.passport_staff_count = passport_staff_count
+        self.passport_service_time_minutes = passport_service_time_minutes
+        self.security_lane_count = security_lane_count
+        self.security_service_time_minutes = security_service_time_minutes
         self.passport_staff_per_counter = passport_staff_per_counter
         self.passport_service_rate_per_staff = passport_service_rate_per_staff
         self.passport_efficiency_multiplier = passport_efficiency_multiplier
@@ -147,21 +154,19 @@ def test_security_empty_window():
 # --------------------------------------------------------------------
 
 def test_passport_effective_service_rate():
-    # mu_per_counter = service_rate_per_staff * staff_per_counter * efficiency
-    #                = 0.5 * 2.0 * 1.5 = 1.5 yolcu/dakika/gişe
-    assert passport_effective_service_rate(MockConfig()) == pytest.approx(1.5)
+    # mu = 1 / 1.5 = 0.6666667 yolcu/dakika/gişe.
+    assert passport_effective_service_rate(MockConfig()) == pytest.approx(2 / 3)
 
 
-def test_passport_effective_service_rate_one_staff_per_counter():
-    """MADDE 1: staff_per_counter=1 -> mu yarıya iner (staff_count değil)."""
-    config = MockConfig(passport_staff_per_counter=1.0)
-    assert passport_effective_service_rate(config) == pytest.approx(0.75)
+def test_passport_effective_service_rate_comes_only_from_service_time():
+    config = MockConfig(passport_service_time_minutes=2.0)
+    assert passport_effective_service_rate(config) == pytest.approx(0.5)
 
 
-def test_passport_effective_service_rate_two_staff_per_counter():
-    """MADDE 1: staff_per_counter=2 (varsayılan) -> mu = 1.5."""
-    config = MockConfig(passport_staff_per_counter=2.0)
-    assert passport_effective_service_rate(config) == pytest.approx(1.5)
+def test_passport_legacy_staff_per_counter_does_not_change_mu():
+    one = MockConfig(passport_staff_per_counter=1.0)
+    two = MockConfig(passport_staff_per_counter=2.0)
+    assert passport_effective_service_rate(one) == passport_effective_service_rate(two)
 
 
 def test_passport_effective_service_rate_ignores_staff_count():
@@ -193,31 +198,34 @@ def test_passport_staff_count_mismatch_does_not_affect_mu():
         passport_counter_count=4, passport_staff_per_counter=2.0, passport_staff_count=999
     )
     assert passport_staff_count_mismatch(mismatched) is True
-    assert passport_effective_service_rate(mismatched) == pytest.approx(1.5)
+    assert passport_effective_service_rate(mismatched) == pytest.approx(2 / 3)
+
+
+# Production persistence ve queue recurrence saatliktir.
+_W = 60
 
 
 def test_passport_low_utilization():
-    """
-    2 uçuş x 100 yolcu = 200 yolcu / 15 dk -> lambda = 13.33
-    c*mu = 4 * 1.5 = 6.0  -> rho = 2.22 (kapasiteyi aşar)
-    Bu yüzden düşük talep senaryosu için küçük rakam kullanılır.
-    """
-    flights = [MockFlight(15)]          # 15 yolcu / 15 dk -> lambda = 1.0
-    result = passport_queue_model(flights, MockConfig(), demand_fn)
+    flights = [MockFlight(80)]
+    result = passport_queue_model(flights, MockConfig(), demand_fn, window_minutes=_W)
 
-    assert result["arrival_rate"] == pytest.approx(1.0)
-    assert result["utilization"] == pytest.approx(1.0 / 6.0, abs=1e-3)
+    assert result["arrival_rate"] == pytest.approx(80 / 60, abs=1e-3)
+    # ADIM (4x2 efektif server modeli): c=4 gişe x 2 görevli/gişe=8,
+    # mu=2/3 -> capacity_rate=16/3/dk (320 pax/saat).
+    assert result["capacity_rate"] == pytest.approx(16 / 3, abs=1e-6)
+    assert result["utilization"] == pytest.approx(0.25)
     assert result["risk"] == "LOW"
     assert result["estimated_wait_minutes"] is not None
     assert result["estimated_wait_minutes"] >= 0
 
 
 def test_passport_wait_time_matches_erlang_reference():
-    flights = [MockFlight(36)]          # lambda = 2.4
+    flights = [MockFlight(80)]
     config = MockConfig()
-    result = passport_queue_model(flights, config, demand_fn)
+    result = passport_queue_model(flights, config, demand_fn, window_minutes=_W)
 
-    lam, c, mu = 2.4, 4, 1.5
+    # c = passport_counter_count(4) x passport_staff_per_counter(2) = 8.
+    lam, c, mu = 80 / 60, 8, 2 / 3
     expected = erlang_c_wait_time(c, lam, mu)
     assert result["estimated_wait_minutes"] == pytest.approx(round(expected, 1))
 
@@ -225,28 +233,29 @@ def test_passport_wait_time_matches_erlang_reference():
 @pytest.mark.parametrize(
     "demand,expected_risk",
     [
-        (30, "LOW"),        # rho 0.33
-        (62, "LOW"),        # rho 0.69
-        (64, "MEDIUM"),     # rho 0.71
-        (80, "MEDIUM"),     # rho 0.89
-        (82, "HIGH"),       # rho 0.91
-        (88, "HIGH"),       # rho 0.98
+        (160, "LOW"),       # rho 0.50
+        (222, "LOW"),       # rho 0.694
+        (224, "MEDIUM"),    # rho 0.70
+        (286, "MEDIUM"),    # rho 0.894
+        (288, "HIGH"),      # rho 0.90
+        (318, "HIGH"),      # rho 0.994
+        (320, "CRITICAL"),  # rho 1.00
     ],
 )
 def test_passport_risk_bands(demand, expected_risk):
-    """c=4, mu=1.5 -> capacity_rate=6.0/dk -> pencere kapasitesi 90 yolcu."""
-    result = passport_queue_model([MockFlight(demand)], MockConfig(), demand_fn)
+    """c=8 (4 gişe x 2 görevli), mu=2/3 -> capacity_rate=16/3/dk -> saatlik kapasite 320."""
+    result = passport_queue_model([MockFlight(demand)], MockConfig(), demand_fn, window_minutes=_W)
     assert result["risk"] == expected_risk
 
 
 def test_passport_risk_bands_change_with_counter_count():
-    """MADDE 2: c doğru şekilde counter_count olmalı - sayısı değişince rho değişmeli."""
-    flights = [MockFlight(80)]
+    """MADDE 2: c doğru şekilde counter_count x staff_per_counter olmalı - sayısı değişince rho değişmeli."""
+    flights = [MockFlight(240)]
     few_counters = passport_queue_model(
-        flights, MockConfig(passport_counter_count=4), demand_fn
+        flights, MockConfig(passport_counter_count=4), demand_fn, window_minutes=_W
     )
     many_counters = passport_queue_model(
-        flights, MockConfig(passport_counter_count=8), demand_fn
+        flights, MockConfig(passport_counter_count=8), demand_fn, window_minutes=_W
     )
     assert few_counters["utilization"] == pytest.approx(
         2 * many_counters["utilization"], abs=0.002
@@ -261,14 +270,24 @@ def test_passport_overload_returns_finite_wait_and_critical():
     DEĞİL, backlog tabanlı SONLU bir "an itibariyle bekleme" tahmini
     üretir (risk hâlâ CRITICAL - risk/wait birbirinden bağımsız).
 
-    90 yolcu / 15 dk = 6.0 = c*mu (4*1.5) -> rho tam 1.0.
-    backlog_start=0 (varsayılan) -> queue_ahead = 0 + 90 = 90;
-    wait = 90 / capacity_rate(6) = 15.0 dk.
+    ADIM 6D-2 DÜZELTMESİ: `now`/`window_start` verilmediğinde (bu test
+    gibi doğrudan `passport_queue_model()` çağıran eski/saf çağıranlar)
+    pencerenin TAMAMEN KAPANDIĞI varsayılır - current_arrived_demand=
+    demand(90), elapsed_minutes=window_minutes(15) (bkz. fonksiyon
+    docstring'i). Bu durumda current_queue == backlog_end:
+
+    320 yolcu / 60 dk = 16/3 = c*mu (8*2/3) -> rho tam 1.0.
+    served_since_window_start = 16/3 * 60 = 320.
+    current_queue = max(0, 0 + 320 - 320) = 0 -> wait = 0/(16/3) = 0.0 dk
+    (tam bu anda gişeler pencerenin tüm talebini karşılamış durumda -
+    risk hâlâ CRITICAL çünkü rho tam sınırda, ama an itibariyle kuyruk
+    boş).
     """
-    result = passport_queue_model([MockFlight(90)], MockConfig(), demand_fn)
+    result = passport_queue_model([MockFlight(320)], MockConfig(), demand_fn, window_minutes=_W)
 
     assert result["utilization"] == pytest.approx(1.0)
-    assert result["estimated_wait_minutes"] == 15.0
+    assert result["estimated_wait_minutes"] == 0.0
+    assert result["backlog_end"] == 0.0
     assert result["risk"] == "CRITICAL"
     assert result["reasons"] == [
         "Talep kapasiteyi aşıyor — kuyruk teorik olarak sürdürülemez"
@@ -280,10 +299,15 @@ def test_passport_far_overload_scales_wait_up_not_none():
     ADIM 6D ile GÜNCELLENDİ: 5000 yolculuk çok daha ağır bir aşım,
     ESKİ None davranışı yerine ORANTILI olarak DAHA UZUN (sahte bir
     üst sınıra çarpmadan) bir bekleme üretmeli.
-    queue_ahead=5000 -> wait = 5000/6 = 833.3 dk.
+
+    Kapasitenin (320/saat) 1,25 katı bir talep (400) - backlog_end =
+    max(0, 0 + 400 - 320) = 80 -> wait = 80 / (16/3) = 15.0 dk (aynı
+    oranlı aşım, 4x2 efektif server modelinde de AYNI dakika sonucunu
+    verir - kapasite VE aşım orantılı büyüdüğü için wait değişmez).
     """
-    result = passport_queue_model([MockFlight(5000)], MockConfig(), demand_fn)
-    assert result["estimated_wait_minutes"] == round(5000 / 6, 1)
+    result = passport_queue_model([MockFlight(400)], MockConfig(), demand_fn, window_minutes=_W)
+    assert result["backlog_end"] == 80.0
+    assert result["estimated_wait_minutes"] == 15.0
     assert result["risk"] == "CRITICAL"
 
 
@@ -292,19 +316,52 @@ def test_passport_config_override_changes_result():
     YASAK 5 yönü: config havalimanı bazlı override edilebilir olmalı.
     Aynı talep, daha çok gişe -> daha düşük utilization.
     """
-    flights = [MockFlight(80)]
-    small = passport_queue_model(flights, MockConfig(passport_counter_count=4), demand_fn)
-    large = passport_queue_model(flights, MockConfig(passport_counter_count=8), demand_fn)
+    flights = [MockFlight(280)]
+    small = passport_queue_model(flights, MockConfig(passport_counter_count=4), demand_fn, window_minutes=_W)
+    large = passport_queue_model(flights, MockConfig(passport_counter_count=8), demand_fn, window_minutes=_W)
 
     assert large["utilization"] < small["utilization"]
     assert large["estimated_wait_minutes"] < small["estimated_wait_minutes"]
 
 
 def test_passport_empty_window_is_low_risk():
-    result = passport_queue_model([], MockConfig(), demand_fn)
+    result = passport_queue_model([], MockConfig(), demand_fn, window_minutes=_W)
     assert result["expected_passengers"] == 0
     assert result["utilization"] == 0.0
     assert result["risk"] == "LOW"
+
+
+def test_default_window_minutes_matches_production_constant():
+    """
+    ADIM 6D-2 HOURLY MIGRATION: `passport_queue_model()`'e `window_minutes`
+    verilmezse production'ın GÜNCEL saatlik varsayılanı (60) kullanıldığını
+    doğrudan kanıtlar - bu dosyanın geri kalanının `window_minutes=15`
+    pinlemesinin NEDEN gerekli olduğunun kanıtı.
+    """
+    from app.queue.constants import DEMAND_WINDOW_MINUTES
+    assert DEMAND_WINDOW_MINUTES == 60
+
+    with_default = passport_queue_model([MockFlight(160)], MockConfig(), demand_fn)
+    with_explicit_60 = passport_queue_model(
+        [MockFlight(160)], MockConfig(), demand_fn, window_minutes=60
+    )
+    assert with_default == with_explicit_60
+
+
+@pytest.mark.parametrize(
+    "demand,expected_rho,expected_backlog",
+    [(240, 0.5, 0.0), (480, 1.0, 0.0), (600, 1.25, 120.0)],
+)
+def test_security_real_queue_capacity_examples(demand, expected_rho, expected_backlog):
+    result = security_queue_model(
+        [MockFlight(demand)], MockConfig(), demand_fn, window_minutes=60
+    )
+    assert result["server_count"] == 8
+    assert result["service_rate"] == 1.0
+    assert result["capacity_rate"] == 8.0
+    assert result["utilization"] == expected_rho
+    assert result["backlog_end"] == expected_backlog
+    assert result["estimated_wait_minutes"] is not None
 
 
 # --------------------------------------------------------------------

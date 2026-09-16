@@ -146,14 +146,41 @@ class AirportOperationalConfig(Base):
 
     airport_iata: Mapped[str] = mapped_column(String(10), primary_key=True)
 
-    # Kanal sayısı (c). Erlang-C'de sabit kalır.
+    # Fiziksel gişe (masa/kabin) sayısı. Erlang-C'nin `c` parametresi
+    # BUNUN KENDİSİ DEĞİL - bkz. `passport_staff_per_counter` (her
+    # gişede AYNI ANDA paralel çalışan görevli sayısı); gerçek `c` =
+    # `passport_effective_server_count()` = counter_count x
+    # staff_per_counter (core/scoring.py). `passport_staff_count`
+    # (toplam personel/vardiya) kapasiteye HİÇ girmez - salt
+    # bilgilendirici (bkz. `passport_staff_count_mismatch`).
     passport_counter_count: Mapped[int] = mapped_column(Integer, default=4)
     passport_staff_count: Mapped[int] = mapped_column(Integer, default=8)
+
+    # Production queue modelinin açık servis varsayımı: TEK BİR
+    # GÖREVLİNİN bir yolcuyu işleme süresi. mu = 1/service_time =
+    # 2/3 pax/dk/görevli; c=4 gişe x 2 paralel görevli/gişe = 8 efektif
+    # server ile toplam kapasite 320 pax/saat (core/scoring.py:
+    # `passport_capacity_rate`).
+    passport_service_time_minutes: Mapped[float] = mapped_column(
+        Float, default=1.5
+    )
+
+    # Security için fiziksel lane sayısı ve lane başına işlem süresi.
+    # c=8, service_time=1 dk -> 8 pax/dk -> 480 pax/saat.
+    security_lane_count: Mapped[int] = mapped_column(Integer, default=8)
+    security_service_time_minutes: Mapped[float] = mapped_column(
+        Float, default=1.0
+    )
+
+    # `passport_staff_per_counter` (4x2=8 efektif server modeli) AKTİF
+    # olarak `passport_effective_server_count()`/`passport_capacity_rate()`
+    # tarafından KULLANILIYOR - "legacy" DEĞİL. Diğer ikisi
+    # (`passport_service_rate_per_staff`, `passport_efficiency_multiplier`)
+    # hâlâ legacy/kullanılmıyor - mevcut veritabanı/config satırlarını
+    # kırmamak için şemada korunuyorlar.
     passport_staff_per_counter: Mapped[float] = mapped_column(Float, default=2.0)
-    # Personel başına dakikada işlenen yolcu.
-    passport_service_rate_per_staff: Mapped[float] = mapped_column(Float, default=0.5)
-    # AÇIK VARSAYIM: 2.0 değil 1.5 - iş tam paralelleşmiyor.
-    passport_efficiency_multiplier: Mapped[float] = mapped_column(Float, default=1.5)
+    passport_service_rate_per_staff: Mapped[float] = mapped_column(Float, default=1.0)
+    passport_efficiency_multiplier: Mapped[float] = mapped_column(Float, default=0.8125)
 
     arrival_bank_threshold: Mapped[int] = mapped_column(Integer, default=5)
 
@@ -182,8 +209,8 @@ class QueuePrediction(Base):
     flight_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
     passenger_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    # Aşağıdaki iki alan SADECE passport için doldurulur.
-    # Security'de her ikisi de None kalır (YASAK 1).
+    # Passport ve security aynı ortak queue-capacity çekirdeğinden gerçek
+    # utilization/wait üretir; process'e özel c/mu config'ten gelir.
     utilization: Mapped[float | None] = mapped_column(Float, nullable=True)
     estimated_wait_minutes: Mapped[float | None] = mapped_column(Float, nullable=True)
 

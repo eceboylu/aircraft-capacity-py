@@ -67,8 +67,23 @@ def flow_of(flight) -> str | None:
 
 
 def security_flights(flights: Sequence) -> list:
-    """Security kuyruğunu besleyen uçuşlar: TÜM kalkışlar."""
+    """Security kuyruğunu besleyen uçuşlar: TÜM kalkışlar (birleşik, DEĞİŞMEDİ)."""
     return [f for f in flights if f.direction == DIRECTION_DEPARTURE]
+
+
+def security_domestic_flights(flights: Sequence) -> list:
+    """
+    ADIM (Security Domestic/International Split) - `security_flights()`'ın
+    (TÜM kalkışlar) bir ALT KÜMESİ: sadece domestic kalkışlar. Yeni bir
+    akış kuralı İCAT EDİLMEDİ - `is_domestic_departure()` zaten mevcut,
+    değişmeyen predicate.
+    """
+    return [f for f in flights if is_domestic_departure(f)]
+
+
+def security_international_flights(flights: Sequence) -> list:
+    """`security_flights()`'ın ALT KÜMESİ: sadece international kalkışlar."""
+    return [f for f in flights if is_international_departure(f)]
 
 
 def passport_flights(flights: Sequence) -> list:

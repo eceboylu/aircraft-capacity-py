@@ -15,7 +15,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
 from app.models import Base
-from app.queue.constants import PROCESS_PASSPORT
+from app.queue.constants import DEMAND_WINDOW_MINUTES, PROCESS_PASSPORT
 from app.queue.domain.demand import DemandCalculator
 from app.queue.engine import predict_airport, predict_window, run_predictions
 from app.queue.ingestion.refresh import (
@@ -264,7 +264,7 @@ def test_window_boundary_event_just_before_close_is_in_current_window():
 def test_window_boundary_event_exactly_at_close_belongs_to_next_window():
     from app.queue.engine import floor_to_window
     window_start = at(9, 0)
-    window_end = window_start + timedelta(minutes=15)
+    window_end = window_start + timedelta(minutes=DEMAND_WINDOW_MINUTES)
 
     prediction_current = predict_window(
         airport_iata="AAA", process=PROCESS_PASSPORT, window_start=window_start,
@@ -284,9 +284,14 @@ def test_window_boundary_event_exactly_at_close_belongs_to_next_window():
 
 
 def test_event_previous_window_and_next_window_are_distinct():
-    """Aynı flight'ın iki farklı window'a düşen iki event'i birbirine karışmıyor."""
+    """
+    Aynı flight'ın iki farklı window'a düşen iki event'i birbirine
+    karışmıyor. ADIM 6D-2 HOURLY MIGRATION: window_b artık bir SONRAKİ
+    SAAT (window_a + DEMAND_WINDOW_MINUTES) - eski +15dk kullanılsaydı
+    60dk'lık pencereler [09:00-10:00)/[09:15-10:15) ÇAKIŞIRDI.
+    """
     window_a = at(9, 0)
-    window_b = at(9, 15)
+    window_b = window_a + timedelta(minutes=DEMAND_WINDOW_MINUTES)
 
     changes = {
         "K": [
@@ -499,10 +504,11 @@ def test_e2e_full_pipeline_multiple_aircraft_changes(session):
     assert change_reasons[0].message == "TK_1_2026-09-15: A320→A321, kapasite +40 yolcu"
     assert change_reasons[1].message == "TK_1_2026-09-15: A321→A330, kapasite +57 yolcu"
 
-    # Talep SADECE final aircraft'tan (A330=277, kısa mesafe uluslararası
-    # load factor 0.82) - 3 değişiklik nedeniyle ne tripled ne toplanmış.
+    # Talep SADECE final aircraft'tan (A330=277 ham kapasite - ADIM ICAO
+    # Demand Kalibrasyonu, load factor YOK) - 3 değişiklik nedeniyle ne
+    # tripled ne toplanmış.
     assert passport.flight_count == 1
-    assert passport.expected_passengers == round(277 * 0.82)
+    assert passport.expected_passengers == 277
     assert passport.risk == "LOW"   # değişiklik risk'i doğrudan artırmadı
 
 
@@ -512,6 +518,9 @@ def _roomy_config():
         airport_iata="AAA",
         passport_counter_count=24,
         passport_staff_count=24,
+        passport_service_time_minutes=1.5,
+        security_lane_count=8,
+        security_service_time_minutes=1.0,
         passport_staff_per_counter=2.0,
         passport_service_rate_per_staff=0.5,
         passport_efficiency_multiplier=1.5,

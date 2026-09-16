@@ -9,10 +9,19 @@ havalimanına bağlanmaz.
 """
 
 # --- Zaman pencereleri -------------------------------------------------
-DEMAND_WINDOW_MINUTES = 15
+# ADIM 6D-2 HOURLY MIGRATION: prediction penceresi 15 dk'dan 60 dk'ya
+# (saatlik: 08:00-09:00, 09:00-10:00, ...) geçirildi - TEK merkezi
+# sabit. `floor_to_window`/`flights_in_window`/`window_starts`/
+# `_bucket_flights_by_window`/`passport_queue_model`/
+# `security_density_score`/`QueuePrediction`/`HistoricalFlightCount`
+# hepsi bu sabiti (veya ondan türeyen `window_minutes` parametresini)
+# kullanır - "60" ikinci bir yerde AYRI tanımlı DEĞİLDİR.
+DEMAND_WINDOW_MINUTES = 60
 
 # Arrival yolcusunun uçaktan inip passport kuyruğuna ulaşması için
-# geçen süre. Sabit varsayım - gerçek veri yok.
+# geçen süre. Sabit varsayım - gerçek veri yok. BİLİNÇLİ OLARAK
+# DEMAND_WINDOW_MINUTES'TEN BAĞIMSIZDIR (rastgele aynı sayı - bir uçuş
+# özelliği, pencere genişliği DEĞİL) - hourly migration'da DOKUNULMADI.
 PASSPORT_RELEASE_BUFFER_MINUTES = 15
 
 # --- Yön / lokasyon / süreç sözlüğü ------------------------------------
@@ -24,6 +33,16 @@ LOCATION_INTERNATIONAL = "international"
 
 PROCESS_SECURITY = "security"
 PROCESS_PASSPORT = "passport"
+# ADIM (Security Domestic/International Split) - AYRI, mevcut
+# `security_density_score()`'u BAĞIMSIZ flight kümeleri (sadece
+# domestic departure / sadece international departure) üzerinde
+# çalıştıran EK süreçler. Birleşik `PROCESS_SECURITY` (TÜM kalkışlar)
+# SİLİNMEDİ - geriye dönük uyumluluk için AYNEN üretilmeye devam
+# ediyor; bunlar ONA EK. Değerler String(16) sütun sınırına (bkz.
+# models.py QueuePrediction/HistoricalFlightCount/BaselineObservation)
+# uyacak şekilde seçildi.
+PROCESS_SECURITY_DOMESTIC = "security_dom"
+PROCESS_SECURITY_INTL = "security_intl"
 
 # Talep hesabına girmeyen statüler (AŞAMA 4)
 EXCLUDED_STATUSES = ("cancelled", "diverted")

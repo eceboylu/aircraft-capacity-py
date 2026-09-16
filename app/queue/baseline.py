@@ -15,7 +15,7 @@ zaten varsa bu çağrı NO-OP'tur (havuz bir daha güncellenmez).
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 
 from .models import BaselineObservation, HistoricalFlightCount
@@ -165,3 +165,107 @@ def record_observation(
     session.commit()
 
     return new_average
+
+
+def reset_baseline_pool(session) -> dict:
+    """
+    ADIM 6D-2 HOURLY MIGRATION - kontrollü, AÇIK baseline reset'i.
+
+    SADECE `HistoricalFlightCount` ve `BaselineObservation` tablolarını
+    temizler - `Flight`/`Airport`/`AircraftCapacity`/`QueuePrediction`
+    dahil HİÇBİR başka tabloya dokunmaz. Bu fonksiyon `app/queue/
+    pipeline.py`'nin normal akışından ASLA çağrılmaz (grep ile
+    doğrulanabilir) - SADECE elle, açıkça (`python -m app.queue.baseline
+    --reset-pool`) tetiklenir.
+
+    GEREKÇE (bkz. ADIM 6D-2 Hourly Migration Audit): `HistoricalFlightCount`
+    anahtarı (`airport_iata`, `process`, `hour_of_day`, `day_of_week`)
+    pencere GENİŞLİĞİNİ hiç içermiyor - `DEMAND_WINDOW_MINUTES` 15'ten
+    60'a değişince, eski 15 dk'lık gözlemler (küçük sayılar) ile yeni
+    60 dk'lık gözlemler (aynı saat için ~4x büyük sayılar) AYNI havuzda
+    kümülatif olarak karışıp `flight_ratio`/`baseline_ratio`'yu KALICI
+    olarak bozar (`record_observation()`'ın ortalaması decay/pencere
+    içermeyen basit bir kümülatif ortalamadır - bir kez karışan veri
+    kendi kendine düzelmez). Proje henüz production'a çıkmadığı için bu
+    iki tabloyu kontrollü temizlemek kabul edilebilir; `window_minutes`
+    kolonu ekleyip şemayı genişletmek (eski/yeni veriyi AYRI satırlarda
+    tutmak) teorik olarak da mümkündür ama `HistoricalFlightCount`/
+    `BaselineObservation`'ı okuyan HER sorguya (`_bucket`, `get_baseline`,
+    `get_passenger_baseline`, `record_observation`, testler) yeni bir
+    parametre eklemeyi gerektirir - çok daha geniş bir blast radius'a
+    sahip bir şema migration'ı için bu ADIM'da GEREKÇE yok (proje
+    henüz canlı değil, geriye dönük veri saklamanın hiçbir faydası
+    yok) - bu yüzden daha küçük, daha güvenli seçenek (reset) seçildi.
+
+    İdempotent: tablolar zaten boşsa 0/0 döner, hata vermez. Aynı
+    session'da `Flight`/`QueuePrediction` gibi başka nesneler yüklü
+    olsa bile onlara HİÇ dokunmaz (sadece bu iki tablo için `DELETE`).
+    """
+    before_hist = session.scalar(
+        select(func.count()).select_from(HistoricalFlightCount)
+    ) or 0
+    before_obs = session.scalar(
+        select(func.count()).select_from(BaselineObservation)
+    ) or 0
+
+    session.execute(delete(HistoricalFlightCount))
+    session.execute(delete(BaselineObservation))
+    session.commit()
+
+    return {
+        "historical_flight_counts_deleted": before_hist,
+        "baseline_observations_deleted": before_obs,
+    }
+
+
+def main(argv: list[str] | None = None) -> None:
+    """
+    CLI: `python -m app.queue.baseline --reset-pool`.
+
+    Bayrak VERİLMEZSE hiçbir şey silinmez, sadece yardım metni basılır
+    - yanlışlıkla (argümansız) çalıştırılıp veri kaybına yol açılamaz.
+    """
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(
+        prog="python -m app.queue.baseline",
+        description=(
+            "Baseline havuzu (HistoricalFlightCount + BaselineObservation) "
+            "yönetimi. Argümansız çalıştırma HİÇBİR ŞEY SİLMEZ."
+        ),
+    )
+    parser.add_argument(
+        "--reset-pool",
+        action="store_true",
+        help=(
+            "SADECE HistoricalFlightCount + BaselineObservation'ı "
+            "temizler - Flight/Airport/QueuePrediction/aircraft_capacity "
+            "dahil hiçbir başka tabloya DOKUNMAZ. Pencere genişliği "
+            "değiştiğinde (ör. 15dk -> 60dk) eski/yeni ölçek aynı "
+            "havuzda karışmasın diye kullanılır."
+        ),
+    )
+    args = parser.parse_args(argv if argv is not None else sys.argv[1:])
+
+    if not args.reset_pool:
+        parser.print_help()
+        return
+
+    from ..db import get_session, init_db
+    from ..logging_config import configure_logging
+
+    configure_logging()
+    init_db()
+    session = get_session()
+    try:
+        result = reset_baseline_pool(session)
+    finally:
+        session.close()
+
+    print(f"historical_flight_counts_deleted: {result['historical_flight_counts_deleted']}")
+    print(f"baseline_observations_deleted: {result['baseline_observations_deleted']}")
+
+
+if __name__ == "__main__":
+    main()

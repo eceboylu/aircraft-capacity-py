@@ -5,9 +5,10 @@ SAF KATMAN: Bu modül veritabanına, dosyaya veya ağa dokunmaz.
 Yolcu talebi bir fonksiyon olarak (demand_fn) dışarıdan enjekte
 edilir; böylece mock verilerle bağımsız test edilebilir.
 
-KRİTİK: Security ve passport AYNI formülü kullanmaz.
-  - Security -> basit yoğunluk sinyali, Erlang-C DEĞİL, dakika YOK.
-  - Passport  -> tam Erlang-C, dakika ÜRETİLİR.
+Security ve passport aynı doğrulanmış queue-capacity çekirdeğini kullanır;
+fiziksel server sayısı ve servis süresi process config'inden gelir. Security
+density oranları yalnız tarihsel açıklama/baseline metriği olarak korunur,
+queue risk/wait matematiğinin yerine geçmez.
 """
 
 from typing import Callable, Sequence
@@ -80,9 +81,9 @@ def security_density_score(
     historical_passenger_baseline: float | None = None,
 ) -> dict:
     """
-    Security - yoğunluk sinyali. Erlang-C KULLANILMAZ (bkz. modül
-    başlığı): gerçek gişe/kanal sayısı bilinmediği için kuyruk teorisi
-    kurulmaz, dakika üretilmez.
+    Security tarihsel yoğunluk sinyali. Queue risk/wait hesabı artık
+    `security_queue_model` ile yapılır; bu fonksiyon yalnız API'deki
+    baseline/flight/passenger ratio tanı metriklerini üretir.
 
     window_flights : domestic departure + international departure
     historical_baseline
@@ -99,8 +100,8 @@ def security_density_score(
       - çok uçuş + küçük uçak  -> flight_ratio yükselir, risk artar
     ikisi de ayrı ayrı görünür olur.
 
-    estimated_wait_minutes HER ZAMAN None döner: gerçek kanal/kapasite
-    verisi olmadığı için dakika tahmini uydurma olurdu.
+    estimated_wait_minutes burada None kalır; çağıran motor gerçek
+    lane/service-time config'iyle queue modelinden gelen değeri kullanır.
     """
     flight_count = len(window_flights)
     demand = sum(demand_fn(f) for f in window_flights)
@@ -153,23 +154,92 @@ def security_density_score(
 
 def passport_effective_service_rate(config) -> float:
     """
-    Gişe başına efektif servis hızı (mu_per_counter).
+    Passport TEK bir görevlinin servis hızı (mu, pax/dk/görevli).
 
-    mu_per_counter = service_rate_per_staff * staff_per_counter * efficiency_multiplier
-
-    Kanal sayısı (c = passport_counter_count) bu hesaba GİRMEZ - Erlang-C'de
-    c ayrı bir parametredir (bkz. passport_queue_model). staff_per_counter
-    SADECE burada, mu'yu büyütmek için kullanılır.
-
-    passport_staff_count kasıtlı olarak KULLANILMAZ: personel yoğunluğu
-    zaten staff_per_counter üzerinden mu'ya yansıyor. staff_count'u ayrıca
-    çarpmak kapasiteyi iki kez büyütür (double-count).
-    efficiency_multiplier bir VARSAYIMDIR (bkz. models.py).
+    mu = 1 / 1.5 = 0.6666667. Bu SUNUCU BAŞINA (bir görevli) hızdır -
+    kaç paralel görevli olduğu (`passport_effective_server_count`) AYRI
+    bir çarpandır, burada karışmaz.
     """
-    return (
-        config.passport_service_rate_per_staff
-        * config.passport_staff_per_counter
-        * config.passport_efficiency_multiplier
+    service_time = config.passport_service_time_minutes
+    if service_time <= 0:
+        raise ValueError(
+            "passport_service_time_minutes > 0 olmalı "
+            f"(alınan={service_time})"
+        )
+    return 1.0 / service_time
+
+
+def passport_effective_server_count(config) -> int:
+    """
+    Erlang-C'nin `c` parametresi: PARALEL çalışan görevli sayısı.
+
+    4 gişe × gişe başına 2 paralel görevli = 8 efektif server. Gişe
+    (`passport_counter_count`) fiziksel masa/kabin sayısıdır; her
+    gişede AYNI ANDA `passport_staff_per_counter` görevli AYRI birer
+    yolcu işleyebiliyorsa (bu ADIM'ın açık modelleme kararı), Erlang-C
+    kuyruk teorisindeki "server" gişe DEĞİL, görevlidir - bu yüzden
+    c = counter_count * staff_per_counter'dır, counter_count TEK
+    BAŞINA değil. `passport_staff_count` (toplam personel, vardiya/
+    rotasyon bilgisi) buraya KARIŞMAZ - o ayrı, bilgilendirici bir
+    alandır (bkz. `passport_staff_count_mismatch`).
+
+    `int`'e yuvarlanır: Erlang-C'nin `c!`/`range(c)` kullanan
+    kombinatorik formülü (bkz. `core/erlang.py`) YAPISAL OLARAK tam
+    sayı gerektirir - "7.5 paralel görevli" fiziksel olarak anlamsız,
+    kesirli bir server SAYISI matematiksel olarak tanımsızdır (kesirli
+    olan sadece servis HIZI/mu'dur). 4x2=8 gibi tam sayı veren
+    varsayılan config için bu yuvarlama hiçbir şeyi DEĞİŞTİRMEZ.
+    """
+    counters = config.passport_counter_count
+    staff_per_counter = config.passport_staff_per_counter
+    if counters <= 0:
+        raise ValueError(f"passport_counter_count > 0 olmalı (alınan={counters})")
+    if staff_per_counter <= 0:
+        raise ValueError(
+            f"passport_staff_per_counter > 0 olmalı (alınan={staff_per_counter})"
+        )
+    return round(counters * staff_per_counter)
+
+
+def security_effective_service_rate(config) -> float:
+    """Security lane başına servis hızı: 1 / service_time (pax/dk/lane)."""
+    service_time = config.security_service_time_minutes
+    if service_time <= 0:
+        raise ValueError(
+            "security_service_time_minutes > 0 olmalı "
+            f"(alınan={service_time})"
+        )
+    return 1.0 / service_time
+
+
+def queue_capacity_rate(server_count: int, service_time_minutes: float) -> float:
+    """Ortak kapasite hesabı: c * mu; invalid config sessizce kabul edilmez."""
+    if server_count <= 0:
+        raise ValueError(f"server_count > 0 olmalı (alınan={server_count})")
+    if service_time_minutes <= 0:
+        raise ValueError(
+            "service_time_minutes > 0 olmalı "
+            f"(alınan={service_time_minutes})"
+        )
+    return server_count * (1.0 / service_time_minutes)
+
+
+def passport_capacity_rate(config) -> float:
+    """
+    4 gişe x gişe başına 2 paralel görevli = 8 efektif server;
+    mu = 1/1.5 = 0.6666667 pax/dk/görevli ->
+    capacity_rate = 8 x 0.6666667 = 5.333333 pax/dk = 320 pax/saat.
+    """
+    return queue_capacity_rate(
+        passport_effective_server_count(config),
+        config.passport_service_time_minutes,
+    )
+
+
+def security_capacity_rate(config) -> float:
+    return queue_capacity_rate(
+        config.security_lane_count,
+        config.security_service_time_minutes,
     )
 
 
@@ -185,80 +255,49 @@ def passport_staff_count_mismatch(config) -> bool:
     return config.passport_staff_count != expected
 
 
-def passport_queue_model(
+def queue_capacity_model(
     window_flights: Sequence,
-    config,
     demand_fn: Callable[[object], int],
+    server_count: int,
+    service_time_minutes: float,
     window_minutes: int = DEMAND_WINDOW_MINUTES,
     backlog_start: float = 0.0,
+    current_arrived_demand: float | None = None,
+    elapsed_minutes: float | None = None,
+    demand_override: float | None = None,
 ) -> dict:
     """
-    Passport - tam Erlang-C + AŞAMA 6D pencereler-arası backlog.
+    Passport ve security için TEK queue matematik implementasyonu.
 
-    window_flights : international departure + international arrival
-    backlog_start  : bu pencereye ÖNCEKİ pencere(ler)den kalan, henüz
-                      işlenmemiş yolcu sayısı (kişi). Çağıran taraf
-                      (bkz. engine.py `_passport_backlog_chain`)
-                      havalimanı+süreç bazında KRONOLOJİK olarak
-                      hesaplayıp buraya besler; bu fonksiyon kendi
-                      başına önceki pencereleri BİLMEZ (saf kalır).
-                      Varsayılan 0.0 - eski çağıranlar (`predict_window`
-                      doğrudan çağrıldığında) ESKİ davranışla birebir
-                      aynı sonucu üretir.
+    - Stable (`backlog_start<=0`, `rho<1`): klasik Erlang-C.
+    - Overload/backlog: current-arrived demand ve geçen servis süresinden
+      gerçek anlık kuyruk/wait.
+    - Backlog recurrence her zaman TAM pencere demand'ini kullanır.
 
-    RISK: SADECE rho'ya bağlıdır, backlog'a DEĞİL (AŞAMA 6D §redline:
-    risk threshold'ları değişmedi). estimated_wait_minutes ise backlog'u
-    da hesaba katar - risk ve bekleme süresi BİRBİRİNDEN BAĞIMSIZ iki
-    çıktıdır.
-
-    KARARLI DURUM (backlog_start <= 0 VE rho < 1): eski Erlang-C
-    sonucu BİREBİR AYNI - bu dal hiç değişmedi.
-
-    AŞIRI YÜK / TAŞAN BACKLOG (rho >= 1 VEYA backlog_start > 0):
-    Erlang-C'nin rho>=1'de matematiksel olarak tanımsız (Wq -> sonsuz)
-    sonucu yerine, ÖNÜNDE gerçekten bekleyen kişi sayısına dayanan
-    sonlu bir "an itibariyle bekleme" tahmini:
-
-        queue_ahead = backlog_start + demand   (kişi)
-        wait        = queue_ahead / capacity_rate   (kişi / (kişi/dk) = dk)
-
-    Burada `demand` bu pencerenin KENDİ talebidir (arrival_rate * window_minutes
-    ile aynı büyüklük) - yani "şu an bu pencerenin başında kuyruğa
-    girecek olan biri, önündeki backlog + bu pencerede kendisiyle
-    birlikte gelenlerin hepsi bitene kadar" bekler. Sahte/keyfi bir üst
-    sınır YOKTUR; c=4 (gişe) matematiği c=8 (personel) ile ASLA
-    karıştırılmaz (bkz. passport_effective_service_rate, mu bu
-    fonksiyona ZATEN staff_count'suz gelir).
-
-    backlog_end (round(.,3)) çağıran tarafın (`engine.py`) bir SONRAKİ
-    pencereye taşıyacağı değerdir - bu fonksiyon kendi çıktısını
-    ASLA geriye okuyup üstüne eklemez (idempotent: aynı backlog_start +
-    aynı window_flights -> aynı backlog_end, her çalıştırmada).
+    demand_override : PASSPORT→SECURITY zaman-kuplajı için (bkz.
+                       `engine.py:_passport_security_minute_simulation`).
+                       Verilirse `demand`, `window_flights` üzerinden
+                       TOPLANMAZ - doğrudan bu değer kullanılır (ör.
+                       security'nin bu pencerede GERÇEKTEN karşılaştığı,
+                       passport'tan zaman-kaydırmalı serbest bırakılmış
+                       yolcu sayısı). `window_flights` bu durumda SADECE
+                       `flight_count`/neden tespiti için kullanılmaya
+                       devam eder - AŞAĞIDAKİ formülün (lam/rho/backlog/
+                       wait) KENDİSİ HİÇ DEĞİŞMEDİ, sadece demand'in
+                       KAYNAĞI değişti. Verilmezse (None) eski davranış
+                       birebir korunur.
     """
-    demand = sum(demand_fn(f) for f in window_flights)
-    lam = demand / window_minutes            # dakikada gelen yolcu
-    c = config.passport_counter_count
-    mu = passport_effective_service_rate(config)
+    demand = (
+        sum(demand_fn(f) for f in window_flights)
+        if demand_override is None else demand_override
+    )
+    lam = demand / window_minutes
+    c = server_count
+    mu = 1.0 / service_time_minutes if service_time_minutes > 0 else 0.0
+    capacity_rate = queue_capacity_rate(c, service_time_minutes)
+    rho = lam / capacity_rate
 
-    capacity_rate = c * mu
-    rho = lam / capacity_rate if capacity_rate > 0 else float("inf")
-
-    if capacity_rate <= 0:
-        # Kanal/servis hızı yok - hesaplanamaz durum (gerçek config
-        # hatası). Backlog hiç boşalmaz, sadece büyür - servis eden
-        # kimse yok.
-        return {
-            "flight_count": len(window_flights),
-            "expected_passengers": demand,
-            "arrival_rate": round(lam, 3),
-            "utilization": None,
-            "estimated_wait_minutes": None,
-            "backlog_end": round(backlog_start + demand, 3),
-            "risk": RISK_CRITICAL,
-            "reasons": [PASSPORT_OVERLOAD_MESSAGE],
-        }
-
-    service_capacity = capacity_rate * window_minutes   # kişi, bu pencerede sunulabilecek
+    service_capacity = capacity_rate * window_minutes
     backlog_end = max(0.0, backlog_start + demand - service_capacity)
 
     if rho >= 1.0:
@@ -277,19 +316,72 @@ def passport_queue_model(
     if backlog_start <= 0.0 and rho < 1.0:
         wq = erlang_c_wait_time(c, lam, mu)
     else:
-        queue_ahead = backlog_start + demand
-        wq = queue_ahead / capacity_rate
+        arrived = demand if current_arrived_demand is None else current_arrived_demand
+        elapsed = window_minutes if elapsed_minutes is None else elapsed_minutes
+        elapsed = max(0.0, min(elapsed, window_minutes))
+        served_since_window_start = capacity_rate * elapsed
+        current_queue = max(0.0, backlog_start + arrived - served_since_window_start)
+        wq = current_queue / capacity_rate
 
     return {
         "flight_count": len(window_flights),
         "expected_passengers": demand,
         "arrival_rate": round(lam, 3),
+        "server_count": c,
+        "service_rate": round(mu, 6),
+        "capacity_rate": round(capacity_rate, 6),
         "utilization": round(rho, 3),
         "estimated_wait_minutes": round(wq, 1),
         "backlog_end": round(backlog_end, 3),
         "risk": risk,
         "reasons": reasons,
     }
+
+
+def passport_queue_model(
+    window_flights: Sequence,
+    config,
+    demand_fn: Callable[[object], int],
+    window_minutes: int = DEMAND_WINDOW_MINUTES,
+    backlog_start: float = 0.0,
+    current_arrived_demand: float | None = None,
+    elapsed_minutes: float | None = None,
+) -> dict:
+    """Passport wrapper: c=efektif görevli sayısı (4 gişe x 2 görevli=8), service time config'ten."""
+    return queue_capacity_model(
+        window_flights=window_flights,
+        demand_fn=demand_fn,
+        server_count=passport_effective_server_count(config),
+        service_time_minutes=config.passport_service_time_minutes,
+        window_minutes=window_minutes,
+        backlog_start=backlog_start,
+        current_arrived_demand=current_arrived_demand,
+        elapsed_minutes=elapsed_minutes,
+    )
+
+
+def security_queue_model(
+    window_flights: Sequence,
+    config,
+    demand_fn: Callable[[object], int],
+    window_minutes: int = DEMAND_WINDOW_MINUTES,
+    backlog_start: float = 0.0,
+    current_arrived_demand: float | None = None,
+    elapsed_minutes: float | None = None,
+    demand_override: float | None = None,
+) -> dict:
+    """Security wrapper: c=lane_count, service time config'ten."""
+    return queue_capacity_model(
+        window_flights=window_flights,
+        demand_fn=demand_fn,
+        server_count=config.security_lane_count,
+        service_time_minutes=config.security_service_time_minutes,
+        window_minutes=window_minutes,
+        backlog_start=backlog_start,
+        current_arrived_demand=current_arrived_demand,
+        elapsed_minutes=elapsed_minutes,
+        demand_override=demand_override,
+    )
 
 
 def confidence_score(

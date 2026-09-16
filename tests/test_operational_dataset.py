@@ -15,7 +15,7 @@ bunlar ADIM 6B/6C'nin konusu. Gerçek ölçüm sonuçları raporda.
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine, func, select
@@ -263,31 +263,68 @@ def test_i_overall_no_data_maps_to_none_label_not_normal():
 # --------------------------------------------------------------------
 
 def test_j_api_response_carries_overall_alongside_existing_fields(operational_state):
+    """
+    ADIM G ile GÜNCELLENDİ: `overall` artık `{process, current, windows}`
+    (diğer 3 grafikle AYNI şekil - click-to-detail için tam seri) -
+    eski `{risk, label}` şekli DEĞİL. Eski `security`/`passport` alanları
+    (ve şekilleri) KALDIRILMADI/DEĞİŞMEDİ - geriye dönük uyumlu.
+    """
     session = _session(operational_state)
     result = airport_predictions(session, "IST")
     session.close()
 
     assert "overall" in result
-    assert set(result["overall"]) == {"risk", "label"}
+    assert set(result["overall"]) == {"process", "current", "windows"}
     # Mevcut alanlar KALDIRILMADI/yeniden adlandırılmadı.
     assert "security" in result and "passport" in result
     assert set(result["security"]) == {"process", "current", "windows"}
+    # ADIM G - yeni alanlar EKLENDİ.
+    assert set(result["domestic_security"]) == {"process", "current", "windows"}
+    assert set(result["international_security"]) == {"process", "current", "windows"}
+    assert result["international_passport"] == result["passport"]
 
 
 def test_j_overall_reflects_current_window_only_not_the_whole_series_max(operational_state):
     """
-    §16 KRİTİK: overall, security.current + passport.current'tan
-    türetilmeli - serideki geçmiş/gelecek MAKSİMUM riski DEĞİL.
+    §16 KRİTİK (ADIM G ile GÜNCELLENDİ): overall.current, artık
+    domestic_security + international_security + passport'un AYNI
+    (current'ın kendi) SAATİNDEKİ pencerelerinden türetilmeli - serideki
+    geçmiş/gelecek MAKSİMUM riski DEĞİL.
+
+    BUG-02 düzeltmesinden SONRA: her sürecin KENDİ ayrı seçtiği "current"
+    (farklı saatlere düşebilir - bkz. `_pick_current`'ın geçmiş/gelecek
+    fallback'i) artık birbirleriyle KARŞILAŞTIRILMIYOR; SADECE overall'ın
+    KENDİ seçtiği saatteki (window_start eşleşen) süreç pencereleri
+    karşılaştırılıyor. Bu yüzden burada da AYNI yöntemle (o saate ait
+    pencere var mı) `expected_current` türetilmeli - her sürecin KENDİ
+    (potansiyel olarak farklı saatlere düşen) `current`'ını DEĞİL.
     """
     session = _session(operational_state)
     result = airport_predictions(session, "IST")
     session.close()
 
-    expected = overall_status(
-        result["security"]["current"]["risk"] if result["security"]["current"] else None,
-        result["passport"]["current"]["risk"] if result["passport"]["current"] else None,
+    overall_current = result["overall"]["current"]
+
+    def _risk_at(section, window_start):
+        for w in section["windows"]:
+            if w["window_start"] == window_start:
+                return w["risk"]
+        return None
+
+    if overall_current is None:
+        expected_current = {"risk": None, "label": None}
+    else:
+        window_start = overall_current["window_start"]
+        expected_current = overall_status(
+            _risk_at(result["domestic_security"], window_start),
+            _risk_at(result["international_security"], window_start),
+            _risk_at(result["passport"], window_start),
+        )
+    actual_current = (
+        {"risk": result["overall"]["current"]["risk"], "label": result["overall"]["current"]["risk_label"]}
+        if result["overall"]["current"] else {"risk": None, "label": None}
     )
-    assert result["overall"] == expected
+    assert actual_current == expected_current
 
 
 # --------------------------------------------------------------------
@@ -340,7 +377,7 @@ def test_current_is_not_the_last_window_of_the_day_anymore(operational_state):
     result = airport_predictions(session, "IST", now=now)
     session.close()
 
-    assert result["security"]["current"]["window_start"] == "2026-09-15T08:15:00"
+    assert result["security"]["current"]["window_start"] == "2026-09-15T08:00:00"
     assert result["security"]["current"]["window_start"] != result["security"]["windows"][-1]["window_start"]
 
 
@@ -368,7 +405,12 @@ def test_current_falls_back_to_most_recent_past_window_when_now_is_after_everyth
     session.close()
 
     session = _session(operational_state)
-    far_future = datetime(2026, 9, 16, 12, 0)   # tüm pencerelerden kesin sonra
+    # ADIM (Passport->Security zaman-kuplajı): security'nin serisi artık
+    # passport backlog'u boşalırken en geç 24 saat (bkz.
+    # `_passport_security_hourly_coupling`'in ufuk sınırı) daha ileri
+    # uzayabiliyor - "tüm pencerelerden kesin sonra" artık `last_window_
+    # end`'in KENDİSİNDEN türetilmeli, keyfi/sabit bir tarih DEĞİL.
+    far_future = datetime.fromisoformat(last_window_end) + timedelta(days=2)
     result = airport_predictions(session, "IST", now=far_future)
     session.close()
 
@@ -402,14 +444,20 @@ def test_overall_at_08_20_reflects_08_15_window_not_the_evening(operational_stat
     result = airport_predictions(session, "IST", now=datetime(2026, 9, 15, 8, 20))
     session.close()
 
-    assert result["security"]["current"]["window_start"] == "2026-09-15T08:15:00"
+    assert result["security"]["current"]["window_start"] == "2026-09-15T08:00:00"
     assert result["security"]["current"]["window_start"] != result["security"]["windows"][-1]["window_start"]
 
+    # ADIM G: overall artık domestic_security/international_security/passport'tan türer.
     expected_overall = overall_status(
-        result["security"]["current"]["risk"],
-        result["passport"]["current"]["risk"],
+        result["domestic_security"]["current"]["risk"] if result["domestic_security"]["current"] else None,
+        result["international_security"]["current"]["risk"] if result["international_security"]["current"] else None,
+        result["passport"]["current"]["risk"] if result["passport"]["current"] else None,
     )
-    assert result["overall"] == expected_overall
+    actual_overall = (
+        {"risk": result["overall"]["current"]["risk"], "label": result["overall"]["current"]["risk_label"]}
+        if result["overall"]["current"] else {"risk": None, "label": None}
+    )
+    assert actual_overall == expected_overall
 
 
 # --------------------------------------------------------------------

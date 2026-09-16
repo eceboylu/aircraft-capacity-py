@@ -9,10 +9,7 @@ bu katman mock bir çözümleyiciyle veritabanısız test edilebilir.
 from datetime import datetime, timedelta
 from typing import Sequence
 
-from .flight_rules import (
-    route_based_load_factor,
-    security_arrival_buffer_minutes,
-)
+from .flight_rules import security_arrival_buffer_minutes
 from ..constants import (
     DEMAND_WINDOW_MINUTES,
     DIRECTION_DEPARTURE,
@@ -65,13 +62,20 @@ class DemandCalculator:
         """
         Bu uçuşun kuyruğa getireceği tahmini yolcu sayısı.
 
+        ADIM (ICAO Demand Kalibrasyonu): artık `route_based_load_factor()`
+        İLE ÇARPILMAZ - resolver'ın çözdüğü koltuk kapasitesi DOĞRUDAN
+        yolcu talebi sayılır (ICAO A320 -> capacity=180 ise demand=180).
+        Load factor fonksiyonu (bkz. `flight_rules.route_based_load_factor`)
+        SİLİNMEDİ - kendi birim testlerinde hâlâ mevcut/geçerli bir saf
+        fonksiyon olarak duruyor, sadece prediction zincirinden AYRILDI.
+
         counts_toward_passenger_total False ise (genel havacılık)
         talep hesabına HİÇ girmez.
         """
         result = self._resolve(flight)
         if not result.counts_toward_passenger_total:
             return 0
-        return round(result.capacity * route_based_load_factor(flight))
+        return result.capacity
 
 
 def effective_time(flight) -> datetime | None:

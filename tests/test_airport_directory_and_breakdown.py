@@ -295,7 +295,7 @@ def test_l_breakdown_window_contains_now_when_possible(operational_state):
     window_start = datetime.fromisoformat(breakdown["window_start"])
     window_end = datetime.fromisoformat(breakdown["window_end"])
     assert window_start <= now < window_end
-    assert window_end - window_start == timedelta(minutes=15)
+    assert window_end - window_start == timedelta(minutes=60)
 
 
 def test_l_breakdown_is_none_when_airport_has_no_dated_flights(operational_state):
