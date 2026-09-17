@@ -356,7 +356,7 @@ def test_regression_family_prefix_longest_match_wins(session, service):
 
 def test_regression_unknown_default_unchanged(session, service):
     result = service.resolve("Q999", None)
-    assert result.capacity == 150
+    assert result.capacity == DEFAULT_CAPACITY
     assert result.confidence == "low"
 
 

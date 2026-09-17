@@ -50,7 +50,7 @@ import os
 from datetime import datetime
 
 import pytest
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.orm import sessionmaker
 
 import app.queue.pipeline as pipeline_module
@@ -65,7 +65,7 @@ from app.queue.domain.demand import effective_time
 from app.queue.engine import floor_to_window
 from app.queue.ingestion import airlabs_client
 from app.queue.ingestion.airports_import import import_airports
-from app.queue.models import Flight, FlightEvent, HistoricalFlightCount, QueuePrediction
+from app.queue.models import Airport, Flight, FlightEvent, HistoricalFlightCount, QueuePrediction
 from app.seed import seed_curated_fallback, seed_family_and_ga, seed_verified_dataset
 
 from . import airlabs_mock_source
@@ -75,20 +75,21 @@ REAL_AIRPORTS_SQL = os.path.join(
 )
 
 # Pencere-kayması kanıtı toplanacak (havalimanı, süreç, pencere)
-# üçlüleri. Hesaplar - ADIM 6D-2 HOURLY MIGRATION'dan itibaren SAATLİK
-# (60dk) pencereler kullanılıyor:
-#   PC101 (IST->CDG, 620dk -> 90dk security buffer):
-#     T0 dep_estimated=23:22 -> effective 21:52 -> pencere 21:00-22:00
-#     T1 dep_estimated=23:45 -> effective 22:15 -> pencere 22:00-23:00
-#   AF204 (DXB->IST varış, sabit 15dk passport buffer - DEMAND_WINDOW_
-#   MINUTES'TEN BAĞIMSIZ, coincidental aynı sayı):
+# üçlüleri. Hesaplar - ADIM (Airport Queue Model V2 - sabit -120dk
+# departure offset) itibariyle departure passenger arrival artık
+# süreye bağlı dinamik buffer DEĞİL, SABİT 120 dakikadır:
+#   PC101 (IST->CDG, 620dk - sabit -120dk offset, süreden bağımsız):
+#     T0 dep_estimated=23:22 -> effective 21:22 -> pencere 21:00-22:00
+#     T1 dep_estimated=2026-09-16 00:15 (68dk gecikme) -> effective 22:15
+#       -> pencere 22:00-23:00
+#   AF204 (DXB->IST varış, sabit 15dk passport buffer - DEĞİŞMEDİ,
+#   DEMAND_WINDOW_MINUTES'TEN BAĞIMSIZ, coincidental aynı sayı):
 #     T0 arr_estimated=04:43 (actual yok) -> effective 04:58 -> pencere 04:00-05:00
 #     T1 arr_actual=04:50 (artık actual var) -> effective 05:05 -> pencere 05:00-06:00
 _TRACKED_WINDOWS = [
     # (airport, process, window_start) - T0 SONRASI ve T1 SONRASI ayrı
     # ayrı snapshot alınacak pencereler.
-    # ADIM 6D-2 HOURLY MIGRATION: pencereler artık saatlik (60dk) -
-    # PC101 21:52->21:00, 22:15->22:00; AF204 04:58->04:00, 05:05->05:00.
+    # PC101 21:22->21:00, 22:15->22:00; AF204 04:58->04:00, 05:05->05:00.
     ("IST", PROCESS_SECURITY, datetime(2026, 9, 15, 21, 0)),    # PC101 T0 penceresi
     ("IST", PROCESS_SECURITY, datetime(2026, 9, 15, 22, 0)),    # PC101 T1 penceresi
     ("IST", PROCESS_PASSPORT, datetime(2026, 9, 15, 21, 0)),
@@ -149,6 +150,18 @@ def e2e_state():
         Base.metadata.create_all(test_engine)
         seed_session = TestSessionLocal()
         import_airports(seed_session, REAL_AIRPORTS_SQL)
+        # ADIM (Operational-Day Scope): bu senaryonun KENDİ amacı T0->T1
+        # flight DELTA/pencere-göçü davranışıdır (aircraft change,
+        # cancellation, estimated/actual güncellemesi, yeni flight) -
+        # operational-day/timezone doğruluğu DEĞİL. `_TRACKED_WINDOWS`
+        # BİLEREK iki takvim gününe (15/16 Eylül, ör. AF204'ün 04:00-05:00
+        # penceresi 16 Eylül'de) yayılıyor; TEK bir `now` iki günden
+        # SADECE birini "bugün" seçip diğer günün flight'larını YANLIŞLIKLA
+        # elerdi. `import_airports()` IST/SAW/ADB'ye GERÇEK timezone
+        # (Europe/Istanbul) kazandırdığı için bu, production kodu
+        # DEĞİŞTİRİLMEDEN, sadece bu testin çok-günlü tasarımına uygun
+        # şekilde timezone bilinçli olarak nötrlenir (bkz. rapor).
+        seed_session.execute(update(Airport).values(timezone=None))
         seed_verified_dataset(seed_session)
         seed_curated_fallback(seed_session)
         seed_family_and_ga(seed_session)

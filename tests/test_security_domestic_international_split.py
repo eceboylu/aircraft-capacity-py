@@ -203,9 +203,9 @@ def test_domestic_and_international_flight_sets_are_disjoint():
 # ========================================================================
 
 def test_baselines_are_independent_per_process(session):
-    # departure(18,0, duration_minutes=90 varsayılan) -> security buffer
-    # 45dk (SHORT aralık) -> effective_time=17:15 -> pencere 17:00-18:00.
-    window_start = at(17, 0)
+    # ADIM (Airport Queue Model V2 - sabit -120dk offset): departure(18,0)
+    # -> effective_time=16:00 -> pencere 16:00-17:00.
+    window_start = at(16, 0)
     flights_dom = [departure(18, 0, location=LOCATION_DOMESTIC, key="D1", number="1")]
     flights_intl = [intl_departure(18, 0, key="I1", number="2")]
 

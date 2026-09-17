@@ -13,7 +13,7 @@ pipeline tarafından hesaplanır.
 """
 
 import pytest
-from sqlalchemy import create_engine, select, func
+from sqlalchemy import create_engine, select, func, update
 from sqlalchemy.orm import sessionmaker
 
 import app.queue.pipeline as pipeline_module
@@ -21,7 +21,7 @@ from app.models import Base
 from app.queue.api import airport_predictions
 from app.queue.ingestion.airports_import import import_airports
 from app.queue.ingestion import airlabs_client
-from app.queue.models import AirportOperationalConfig, Flight
+from app.queue.models import Airport, AirportOperationalConfig, Flight
 from app.seed import seed_curated_fallback, seed_family_and_ga, seed_verified_dataset
 
 from . import airlabs_realistic_source as rs
@@ -44,6 +44,20 @@ def realistic_state():
 
         s = Session()
         import_airports(s, REAL_AIRPORTS_SQL)
+        # ADIM (Operational-Day Scope): bu fixture 77 GERÇEK havalimanını
+        # (her biri FARKLI bir gerçek timezone'da) TEK ortak UTC gününe
+        # ("2026-09-15") göre üretiyor - bu, testin KENDİ amacı (kapasite
+        # çözümleme/hacim, gün-sınırı doğruluğu DEĞİL) için tasarlanmış,
+        # timezone-agnostik bir senaryodur. Gerçek `Airport.timezone`
+        # bırakılırsa operational-day filtresi her havalimanı için FARKLI
+        # bir yerel "bugün" hesaplar ve TEK paylaşılan UTC gününe
+        # sığdırılmış bu veri hiçbir `now` değeriyle 77 havalimanının
+        # TAMAMI için AYNI ANDA doğru güne düşmez (fiziksel olarak
+        # imkansız - 77 timezone'un yerel tarihleri aynı anda ~26 saatlik
+        # bir yayılıma sahip). Bu yüzden timezone BİLEREK temizlenir -
+        # üretim kodu/mantığı DEĞİŞMEDİ, sadece BU testin timezone-
+        # agnostik amacına uygun hale getirildi (bkz. rapor).
+        s.execute(update(Airport).values(timezone=None))
         seed_verified_dataset(s); seed_curated_fallback(s); seed_family_and_ga(s)
         for code in rs.AIRPORTS:
             s.add(AirportOperationalConfig(

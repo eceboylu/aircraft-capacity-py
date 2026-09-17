@@ -271,8 +271,10 @@ def test_effective_time_uses_estimated_when_no_actual():
     f.dep_estimated_utc = datetime(2026, 9, 15, 10, 20)
     f.dep_actual_utc = None
 
-    # Kısa mesafe uluslararası (90 dk) -> buffer 45 dk.
-    assert effective_time(f) == datetime(2026, 9, 15, 10, 20) - timedelta(minutes=45)
+    # ADIM (Airport Queue Model V2 - sabit -120dk offset): departure
+    # passenger arrival artık süreye bağlı dinamik buffer DEĞİL, sabit
+    # 120 dakikadır (DEPARTURE_PASSENGER_ARRIVAL_OFFSET_MINUTES).
+    assert effective_time(f) == datetime(2026, 9, 15, 10, 20) - timedelta(minutes=120)
 
 
 def test_effective_time_uses_actual_over_estimated():
@@ -280,7 +282,7 @@ def test_effective_time_uses_actual_over_estimated():
     f.dep_estimated_utc = datetime(2026, 9, 15, 10, 20)
     f.dep_actual_utc = datetime(2026, 9, 15, 10, 25)
 
-    assert effective_time(f) == datetime(2026, 9, 15, 10, 25) - timedelta(minutes=45)
+    assert effective_time(f) == datetime(2026, 9, 15, 10, 25) - timedelta(minutes=120)
 
 
 def test_flight_key_stable_across_scheduled_estimated_actual_variants(session):
@@ -727,7 +729,10 @@ def test_baseline_e2e_open_window_never_recorded(session):
     }
     refresh_flights(session, [row])
     resolver = MockCapacityResolver()
-    still_open = datetime(2026, 9, 15, 9, 20)   # pencere henüz kapanmadı
+    # ADIM (Airport Queue Model V2 - sabit -120dk offset): dep_scheduled
+    # 10:00 -> effective_time=08:00 -> pencere [08:00-09:00). `now` bu
+    # pencerenin İÇİNDE (henüz kapanmamış) seçildi.
+    still_open = datetime(2026, 9, 15, 8, 30)   # pencere henüz kapanmadı
 
     run_predictions(session, resolver, now=still_open)
 
@@ -834,7 +839,11 @@ def test_full_pipeline_real_airport_file_and_real_capacity_service(session):
     assert summary["inserted"] == 2
 
     resolver = AircraftCapacityService(session)
-    result = run_predictions(session, resolver, airports=["IST"], now=datetime(2026, 9, 15, 23, 0))
+    # ADIM (Operational-Day Scope): IST'in gerçek yerel saat dilimi
+    # (Europe/Istanbul, UTC+3) artık "bugün" filtresine giriyor - 23:00
+    # UTC yerel Sep 16 00:00'a denk gelip flight'ları YANLIŞ güne
+    # düşürürdü; 20:00 UTC hem pencereleri kapatır hem yerel Sep 15'te kalır.
+    result = run_predictions(session, resolver, airports=["IST"], now=datetime(2026, 9, 15, 20, 0))
 
     assert result["airports"]["IST"] > 0
     assert session.scalar(

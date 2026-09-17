@@ -112,9 +112,18 @@ def test_summary_reports_partial_airport_failure_without_crashing(
 
     monkeypatch.setattr(engine_module, "predict_airport", flaky_predict_airport)
 
+    # ADIM (Operational-Day Scope): "AAA" TESADÜFEN gerçek bir IATA
+    # kodu (Anaa Airport, Fransız Polinezyası, Pacific/Tahiti UTC-10) -
+    # `ensure_airports()` gerçek flight_airports.sql'i içe aktardığı
+    # için artık GERÇEK bir timezone'a sahip. Bu testin amacı timezone
+    # DEĞİL (izole hata/failed_airports davranışı) - `now`'ı flight'ın
+    # KENDİ tarihiyle (2026-09-15) AÇIKÇA hizalıyoruz ki AAA'nın flight'ı
+    # operational-day filtresi tarafından YANLIŞLIKLA elenmesin (bu
+    # olmazsa predict_airport hiç çağrılmaz, kasıtlı hata hiç tetiklenmez).
     summary = pipeline_module.run(
         source_a=isolated_pipeline["source_a"],
         source_b=isolated_pipeline["source_b"],
+        now=datetime(2026, 9, 15, 12, 0),
     )
 
     assert summary["failed_airports"] == ["AAA"]

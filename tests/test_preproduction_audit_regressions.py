@@ -143,11 +143,19 @@ def test_invalid_zero_counter_config_fails_the_airport_instead_of_persisting_a_p
 
 
 def test_security_empty_wait_uses_required_hesaplanamiyor_copy():
+    """
+    ADIM (Frontend 4-Graph Contract): `windowWaitText()` kaldırıldı,
+    `waitTimeText()`'ten hemen SONRA artık `waitDetailHtml()` geliyor
+    (Bölüm 50 - International Departure'ın passport/security wait'lerini
+    AYRI göstermek için) - bu fonksiyon `waitTimeText()`'i DEĞİŞTİRMEDEN
+    çağırıyor, "Hesaplanamıyor" metninin KENDİSİ hâlâ SADECE
+    `waitTimeText()`'in içinde üretiliyor.
+    """
     html = (
         Path(__file__).parents[1] / "app" / "web" / "static" / "index.html"
     ).read_text(encoding="utf-8")
     start = html.index("function waitTimeText")
-    end = html.index("function windowWaitText", start)
+    end = html.index("function waitDetailHtml", start)
     security_wait_function = html[start:end]
 
     assert 'return "Hesaplanamıyor";' in security_wait_function

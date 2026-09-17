@@ -346,10 +346,10 @@ def test_multiple_airports_stay_independent(session):
         base_row(flight_key="PC_9_2026-09-14", airport_iata="SAW"),
     ])
 
-    # base_row: dep 08:00, arr 11:00 -> 180 dk (orta menzil) -> buffer 60 dk
-    # -> effective_time 07:00.
+    # base_row: dep 08:00. ADIM (Airport Queue Model V2): departure buffer
+    # artık süreden BAĞIMSIZ sabit 120 dk - 08:00 - 120 dk = 06:00.
     assert aircraft_changes_for_airport(session, "IST") == {
-        "TK_1_2026-09-14": [("A321", "B77W", datetime(2026, 9, 14, 7, 0))]
+        "TK_1_2026-09-14": [("A321", "B77W", datetime(2026, 9, 14, 6, 0))]
     }
     assert aircraft_changes_for_airport(session, "SAW") == {}
 

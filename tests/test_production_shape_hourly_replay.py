@@ -51,8 +51,13 @@ def _source_records():
                 sequence += 1
                 queue_start = DAY.replace(hour=hour)
                 duration = 210 if location == "international" else 70
-                buffer_minutes = 60 if location == "international" else 45
-                departure = queue_start + timedelta(minutes=buffer_minutes + 5)
+                # ADIM (Airport Queue Model V2 - sabit -120dk offset):
+                # departure passenger arrival artık lokasyon/süreden
+                # bağımsız SABİT 120 dakikadır (eskiden intl=60dk,
+                # domestic=45dk dinamikti) - departure zamanı buna göre
+                # geriye doğru kurulur (+5dk pay ile queue_start'ın hemen
+                # içine düşecek şekilde), her iki lokasyon için de AYNI.
+                departure = queue_start + timedelta(minutes=120 + 5)
                 arrival = departure + timedelta(minutes=duration)
                 flight_iata = f"TK{sequence}"
                 destination = "CDG" if location == "international" else "ESB"
@@ -210,16 +215,22 @@ def test_ten_hour_production_shape_replay(tmp_path):
     assert [row["passport_demand"] for row in report["table"]] == [
         90, 180, 90, 450, 90, 90, 90, 90, 300, 90,
     ]
-    # ADIM (Passport->Security zaman-kuplajı): security artık uluslararası
-    # kalkış talebini KENDİ effective_time'ında değil, passport'un o
-    # saatte GERÇEKTEN serbest bıraktığı miktarla görüyor (bkz.
-    # engine.py:_passport_security_hourly_coupling). 09:00'daki passport
-    # surge'ü (450 talep, passport kapasitesi 320/saat ile 130 backlog
-    # kalıyor) bu yüzden security'ye 09:00'da tam TAVAN (320) olarak,
-    # kalan kısmı 10:00'da ulaşıyor - saat sınırı aktarımının kanıtı.
+    # ADIM (Event-Driven Engine Entegrasyonu): security artık uluslararası
+    # kalkış talebini KENDİ effective_time'ında değil, passport'un GERÇEK
+    # discrete-event simülasyonundan (core/event_queue.py) çıkan completion
+    # timestamp'leriyle görüyor (bkz. engine.py:_event_driven_queue_demand).
+    # 09:00'daki passport surge'ü (450 talep, passport kapasitesi 320/saat
+    # ile 130 backlog kalıyor) bu yüzden security'ye 09:00'da GERÇEK dalga
+    # simülasyonunun o saate sığdırdığı kadar (288 - 8 server x 1.5dk/dalga
+    # ile saat içine TAM sığan dalga sayısı, önceki saatlerden gelen faz
+    # kaymasıyla), kalanı sonraki saatlere yayılarak ulaşıyor - saat sınırı
+    # aktarımının kanıtı, artık yaklaşık DEĞİL gerçek event zamanlı.
+    # Toplam (2160 = 1560 passport-released + 600 domestic-direct) HER
+    # ZAMAN korunuyor (conservation, ayrıca aşağıda AYRICA doğrulanıyor).
     assert [row["security_demand"] for row in report["table"]] == [
-        90, 180, 90, 320, 220, 690, 90, 90, 300, 90,
+        90, 180, 90, 288, 252, 690, 90, 90, 288, 102,
     ]
+    assert sum(row["security_demand"] for row in report["table"]) == 2160
     assert all(row["security_wait"] is not None for row in report["table"])
     assert all(row["passport_wait"] is not None for row in report["table"])
     assert report["table"][3]["passport_backlog_end"] == 130.0

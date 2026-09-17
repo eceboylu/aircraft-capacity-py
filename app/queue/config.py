@@ -24,6 +24,8 @@ _CONFIG_FIELDS = (
     "passport_staff_count",
     "passport_service_time_minutes",
     "security_lane_count",
+    "domestic_security_lane_count",
+    "international_security_lane_count",
     "security_service_time_minutes",
     "passport_staff_per_counter",
     "passport_service_rate_per_staff",
@@ -40,11 +42,17 @@ def _column_defaults() -> dict:
     return defaults
 
 
-@dataclass
+@dataclass(kw_only=True)
 class AirportConfigView:
     """
     Hesap katmanının gördüğü config. Tablodan gelmiş de olabilir,
     varsayılanlardan türetilmiş de - fark `is_default` ile taşınır.
+
+    `kw_only=True`: tüm mevcut çağıranlar zaten keyword argümanlarıyla
+    inşa ediyor (bkz. config.py/testler) - bu, yeni alanların (ör.
+    `domestic_security_lane_count`) varsayılan değer alıp dataclass'ın
+    "defaultsız alan defaultlu alandan önce olmalı" kısıtına takılmadan
+    ORTAYA eklenebilmesini sağlar; mevcut hiçbir çağrı ETKİLENMEZ.
     """
 
     airport_iata: str
@@ -52,6 +60,12 @@ class AirportConfigView:
     passport_staff_count: int
     passport_service_time_minutes: float
     security_lane_count: int
+    # ADIM (Domestic/International Security Lane Ayrımı): mevcut
+    # `security_lane_count` ile AYNI varsayılan (8) - bu alanları
+    # açıkça vermeyen (ör. eski test yardımcıları) hiçbir çağıran
+    # bozulmaz, sadece yeni default değeri alır.
+    domestic_security_lane_count: int = 8
+    international_security_lane_count: int = 8
     security_service_time_minutes: float
     passport_staff_per_counter: float
     passport_service_rate_per_staff: float

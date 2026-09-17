@@ -124,7 +124,7 @@ def test_capacity_resolver_uses_real_seeded_values_not_default(session):
 
     result = service.resolve("A359", "TK")
     assert result.source == "verified_dataset"
-    assert result.capacity == 475   # yolcu_ucaklari.json'daki GERÇEK değer, unknown_default (150) DEĞİL
+    assert result.capacity == 475   # yolcu_ucaklari.json'daki GERÇEK değer, unknown_default (180) DEĞİL
 
 
 def test_unknown_aircraft_still_falls_back_to_layer_5_unchanged(session):
@@ -136,4 +136,4 @@ def test_unknown_aircraft_still_falls_back_to_layer_5_unchanged(session):
 
     result = service.resolve("ZZZZ", None)
     assert result.source == "unknown_default"
-    assert result.capacity == 150
+    assert result.capacity == 180

@@ -217,21 +217,30 @@
     HIGH: "#e08a3c", CRITICAL: "#d4514f",
   };
 
-  // Pipeline'ın kendi refresh aralığıyla (~30 dk) hizalı - AirLabs
-  // verisi zaten bu kadar sıklıkla yenileniyor, daha sık polling
-  // aynı veriyi tekrar tekrar çekmekten öteye gitmezdi.
-  var POLL_MS = 30 * 60 * 1000;
+  // ADIM (Frontend 4-Graph Contract) - Bölüm 26/52: source artık
+  // yaklaşık 5 dakikada bir yenileniyor - bu SADECE dış veri
+  // yenilenme sıklığıdır (queue window/prediction window/service
+  // interval DEĞİL, bkz. backend). Frontend request-time'da HİÇBİR
+  // dış kaynağa çıkmaz, sadece kendi API'sini (DB'den okuyan,
+  // salt-okunur) bu sıklıkla tekrar okur.
+  var POLL_MS = 5 * 60 * 1000;
 
   var state = {
     directory: [],          // [{iata, name}] - son BAŞARILI /api/airports/directory
     selected: null,         // seçili IATA kodu
     predictionsByIata: {},  // iata -> son BAŞARILI /predictions yanıtı
     charts: {},
-    // ADIM 6D-2 G - her grafik kendi tıklanan penceresini BAĞIMSIZ
-    // tutar (`null` = "şu anki pencere" gösterilsin). Bir grafikte
-    // bir pencereye tıklamak DİĞER grafiklerin/`current`ın gösterdiği
-    // değeri DEĞİŞTİRMEZ.
-    detail: { overall: null, domestic_security: null, international_security: null, international_passport: null },
+    // ADIM (Frontend 4-Graph Contract) - Bölüm 50/64/67: her grafik
+    // kendi tıklanan penceresini BAĞIMSIZ tutar. `null` = "şu anki
+    // pencere" (current) gösterilsin. DEĞER olarak array INDEX değil,
+    // pencerenin KENDİ `window_start` ISO string'i tutulur - böylece
+    // 5 dakikalık refresh sonrası pencere listesi değişse/kayса bile
+    // (ör. eski bir pencere prune edildi) aynı SAAT aranır, aynı
+    // array pozisyonu YANLIŞLIKLA başka bir saati göstermez (Bölüm 64:
+    // "refresh sonrası 10.00 bucket hâlâ varsa selection kaybolmamalı").
+    // Bucket artık yoksa `graphSectionHtml` güvenli şekilde `current`'a
+    // düşer.
+    detail: { overall: null, domestic_security: null, international_departure: null, international_arrival: null },
   };
 
   function escapeHtml(text) {
@@ -370,18 +379,23 @@
       return;
     }
 
+    // ADIM (Frontend 4-Graph Contract) - Bölüm 15/16/26: TAM 4 ana
+    // grafik - Overall / Domestic Security / International Departure
+    // (passport+international security, 2 aşamalı) / International
+    // Arrival (SADECE varış-kökenli passport). Beşinci bir "domestic
+    // arrival" grafiği YOK (Bölüm 16).
     root.innerHTML =
       "<h2>" + escapeHtml(heading) + "</h2>" +
-      graphSectionHtml("overall", "GENEL HAVALİMANI YOĞUNLUĞU", data.overall) +
-      graphSectionHtml("domestic_security", "DOMESTIC SECURITY YOĞUNLUĞU", data.domestic_security) +
-      graphSectionHtml("international_security", "INTERNATIONAL SECURITY YOĞUNLUĞU", data.international_security) +
-      graphSectionHtml("international_passport", "INTERNATIONAL PASSPORT YOĞUNLUĞU", data.international_passport) +
+      graphSectionHtml("overall", "GENEL HAVALİMANI YOĞUNLUĞU", data.overall, "single") +
+      graphSectionHtml("domestic_security", "DOMESTIC SECURITY", data.domestic_security, "single") +
+      graphSectionHtml("international_departure", "INTERNATIONAL DEPARTURE", data.international_departure, "breakdown") +
+      graphSectionHtml("international_arrival", "INTERNATIONAL ARRIVAL", data.international_arrival, "single") +
       breakdownHtml(data.breakdown);
 
     drawChart(data.overall.windows, "chart-overall", "overall");
     drawChart(data.domestic_security.windows, "chart-domestic_security", "domestic_security");
-    drawChart(data.international_security.windows, "chart-international_security", "international_security");
-    drawChart(data.international_passport.windows, "chart-international_passport", "international_passport");
+    drawChart(data.international_departure.windows, "chart-international_departure", "international_departure");
+    drawChart(data.international_arrival.windows, "chart-international_arrival", "international_arrival");
     renderRefreshInfo();
   }
 
@@ -409,27 +423,55 @@
     return "Hesaplanamıyor";
   }
 
-  function windowWaitText(key, w) {
-    return waitTimeText(w);
+  // ADIM (Frontend 4-Graph Contract) - Bölüm 50: International
+  // Departure iki fiziksel aşamalıdır (passport -> international
+  // security) - JOURNEY-level tek bir wait backend'de TANIMLI DEĞİL
+  // (bkz. app/queue/api.py: her pencere `passport`/`international_
+  // security` alt-nesnelerini AYRI taşır, birleşik bir "journey wait"
+  // alanı YOK). Bu yüzden burada da SAHTE bir toplama/ortalama
+  // YAPILMAZ - iki aşama HER ZAMAN ayrı gösterilir.
+  function waitDetailHtml(kind, displayWindow) {
+    if (!displayWindow) {
+      return '<div class="wait-line">Bu saat için veri yok</div>';
+    }
+    if (kind === "breakdown") {
+      return (
+        '<div class="wait-line">Passport bekleme: <b>' + escapeHtml(waitTimeText(displayWindow.passport)) + "</b></div>" +
+        '<div class="wait-line">Security bekleme: <b>' + escapeHtml(waitTimeText(displayWindow.international_security)) + "</b></div>"
+      );
+    }
+    return '<div class="wait-line">Tahmini bekleme süresi: <b>' + escapeHtml(waitTimeText(displayWindow)) + "</b></div>";
   }
 
-  // ADIM 6D-2 G - her grafik BAĞIMSIZ tıklanabilir: `state.detail[key]`
-  // dolu ise o pencerenin KENDİ risk/wait'i gösterilir (başka bir
-  // pencerenin/`current`ın değeri ASLA karıştırılmaz); boşsa (henüz
-  // tıklanmamış) mevcut/"current" pencere gösterilir - eski davranışla
-  // (sayfa ilk açıldığında current gösterilmesi) tutarlı.
-  function graphSectionHtml(key, title, section) {
-    var windows = section.windows;
-    var idx = state.detail[key];
-    var displayWindow = (idx != null && windows[idx]) ? windows[idx] : section.current;
+  // ADIM (Frontend 4-Graph Contract) - Bölüm 50/64/67: her grafik
+  // BAĞIMSIZ tıklanabilir. `state.detail[key]` bir `window_start` ISO
+  // string'i ise, GERÇEKTEN o saate ait pencere `windows` içinde
+  // ARANIR (index DEĞİL - bkz. `state` yorumu) - bulunamazsa (ör.
+  // refresh sonrası prune edildi) `current`'a güvenli şekilde düşülür;
+  // `current` da yoksa (windows=[]) "Bu saat için veri yok" gösterilir,
+  // sayfa ÇÖKMEZ. Bir grafikte bir pencereye tıklamak DİĞER
+  // grafiklerin/`current`ın gösterdiği değeri ASLA karıştırmaz.
+  function graphSectionHtml(key, title, section, kind) {
+    var windows = section.windows || [];
+    var selectedStart = state.detail[key];
+    var displayWindow = null;
+    var usingCurrent = false;
+    if (selectedStart != null) {
+      for (var i = 0; i < windows.length; i++) {
+        if (windows[i].window_start === selectedStart) { displayWindow = windows[i]; break; }
+      }
+    }
+    if (!displayWindow) {
+      displayWindow = section.current || null;
+      usingCurrent = true;
+    }
     var canvasId = "chart-" + key;
     var chartArea = windows.length
       ? '<div class="chart-wrap"><canvas id="' + canvasId + '"></canvas></div>'
       : '<div class="chart-empty">Bu havalimanı için henüz pencere yok.</div>';
 
     var rangeText = displayWindow ? (hhmm(displayWindow.window_start) + "–" + hhmm(displayWindow.window_end)) : "";
-    var suffix = displayWindow && idx == null ? " · şu anki pencere" : "";
-    var waitText = windowWaitText(key, displayWindow);
+    var suffix = displayWindow && usingCurrent ? " · şu anki pencere" : "";
     var risk = displayWindow ? displayWindow.risk : null;
     var label = displayWindow ? displayWindow.risk_label : null;
 
@@ -439,7 +481,7 @@
         chartArea +
         '<div class="current-line">' + pillHtml(risk, label) + "</div>" +
         (rangeText ? '<div class="wait-detail">' + escapeHtml(rangeText + suffix) + "</div>" : "") +
-        '<div class="wait-line">Tahmini bekleme süresi: <b>' + escapeHtml(waitText) + "</b></div>" +
+        waitDetailHtml(kind, displayWindow) +
       "</div>"
     );
   }
@@ -478,7 +520,7 @@
 
   function renderRefreshInfo() {
     document.getElementById("refresh-info").textContent =
-      "Son güncelleme: " + new Date().toLocaleTimeString() + " · 30 dk sonra yenilenecek";
+      "Son güncelleme: " + new Date().toLocaleTimeString() + " · 5 dk sonra yenilenecek";
   }
 
   function setError(isError) {
@@ -512,12 +554,14 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        // ADIM 6D-2 G - bir çubuğa tıklamak SADECE bu grafiğin
-        // (`key`) kendi seçili penceresini değiştirir; hesaplama
-        // YAPILMAZ, sadece zaten yüklü `windows[idx]` gösterilir.
+        // ADIM (Frontend 4-Graph Contract) - Bölüm 50/64/67: bir çubuğa
+        // tıklamak SADECE bu grafiğin (`key`) kendi seçili penceresini
+        // değiştirir; hesaplama YAPILMAZ, sadece zaten yüklü pencerenin
+        // KENDİ `window_start`'ı saklanır (array index DEĞİL - bkz.
+        // `state` yorumu, refresh sonrası aynı SAAT'i bulabilmek için).
         onClick: function (evt, elements) {
           if (!elements.length) return;
-          state.detail[key] = elements[0].index;
+          state.detail[key] = windows[elements[0].index].window_start;
           renderContent();
         },
         plugins: {

@@ -79,10 +79,18 @@ def operational_state():
         source_a = airlabs_client.build_source_a(ops.AIRPORTS)
         source_b = airlabs_client.build_source_b()
 
+        # ADIM (Operational-Day Scope): IST/SAW/ADB'nin GERÇEK timezone'u
+        # (Europe/Istanbul) artık operational-day filtresine giriyor -
+        # bu fixture'ın sabit tarihli (2026-09-15) flight'ları gerçek
+        # duvar saatiyle KARIŞTIRILMAMALI; `now` flight verisiyle AYNI
+        # güne (yerel Sep 15, tüm pencereler kapalı) hizalanır.
+        operational_now = datetime(2026, 9, 15, 20, 0)
         summaries = {}
         for round_ in ops.ROUNDS:
             source.round = round_
-            summaries[round_] = pipeline_module.run(source_a=source_a, source_b=source_b)
+            summaries[round_] = pipeline_module.run(
+                source_a=source_a, source_b=source_b, now=operational_now,
+            )
 
         yield {
             "session_factory": TestSessionLocal,

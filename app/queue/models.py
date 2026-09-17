@@ -167,7 +167,28 @@ class AirportOperationalConfig(Base):
 
     # Security için fiziksel lane sayısı ve lane başına işlem süresi.
     # c=8, service_time=1 dk -> 8 pax/dk -> 480 pax/saat.
+    #
+    # `security_lane_count`: BİRLEŞİK/legacy `PROCESS_SECURITY` (tüm
+    # kalkışlar, geriye dönük uyumluluk) ve `PROCESS_SECURITY_INTL`
+    # (passport→security kuplajının İÇİNDE, bkz. engine.py
+    # `_passport_security_hourly_coupling`) için kullanılmaya devam
+    # ediyor - bu ADIM kuplaj fonksiyonuna DOKUNMUYOR.
+    #
+    # `domestic_security_lane_count`: SADECE `PROCESS_SECURITY_DOMESTIC`
+    # için - bu süreç kuplajdan tamamen bağımsız (domestic kalkış
+    # passport'u hiç görmeden doğrudan security'ye girer), bu yüzden
+    # kendi fiziksel lane sayısını GÜVENLE ayrı taşıyabilir. Varsayılan
+    # mevcut `security_lane_count` ile AYNI (8) - additive migration
+    # sonrası hiçbir mevcut airport'un davranışı DEĞİŞMEZ.
+    #
+    # `international_security_lane_count`: şema/config katmanında
+    # airport-bazlı olarak taşınır ve toplu düzenlenebilir (bkz.
+    # config.py), ancak `PROCESS_SECURITY_INTL`'in queue matematiğine
+    # BAĞLANMADI - bu, coupling fonksiyonunun içini değiştirmeyi
+    # gerektirir (bu ADIM'ın kapsamı dışında, bkz. rapor).
     security_lane_count: Mapped[int] = mapped_column(Integer, default=8)
+    domestic_security_lane_count: Mapped[int] = mapped_column(Integer, default=8)
+    international_security_lane_count: Mapped[int] = mapped_column(Integer, default=8)
     security_service_time_minutes: Mapped[float] = mapped_column(
         Float, default=1.0
     )

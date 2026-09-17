@@ -10,7 +10,7 @@ KATMAN SIRASI (MADDE 4 ile güncellendi):
      (yolcu_ucaklari.json + yedek)
   4) aircraft_capacity_family
      (kategori/önek fallback, genel havacılık dahil)
-  5) Hiçbiri yoksa: sabit varsayılan (150) +
+  5) Hiçbiri yoksa: sabit varsayılan (180) +
      ATOMIC upsert ile unknown_aircraft_types'a kayıt
      (dosya yazma yok, race condition yok)
 
@@ -32,7 +32,7 @@ from .models import (
     UnknownAircraftType,
 )
 
-DEFAULT_CAPACITY = 150
+DEFAULT_CAPACITY = 180
 
 
 @dataclass

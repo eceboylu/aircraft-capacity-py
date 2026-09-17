@@ -95,3 +95,20 @@ def passport_flights(flights: Sequence) -> list:
         f for f in flights
         if is_international_departure(f) or is_international_arrival(f)
     ]
+
+
+def passport_departure_flights(flights: Sequence) -> list:
+    """
+    ADIM (4-Graph API Contract) - `passport_flights()`'ın ALT KÜMESİ:
+    SADECE kalkış-bağlantılı (International Departure grafiğinin passport
+    aşaması) uçuşlar. Yeni bir akış kuralı İCAT EDİLMEDİ -
+    `is_international_departure()` zaten mevcut, değişmeyen predicate.
+    Fiziksel passport havuzu bu ayrımdan ETKİLENMEZ (bkz. Bölüm 17) -
+    bu SADECE raporlama/cohort ayrımı içindir.
+    """
+    return [f for f in flights if is_international_departure(f)]
+
+
+def passport_arrival_flights(flights: Sequence) -> list:
+    """`passport_flights()`'ın ALT KÜMESİ: SADECE varış-bağlantılı (International Arrival grafiği) uçuşlar."""
+    return [f for f in flights if is_international_arrival(f)]

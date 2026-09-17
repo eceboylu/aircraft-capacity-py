@@ -222,6 +222,7 @@ def run(
     update_baseline: bool = True,
     source_a=None,
     source_b=None,
+    now=None,
 ) -> dict:
     """
     Tüm akışı çalıştırır ve özet döndürür.
@@ -236,6 +237,13 @@ def run(
     dışarı yansıtılmayan alan) + `duration_seconds` eklenir. Mevcut
     anahtarların hiçbiri kaldırılmadı/yeniden adlandırılmadı - sadece
     eklendi.
+
+    now : ADIM (Operational-Day Scope) - Bölüm 59: "Testlerde 'now'
+          inject edilebilir/deterministik olmalıdır". `run_predictions()`'a
+          AYNEN geçilir (açık/kapalı pencere kararı VE artık operational-
+          day filtresi için de kullanılır). Verilmezse (None) eski
+          davranış birebir korunur - `run_predictions()` kendi
+          `domain_now()` (gerçek saat) varsayılanını kullanır.
     """
     start = time.monotonic()
     logger.info("pipeline run started")
@@ -259,6 +267,7 @@ def run(
             session,
             resolver=AircraftCapacityService(session),
             update_baseline=update_baseline,
+            now=now,
         )
         logger.info(
             "prediction completed: predictions=%d pruned=%d airports_ok=%d airports_failed=%d",

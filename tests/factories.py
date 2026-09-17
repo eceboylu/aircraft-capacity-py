@@ -80,7 +80,7 @@ class MockCapacityResolver:
         "E190": 100,
     }
 
-    def __init__(self, capacities=None, excluded=(), default_capacity=150):
+    def __init__(self, capacities=None, excluded=(), default_capacity=180):
         self.capacities = dict(self.DEFAULT_CAPACITIES)
         if capacities:
             self.capacities.update(capacities)

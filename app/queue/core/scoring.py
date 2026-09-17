@@ -243,6 +243,34 @@ def security_capacity_rate(config) -> float:
     )
 
 
+def domestic_security_capacity_rate(config) -> float:
+    """
+    `PROCESS_SECURITY_DOMESTIC`'in KENDİ fiziksel lane sayısı.
+
+    Bu süreç passport->security kuplajından tamamen bağımsızdır (domestic
+    kalkış passport'u hiç görmeden doğrudan security'ye girer) - bu
+    yüzden `security_lane_count`'tan (birleşik/international'ın da
+    kullandığı) AYRI, airport-bazlı bir değer güvenle kullanılabilir.
+    """
+    return queue_capacity_rate(
+        config.domestic_security_lane_count,
+        config.security_service_time_minutes,
+    )
+
+
+def international_security_capacity_rate(config) -> float:
+    """
+    `PROCESS_SECURITY_INTL`'in KENDİ fiziksel lane sayısı
+    (`international_security_lane_count`) - artık gerçek event-driven
+    international security hesabında (bkz. engine.py
+    `_event_driven_queue_demand`) KULLANILIYOR.
+    """
+    return queue_capacity_rate(
+        config.international_security_lane_count,
+        config.security_service_time_minutes,
+    )
+
+
 def passport_staff_count_mismatch(config) -> bool:
     """
     passport_staff_count, counter_count * staff_per_counter ile
@@ -369,12 +397,27 @@ def security_queue_model(
     current_arrived_demand: float | None = None,
     elapsed_minutes: float | None = None,
     demand_override: float | None = None,
+    lane_count_override: int | None = None,
 ) -> dict:
-    """Security wrapper: c=lane_count, service time config'ten."""
+    """
+    Security wrapper: c=lane_count, service time config'ten.
+
+    lane_count_override : ADIM (Domestic/International Security Lane
+                           Ayrımı) - verilirse `config.security_lane_count`
+                           yerine bu değer `c` olarak kullanılır (ör.
+                           `PROCESS_SECURITY_DOMESTIC` için
+                           `config.domestic_security_lane_count`).
+                           Verilmezse (None) eski davranış birebir
+                           korunur - birleşik/`PROCESS_SECURITY_INTL`
+                           çağıranları ETKİLENMEZ.
+    """
     return queue_capacity_model(
         window_flights=window_flights,
         demand_fn=demand_fn,
-        server_count=config.security_lane_count,
+        server_count=(
+            config.security_lane_count
+            if lane_count_override is None else lane_count_override
+        ),
         service_time_minutes=config.security_service_time_minutes,
         window_minutes=window_minutes,
         backlog_start=backlog_start,

@@ -68,12 +68,13 @@ def session():
 def test_h_window_identity_is_hourly():
     assert DEMAND_WINDOW_MINUTES == 60
 
-    # domestic departure -> security buffer 45dk (duration=90dk, SHORT
-    # aralık) düşülür - effective_time'ları AYNI saate (08:00-09:00)
-    # düşecek şekilde scheduled saatler seçildi (8:50-45=8:05, 9:30-45=8:45).
+    # ADIM (Airport Queue Model V2 - sabit -120dk offset): domestic
+    # departure için passenger arrival artık sabit 120 dakika önce -
+    # effective_time'ları AYNI saate (08:00-09:00) düşecek şekilde
+    # scheduled saatler seçildi (10:05-120dk=08:05, 10:45-120dk=08:45).
     flights = [
-        departure(8, 50, location=LOCATION_DOMESTIC, key="D1", number="1"),
-        departure(9, 30, location=LOCATION_DOMESTIC, key="D2", number="2"),
+        departure(10, 5, location=LOCATION_DOMESTIC, key="D1", number="1"),
+        departure(10, 45, location=LOCATION_DOMESTIC, key="D2", number="2"),
     ]
     predictions = predict_airport(
         "AAA", flights, default_config("AAA"), DemandCalculator(MockCapacityResolver()),
@@ -203,9 +204,9 @@ def test_i_old_quarter_hour_rows_are_pruned_by_next_run(session):
     session.commit()
     assert session.scalar(select(func.count()).select_from(QueuePrediction)) == 4
 
-    # domestic departure -> security buffer 45dk düşülür (duration=60dk,
-    # SHORT aralık) -> scheduled=8:50 -> effective=8:05 -> pencere 08:00.
-    refresh_flights(session, [_row("AAA_1", at(8, 50))])
+    # ADIM (Airport Queue Model V2 - sabit -120dk offset): scheduled=10:05
+    # -> effective=08:05 -> pencere 08:00.
+    refresh_flights(session, [_row("AAA_1", at(10, 5))])
     resolver = MockCapacityResolver()
     now = at(10, 0)   # pencere kesinlikle kapanmış
     run_predictions(session, resolver, airports=["AAA"], now=now)

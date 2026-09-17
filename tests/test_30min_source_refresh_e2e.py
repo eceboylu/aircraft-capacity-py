@@ -46,6 +46,18 @@ def hour_start(hour: int) -> datetime:
     return DAY.replace(hour=hour, minute=0, second=0, microsecond=0)
 
 
+# ADIM (Operational-Day Scope): `run_predictions()` artık havalimanının
+# GERÇEK yerel timezone'una göre "bugün" filtresi uyguluyor (bkz.
+# app/queue/domain/operational_day.py). Bu dosyadaki gerçek pipeline
+# (`pipeline_module.run()`) çağrıları artık `now`'ı AÇIKÇA vermeli -
+# aksi halde `domain_now()` (GERÇEK duvar saati) kullanılır ve DAY
+# (2026-09-15) hiçbir zaman "bugün" olarak seçilmez. 20:00 UTC hem tüm
+# test pencerelerinin (en geç window_start=14, window_end=15:00)
+# KAPANMIŞ olmasını hem de IST/ADB'nin (Europe/Istanbul, UTC+3) yerel
+# tarihinin hâlâ AYNI gün (15 Eylül 23:00 yerel) olmasını garanti eder.
+PIPELINE_NOW = hour_start(20)
+
+
 def _fmt(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%d %H:%M")
 
@@ -60,14 +72,21 @@ def rec(flight_iata, number, airline, dep_iata, arr_iata, dep_dt, arr_dt, aircra
 
 
 def dom_dep(number, window, status="scheduled", airport="IST", partner="ESB"):
-    """Domestic kalkış: 70dk süre -> 45dk security buffer -> dep=window+50dk."""
-    dep_dt = window + timedelta(minutes=50)
+    """
+    Domestic kalkış: 70dk süre. ADIM (Airport Queue Model V2 - sabit
+    -120dk offset): dep=window+125dk -> effective_time=window+5dk.
+    """
+    dep_dt = window + timedelta(minutes=125)
     return rec(f"TK{number}", number, "TK", airport, partner, dep_dt, dep_dt + timedelta(minutes=70), "A320", status)
 
 
 def intl_dep(number, window, status="scheduled", airport="IST", partner="CDG"):
-    """Uluslararası kalkış: 210dk süre -> 60dk security buffer -> dep=window+65dk."""
-    dep_dt = window + timedelta(minutes=65)
+    """
+    Uluslararası kalkış: 210dk süre. ADIM (Airport Queue Model V2 - sabit
+    -120dk offset): dep=window+125dk -> effective_time=window+5dk (domestic
+    ile AYNI sabit formül, lokasyon/süreden bağımsız).
+    """
+    dep_dt = window + timedelta(minutes=125)
     return rec(f"TK{number}", number, "TK", airport, partner, dep_dt, dep_dt + timedelta(minutes=210), "A320", status)
 
 
@@ -159,10 +178,10 @@ def r1_sources():
 @pytest.fixture
 def r0_r1(isolated_pipeline):
     source_a_r0, source_b_r0 = r0_sources()
-    r0_summary = pipeline_module.run(source_a=source_a_r0, source_b=source_b_r0)
+    r0_summary = pipeline_module.run(source_a=source_a_r0, source_b=source_b_r0, now=PIPELINE_NOW)
 
     source_a_r1, source_b_r1 = r1_sources()
-    r1_summary = pipeline_module.run(source_a=source_a_r1, source_b=source_b_r1)
+    r1_summary = pipeline_module.run(source_a=source_a_r1, source_b=source_b_r1, now=PIPELINE_NOW)
 
     return {
         "SessionLocal": isolated_pipeline,
@@ -348,13 +367,13 @@ def test_running_r1_again_is_idempotent(r0_r1):
     """
     source_a_r1, source_b_r1 = r1_sources()
 
-    pipeline_module.run(source_a=source_a_r1, source_b=source_b_r1)
+    pipeline_module.run(source_a=source_a_r1, source_b=source_b_r1, now=PIPELINE_NOW)
     session_1 = _session(r0_r1)
     run_1 = airport_predictions(session_1, "IST")
     flight_count_1 = session_1.scalar(select(func.count()).select_from(Flight))
     session_1.close()
 
-    pipeline_module.run(source_a=source_a_r1, source_b=source_b_r1)
+    pipeline_module.run(source_a=source_a_r1, source_b=source_b_r1, now=PIPELINE_NOW)
     session_2 = _session(r0_r1)
     run_2 = airport_predictions(session_2, "IST")
     flight_count_2 = session_2.scalar(select(func.count()).select_from(Flight))
@@ -367,27 +386,56 @@ def test_running_r1_again_is_idempotent(r0_r1):
 
 def test_baseline_ledger_prevents_the_same_window_from_being_recorded_twice(r0_r1):
     """
-    `BaselineObservation` (airport, process, window_start) üzerinde
+    `BaselineObservation` (airport, PROCESS, window_start) üzerinde
     UNIQUE - R1'in aynı payload'ı N kere çalıştırılsa bile 12:00
-    penceresi için sadece TEK bir gözlem defterde kalmalı (yukarıdaki
-    "baseline ısınması" notunun idempotent bir tek-seferlik olay
-    olduğunun kanıtı).
+    penceresi için HER SÜREÇTE sadece TEK bir gözlem defterde kalmalı
+    (yukarıdaki "baseline ısınması" notunun idempotent bir tek-seferlik
+    olay olduğunun kanıtı).
+
+    ADIM (4-Graph API Contract): 12:00 penceresini besleyen A2 varış-
+    kökenli bir uçuş (intl arrival) - artık birleşik `passport`'un
+    YANINDA (`_passport_cohort_breakdown()`, engine.py) `passport_arr`
+    süreci de KENDİ ayrı `BaselineObservation` defterini besliyor (Bölüm
+    17: AYNI fiziksel talebin cohort/kaynak bazlı raporlama görünümü -
+    double-count DEĞİL, iki AYRI process_id). Bu yüzden 12:00 için
+    TOPLAM satır sayısı artık 2'dir (1 `passport` + 1 `passport_arr`) -
+    ama HER SÜRECİN KENDİ İÇİNDE hâlâ TAM OLARAK 1 (idempotency
+    BOZULMADI - doğrudan DB'den doğrulandı, bkz. rapor). Eski `count==1`
+    (process filtrelenmeden) varsayımı bu YENİ, doğru süreç ayrımından
+    ÖNCE yazılmıştı ve artık iki AYRI, GERÇEK gözlemi "duplicate" gibi
+    yanlış yorumluyordu - production'da hiçbir duplicate YOK.
     """
     from app.queue.models import BaselineObservation
 
     source_a_r1, source_b_r1 = r1_sources()
-    pipeline_module.run(source_a=source_a_r1, source_b=source_b_r1)
-    pipeline_module.run(source_a=source_a_r1, source_b=source_b_r1)
+    pipeline_module.run(source_a=source_a_r1, source_b=source_b_r1, now=PIPELINE_NOW)
+    pipeline_module.run(source_a=source_a_r1, source_b=source_b_r1, now=PIPELINE_NOW)
 
     session = _session(r0_r1)
     try:
-        count = session.scalar(
-            select(func.count()).select_from(BaselineObservation).where(
+        rows = session.execute(
+            select(BaselineObservation).where(
                 BaselineObservation.airport_iata == "IST",
                 BaselineObservation.window_start == hour_start(12),
             )
-        )
-        assert count == 1
+        ).scalars().all()
+
+        processes = sorted(r.process for r in rows)
+        assert processes == ["passport", "passport_arr"]
+
+        for process in processes:
+            per_process_count = session.scalar(
+                select(func.count()).select_from(BaselineObservation).where(
+                    BaselineObservation.airport_iata == "IST",
+                    BaselineObservation.process == process,
+                    BaselineObservation.window_start == hour_start(12),
+                )
+            )
+            assert per_process_count == 1, (
+                f"{process} süreci için {per_process_count} gözlem - "
+                "idempotency BOZULDU (aynı payload iki kez çalıştırıldı, "
+                "ikinci çalıştırma YENİ bir satır AÇMAMALIYDI)"
+            )
     finally:
         session.close()
 
@@ -440,7 +488,11 @@ def test_frontend_polling_only_refetches_the_same_predictions_endpoint():
     )
     with open(path, "r", encoding="utf-8") as fh:
         html = fh.read()
-    assert "var POLL_MS = 30 * 60 * 1000;" in html
+    # ADIM (Frontend 4-Graph Contract) - Bölüm 26/52: source refresh
+    # artık ~5 dakika (30 dakika DEĞİL) - queue window/prediction
+    # window/service interval'dan bağımsız, SADECE dış veri yenilenme
+    # sıklığı.
+    assert "var POLL_MS = 5 * 60 * 1000;" in html
     assert "setInterval(loadAll, POLL_MS)" in html
     # loadAll SADECE mevcut REST uçlarını (directory + predictions)
     # çağırıyor - başka bir kaynağa (AirLabs vb.) hiç istek yok.

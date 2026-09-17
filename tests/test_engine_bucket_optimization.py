@@ -277,7 +277,25 @@ def test_bucket_based_predict_airport_matches_old_window_scan_algorithm():
 
 
 def test_bucket_based_matches_old_algorithm_with_no_baseline_at_all():
-    """historical_baseline=None yolunda da (RISK_UNKNOWN / NO_BASELINE reason) birebir aynı."""
+    """
+    historical_baseline=None yolunda da (RISK_UNKNOWN / NO_BASELINE reason)
+    birebir aynı.
+
+    ADIM (Airport Queue Model V2 - sabit -120dk offset): bu karşılaştırma
+    daha önce (eski dinamik 45/60/90dk buffer altında) TESADÜFEN tüm
+    süreçlerde eşleşiyordu - `_diverse_flight_set()`'in ürettiği uçuşlar
+    o zamanki saat dağılımıyla passport'u hiç doldurmuyordu, bu yüzden
+    PROCESS_SECURITY/PROCESS_SECURITY_INTL'in `_passport_security_hourly_
+    coupling()`'den gelen kuplajlı talebi, eski yolun (`predict_window`)
+    kuplajdan HABERSİZ, saf pencere talebiyle çakışıyordu. Sabit -120dk
+    offset'te aynı uçuşlar farklı saatlere düştüğü için bu tesadüf artık
+    geçerli değil - `test_bucket_based_predict_airport_matches_old_window_
+    scan_algorithm()` (bu dosyada, yukarıda) zaten aynı yapısal nedenle
+    SADECE kuplajdan ETKİLENMEYEN süreçleri (PASSPORT, SECURITY_DOMESTIC)
+    karşılaştırıyor - burada da AYNI, önceden belgelenmiş kısıtlama
+    uygulanıyor (production kuplaj matematiği DEĞİŞMEDİ, sadece bu testin
+    kapsamı gerçek mimariye uygun hale getirildi).
+    """
     flights = _diverse_flight_set(n_per_kind=10)
     config = roomy_config()
 
@@ -291,25 +309,32 @@ def test_bucket_based_matches_old_algorithm_with_no_baseline_at_all():
         baseline_fn=None, passenger_baseline_fn=None,
     )
 
-    assert _as_comparable(old_results) == _as_comparable(new_results)
+    unaffected = {PROCESS_PASSPORT, PROCESS_SECURITY_DOMESTIC}
+    old_unaffected = [p for p in old_results if p.process in unaffected]
+    new_unaffected = [p for p in new_results if p.process in unaffected]
+    assert len(old_unaffected) > 0
+    assert len(old_unaffected) == len(new_unaffected)
+    assert _as_comparable(old_unaffected) == _as_comparable(new_unaffected)
 
 
 # ========================================================================
-# 2) EFFECTIVE_TIME() ÇAĞRI SAYISI - bucket başına bir kez + (SADECE
-#    passport) current-wait filtresi için pencere başına bir kez daha.
+# 2) EFFECTIVE_TIME() ÇAĞRI SAYISI - process başına bucket geçişi +
+#    event-driven simülasyonun KENDİ arrival-timeline geçişi.
 #
-#    ADIM 6D-2 NOTU: `_bucket_flights_by_window()` HÂLÂ her uçuş için
-#    TAM OLARAK BİR KEZ `effective_time()` çağırıyor (bu ADIM'da
-#    DEĞİŞMEDİ). Ama ADIM 6D-2'nin gerçek "an itibariyle" (current)
-#    passport bekleme hesabı `effective_time(f) <= now` filtresini
-#    UYGULAMAK ZORUNDA (bkz. audit bulgusu - eski formül bunu hiç
-#    yapmıyordu, bu YÜZDEN yanlıştı) - bu da passport pencerelerinin
-#    KENDİ (küçük, ~N/W büyüklüğündeki) `window_flights` listesi
-#    üzerinde İKİNCİ bir `effective_time()` geçişi gerektiriyor.
-#    Bu, ADIM 5E-2'nin düzelttiği O(N×W) tam-liste taramasıyla AYNI
-#    ŞEY DEĞİL - sadece passport'un KENDİ (zaten bucket'lanmış, küçük)
-#    penceresi üzerinde, O(N_passport) sınırlı bir ek geçiş; security
-#    hiç etkilenmiyor (hâlâ tam olarak bir kez).
+#    ADIM (Event-Driven Engine Entegrasyonu) NOTU: eski saatlik-oransal
+#    `_passport_security_hourly_coupling()`'in YERİNİ `_event_driven_
+#    queue_demand()` aldı. Bu fonksiyon artık `current_arrived_override`'ı
+#    (ve `demand_override`/`backlog_start`'ı) DÖRT sürecin DÖRDÜ için de
+#    besliyor - bu yüzden `_predict_window_core`'un eski inline "current-
+#    wait effective_time<=now" filtresi (PASSPORT/SECURITY_DOMESTIC için
+#    ayrı bir `effective_time()` geçişi gerektiren dal) ARTIK HİÇ
+#    ÇALIŞMIYOR (`current_arrived_override is not None` her zaman doğru).
+#    Bunun yerine `_event_driven_queue_demand()`'ın KENDİ `_arrivals()`
+#    yardımcı fonksiyonu, passport'a giren uçuşları (`is_international_
+#    departure`/`is_international_arrival` İKİ AYRI ama BİRBİRİNİ
+#    DIŞLAYAN predikat) ve domestic kalkışları TARAYIP `effective_time()`
+#    çağırıyor - her flight (iptal/diverted HARİÇ) yine TAM OLARAK BİR
+#    KEZ (predikatlardan sadece BİRİNE uyduğu için, ikisine de değil).
 # ========================================================================
 
 def test_effective_time_called_bounded_times_per_flight(monkeypatch):
@@ -345,40 +370,44 @@ def test_effective_time_called_bounded_times_per_flight(monkeypatch):
     )
     n_security_dom = len(security_domestic_flights(flights))
     n_security_intl = len(security_international_flights(flights))
-    # Ortak current-wait filtresi her süreçte talebe giren uçuşları
-    # ikinci kez tarar.
+
     def included(items):
         return len([f for f in items if f.status not in EXCLUDED_STATUSES])
 
-    # security (birleşik + domestic + international) + passport: her
-    # biri `predict_airport()`'ın ANA döngüsünde KENDİ bucket'lamasında
-    # TAM OLARAK bir kez (ADIM 5E-2 ilkesi korunuyor - her SÜREÇ kendi
-    # flight listesini bir kez tarıyor).
-    #
-    # PASSPORT→SECURITY zaman-kuplajı ADIM'ı iki şeyi değiştirdi:
-    #   1) PROCESS_SECURITY/PROCESS_SECURITY_INTL artık `current_arrived_
-    #      override` ile besleniyor (bkz. `_passport_security_hourly_
-    #      coupling`'in `current_released_by_hour`'ı) - bu yüzden KENDİ
-    #      current-wait effective_time<=now filtrelerini ARTIK
-    #      ÇALIŞTIRMIYORLAR (`_predict_window_core`'daki else dalı
-    #      atlanıyor). PASSPORT ve SECURITY_DOMESTIC bundan ETKİLENMEDİ -
-    #      hâlâ KENDİ current-wait filtrelerini çalıştırıyorlar.
-    #   2) `_passport_security_hourly_coupling()` KENDİ, main döngüden
-    #      TAMAMEN AYRI iki `_bucket_flights_by_window()` geçişi yapıyor
-    #      (passport_flights + security_domestic_flights) - kuplajın
-    #      kalkış/varış payını hesaplamak için passport'un TÜM uçuş
-    #      listesini KENDİ BAŞINA yeniden bucket'laması gerekiyor.
-    expected = (
-        n_security + n_security_dom + n_security_intl + n_passport
-        + included(passport_flights(flights))
+    # ANA DÖNGÜ - `predict_airport()`'ın 4 süreç için KENDİ `_bucket_
+    # flights_by_window()` geçişi (RAW liste boyutu, iptal/diverted DAHİL -
+    # `_bucket_flights_by_window` status'e bakmadan HER flight için
+    # effective_time() çağırır, sadece None-moment'ları eler).
+    main_loop_calls = n_security + n_security_dom + n_security_intl + n_passport
+
+    # EVENT-DRIVEN SİMÜLASYON - `_event_driven_queue_demand()`'ın KENDİ
+    # `_arrivals()` taraması: passport'a giren uçuşlar (departure/arrival
+    # predikatları BİRBİRİNİ DIŞLAR - her flight SADECE BİRİNE uyar, bu
+    # yüzden ikisi TOPLAMDA passport_flights'ı bir kez tarar, iki kez
+    # DEĞİL) + domestic kalkışlar - HER İKİSİ DE sadece talebe giren
+    # (iptal/diverted HARİÇ) uçuşlar için effective_time() çağırır.
+    event_driven_calls = (
+        included(passport_flights(flights))
         + included(security_domestic_flights(flights))
-        + n_passport + n_security_dom
     )
+
+    # ADIM (4-Graph API Contract) - `_passport_cohort_breakdown()` KENDİ
+    # İKİ AYRI `_bucket_flights_by_window()` geçişi yapıyor (departure-
+    # kökenli + arrival-kökenli, RAW liste, status'e bakılmadan) - bu
+    # ikisi BİRBİRİNİ DIŞLAYAN alt kümeler olduğu için TOPLAMDA
+    # `passport_flights(flights)`'ın RAW boyutu kadar (n_passport) EK
+    # `effective_time()` çağrısı - iki kez DEĞİL, bucket'lamanın kendisi
+    # ana döngüdekiyle AYNI ilke (status filtrelenmeden, sadece None-
+    # moment elenir).
+    cohort_breakdown_calls = n_passport
+
+    expected = main_loop_calls + event_driven_calls + cohort_breakdown_calls
     assert calls["n"] == expected, (
-        "effective_time() her süreç için kendi flight alt kümesinde TAM "
-        "OLARAK bir kez bucket'lanmalı (ADIM 5E-2 ilkesi); passport'ta "
-        "ayrıca current-wait effective_time<=now filtresi (1x, SADECE "
-        "talebe giren uçuşlar) - toplamda O(N×W) DEĞİL."
+        "effective_time() ana döngüde her süreç için RAW flight "
+        "listesinde TAM OLARAK bir kez (ADIM 5E-2 ilkesi), event-driven "
+        "simülasyonda ise passport/domestic'e giren (talebe giren) "
+        "uçuşlar için TAM OLARAK bir kez daha çağrılmalı - toplamda "
+        "O(N×W) DEĞİL."
     )
 
 

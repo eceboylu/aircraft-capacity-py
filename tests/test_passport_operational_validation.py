@@ -71,10 +71,18 @@ def operational_state():
 
         source_a = airlabs_client.build_source_a(ops.AIRPORTS)
         source_b = airlabs_client.build_source_b()
+        # ADIM (Operational-Day Scope): IST/SAW/ADB'nin GERÇEK timezone'u
+        # (Europe/Istanbul) artık operational-day filtresine giriyor -
+        # bu fixture'ın sabit tarihli (2026-09-15) flight'ları gerçek
+        # duvar saatiyle KARIŞTIRILMAMALI; `now` flight verisiyle AYNI
+        # güne (yerel Sep 15, tüm pencereler kapalı) hizalanır.
+        operational_now = datetime(2026, 9, 15, 20, 0)
         summaries = {}
         for round_ in ops.ROUNDS:
             source.round = round_
-            summaries[round_] = pipeline_module.run(source_a=source_a, source_b=source_b)
+            summaries[round_] = pipeline_module.run(
+                source_a=source_a, source_b=source_b, now=operational_now,
+            )
 
         yield {"session_factory": TestSessionLocal, "summaries": summaries}
     finally:
@@ -150,10 +158,15 @@ def test_t1_ist_passport_full_chain_measured_independently():
         source_a = airlabs_client.build_source_a(ops.AIRPORTS)
         source_b = airlabs_client.build_source_b()
 
+        # ADIM (Operational-Day Scope): bkz. modül seviyesindeki fixture
+        # notu - IST'in GERÇEK timezone'u (Europe/Istanbul) artık
+        # operational-day filtresine giriyor, `now` flight verisiyle
+        # (2026-09-15) hizalanmalı.
+        operational_now = datetime(2026, 9, 15, 20, 0)
         snapshots = {}
         for round_ in ("t0", "t1"):
             source.round = round_
-            pipeline_module.run(source_a=source_a, source_b=source_b)
+            pipeline_module.run(source_a=source_a, source_b=source_b, now=operational_now)
             s = Session()
             row = _passport_window(s, "IST", datetime(2026, 9, 15, 10, 0))
             snapshots[round_] = (row.utilization, row.expected_passengers, row.risk)
@@ -272,10 +285,14 @@ def test_saw_passport_surge_window_rose_then_recovered():
         source_a = airlabs_client.build_source_a(ops.AIRPORTS)
         source_b = airlabs_client.build_source_b()
 
+        # ADIM (Operational-Day Scope): bkz. modül seviyesindeki fixture
+        # notu - SAW'ın GERÇEK timezone'u (Europe/Istanbul) artık
+        # operational-day filtresine giriyor.
+        operational_now = datetime(2026, 9, 15, 20, 0)
         flight_counts = {}
         for round_ in ("t0", "t1", "t2"):
             source.round = round_
-            pipeline_module.run(source_a=source_a, source_b=source_b)
+            pipeline_module.run(source_a=source_a, source_b=source_b, now=operational_now)
             s = Session()
             row = _passport_window(s, "SAW", datetime(2026, 9, 15, 12, 0))
             flight_counts[round_] = row.flight_count

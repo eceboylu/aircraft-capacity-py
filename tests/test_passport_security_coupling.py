@@ -69,19 +69,19 @@ def _at_hour(predictions, process, hour):
 # ========================================================================
 
 def test_domestic_departure_reaches_security_same_hour_no_passport_delay():
-    # departure() varsayılan 90dk süre -> 45dk security buffer -> 09:00
-    # kalkış effective_time'ı 08:15'e (pencere 08:00) düşürür.
+    # ADIM (Airport Queue Model V2 - sabit -120dk offset): 09:00 kalkış
+    # effective_time'ı 07:00'a (pencere 07:00) düşürür.
     flights = [
         departure(9, 0, location=LOCATION_DOMESTIC, key=f"DOM{i}", number=str(i), aircraft="B77W")
         for i in range(3)   # 3 x 350 = 1050 pax, security kapasitesini (480) aşan bir yük
     ]
     predictions = predict_airport("AAA", flights, default_config("AAA"), _demand())
 
-    security = _at_hour(predictions, PROCESS_SECURITY, 8)
+    security = _at_hour(predictions, PROCESS_SECURITY, 7)
     assert security is not None
     assert security.expected_passengers == 1050
     # Passport'u hiç GÖRMEDİ - hiçbir gecikme/kuplaj YOK, aynı saatte tam talep.
-    passport = _at_hour(predictions, PROCESS_PASSPORT, 8)
+    passport = _at_hour(predictions, PROCESS_PASSPORT, 7)
     assert passport is None   # domestic hiçbir zaman passport'a girmez
 
 
@@ -114,8 +114,8 @@ def test_international_departure_reaches_security_only_after_passport_when_not_b
     flights = [intl_departure(9, 0, key="D1", number="1", aircraft="E190")]
     predictions = predict_airport("AAA", flights, default_config("AAA"), _demand())
 
-    passport = _at_hour(predictions, PROCESS_PASSPORT, 8)
-    security_intl = _at_hour(predictions, PROCESS_SECURITY_INTL, 8)
+    passport = _at_hour(predictions, PROCESS_PASSPORT, 7)
+    security_intl = _at_hour(predictions, PROCESS_SECURITY_INTL, 7)
     assert passport.expected_passengers == 100
     assert security_intl.expected_passengers == 100   # backlog yok -> AYNI saatte tamamı serbest
 
@@ -135,16 +135,20 @@ def test_security_never_receives_more_than_passport_actually_released():
     ]
     predictions = predict_airport("AAA", flights, default_config("AAA"), _demand())
 
-    passport = _at_hour(predictions, PROCESS_PASSPORT, 8)
-    security_intl = _at_hour(predictions, PROCESS_SECURITY_INTL, 8)
+    passport = _at_hour(predictions, PROCESS_PASSPORT, 7)
+    security_intl = _at_hour(predictions, PROCESS_SECURITY_INTL, 7)
 
     assert passport.expected_passengers == 600
     assert passport.risk == RISK_CRITICAL   # passport gerçek darboğaz
 
     # security_intl SADECE passport'un o saat GERÇEKTEN işleyebildiği
-    # kadarını görür - passport'un kendi kapasitesiyle (320/saat) sınırlı,
-    # ham talebin (600) TAMAMI DEĞİL.
-    assert security_intl.expected_passengers == 320.0
+    # kadarını görür - ham talebin (600) TAMAMI DEĞİL. Gerçek event-driven
+    # simülasyonda (8 server, 1.5dk/servis) saat içine TAM olarak 39 dalga
+    # sığar (39*1.5=58.5dk); 40. dalga tam saat sınırında (60dk) tamamlanır
+    # ve yarı-açık pencere kuralıyla [start,end) BİR SONRAKİ saate düşer -
+    # bu yüzden referans kapasite (320=8*40*1.5/60) ile DEĞİL, 39*8=312 ile
+    # sınırlı (kesirli 40. dalga sınırda kesiliyor).
+    assert security_intl.expected_passengers == 312.0
     assert security_intl.expected_passengers < passport.expected_passengers
 
 
@@ -171,10 +175,12 @@ def test_conservation_across_hours_until_passport_backlog_fully_drains():
     # security_intl BİRDEN FAZLA saate yayılmış olabilir (backlog boşalırken).
     total_transferred_to_security = sum(r.expected_passengers for r in security_intl_rows)
 
-    # Passport 320'yi ilk saatte, kalan 30'u İKİNCİ saatte işler (320<350<640).
+    # Gerçek event-driven simülasyon: ilk saate TAM 39 dalga (39*8=312)
+    # sığar (40. dalga tam saat sınırında tamamlanır, yarı-açık pencere
+    # kuralıyla İKİNCİ saate düşer); kalan 350-312=38 ikinci saatte.
     assert len(security_intl_rows) == 2
-    assert security_intl_rows[0].expected_passengers == 320.0
-    assert security_intl_rows[1].expected_passengers == 30.0
+    assert security_intl_rows[0].expected_passengers == 312.0
+    assert security_intl_rows[1].expected_passengers == 38.0
 
     # CONSERVATION: security'ye aktarılan TOPLAM == passport'un işlediği
     # TOPLAM == flight'ın TÜM talebi (hiçbir yolcu yaratılmadı/kaybolmadı).
@@ -192,9 +198,9 @@ def test_domestic_and_international_departure_same_hour_do_not_mix():
     intl = [intl_departure(9, 0, key="INT1", number="2", aircraft="E190")]
     predictions = predict_airport("AAA", domestic + intl, default_config("AAA"), _demand())
 
-    security_dom = _at_hour(predictions, PROCESS_SECURITY_DOMESTIC, 8)
-    security_intl = _at_hour(predictions, PROCESS_SECURITY_INTL, 8)
-    security_combined = _at_hour(predictions, PROCESS_SECURITY, 8)
+    security_dom = _at_hour(predictions, PROCESS_SECURITY_DOMESTIC, 7)
+    security_intl = _at_hour(predictions, PROCESS_SECURITY_INTL, 7)
+    security_combined = _at_hour(predictions, PROCESS_SECURITY, 7)
 
     assert security_dom.expected_passengers == 180        # SADECE domestic (A320)
     assert security_intl.expected_passengers == 100        # SADECE international'ın passport'tan serbest bıraktığı (E190, backlog yok)
@@ -218,10 +224,14 @@ def test_passenger_released_after_hour_boundary_is_not_lost():
 
     security_intl = _by(predictions, PROCESS_SECURITY_INTL)
     hours = [r.window_start.hour for r in security_intl]
-    # 600 pax / 320 pax-saat -> 2 saat sürer (320+280=600).
-    # Kalkış 09:00 -> 45dk security buffer -> effective_time penceresi 08:00.
-    assert hours == [8, 9]
-    assert [r.expected_passengers for r in security_intl] == [320.0, 280.0]
+    # ADIM (Event-Driven Engine Entegrasyonu): gerçek simülasyonda saat
+    # içine TAM 39 dalga (8'er kişi, 1.5dk/dalga) sığar = 312; 40. dalga
+    # tam saat sınırında tamamlanır, yarı-açık [start,end) kuralıyla
+    # SONRAKİ saate düşer - kalan 600-312=288 ikinci saatte.
+    # ADIM (Airport Queue Model V2 - sabit -120dk offset): kalkış 09:00
+    # -> effective_time penceresi 07:00.
+    assert hours == [7, 8]
+    assert [r.expected_passengers for r in security_intl] == [312.0, 288.0]
     assert sum(r.expected_passengers for r in security_intl) == 600
 
 
@@ -235,16 +245,17 @@ def test_recovery_after_backlog_drains_next_flight_is_unaffected():
         intl_departure(9, 0, key=f"D{i}", number=str(i), aircraft="E190")
         for i in range(6)   # 600 pax - birkaç saat sürer boşalması (bkz. test 7)
     ]
-    # 13:00'da (effective_time penceresi 12:00) YENİ, küçük ve TEK
-    # BAŞINA bir uçuş - önceki backlog (bkz. test 7 - 08:00-11:00 arası
-    # TAMAMEN boşalıyor) TAMAMEN boşaldıktan SONRA.
+    # ADIM (Airport Queue Model V2 - sabit -120dk offset): 13:00 kalkış
+    # -> effective_time penceresi 11:00. YENİ, küçük ve TEK BAŞINA bir
+    # uçuş - önceki backlog (bkz. test 7 - 07:00-08:00 arası TAMAMEN
+    # boşalıyor) TAMAMEN boşaldıktan SONRA.
     recovery_flight = [intl_departure(13, 0, key="REC", number="99", aircraft="E190")]
     predictions = predict_airport(
         "AAA", surge + recovery_flight, default_config("AAA"), _demand()
     )
 
     security_intl = _by(predictions, PROCESS_SECURITY_INTL)
-    row_12 = next(r for r in security_intl if r.window_start.hour == 12)
-    # 12:00'daki talep SADECE recovery_flight'ın kendi talebi (100) -
+    row_11 = next(r for r in security_intl if r.window_start.hour == 11)
+    # 11:00'daki talep SADECE recovery_flight'ın kendi talebi (100) -
     # önceki backlog'dan hiçbir kalıntı YOK (tam boşalmış).
-    assert row_12.expected_passengers == 100.0
+    assert row_11.expected_passengers == 100.0

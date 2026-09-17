@@ -257,9 +257,11 @@ def test_effective_time_regression_departure_precedence_unaffected():
     flight = to_flight(row)
 
     # actual (18:45) kullanılmalı - scheduled (18:00) veya estimated (18:40)
-    # değil. Süre 150 dk -> orta menzil uluslararası buffer = 60 dk.
-    # 18:45 - 60 dk = 17:45.
-    assert effective_time(flight) == datetime(2026, 9, 15, 17, 45)
+    # değil. ADIM (Airport Queue Model V2): departure buffer artık süreden
+    # BAĞIMSIZ sabit 120 dk (DEPARTURE_PASSENGER_ARRIVAL_OFFSET_MINUTES) -
+    # eski dinamik 45/60/90dk süre-bazlı buffer YERİNE geçti.
+    # 18:45 - 120 dk = 16:45.
+    assert effective_time(flight) == datetime(2026, 9, 15, 16, 45)
 
 
 def test_effective_time_regression_arrival_uses_actual_over_estimated_and_scheduled():

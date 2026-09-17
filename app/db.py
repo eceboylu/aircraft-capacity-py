@@ -29,26 +29,42 @@ _SQLITE_OPERATIONAL_CONFIG_COLUMNS = {
     "passport_service_time_minutes": "FLOAT NOT NULL DEFAULT 1.5",
     "security_lane_count": "INTEGER NOT NULL DEFAULT 8",
     "security_service_time_minutes": "FLOAT NOT NULL DEFAULT 1.0",
+    # ADIM (Domestic/International Security Lane Ayrımı): mevcut
+    # `security_lane_count` ile AYNI varsayılan (8) - mevcut satırlar
+    # için davranış değişmez, sadece airport-bazlı ayrı ayarlanabilir
+    # yeni kolonlar eklenir.
+    "domestic_security_lane_count": "INTEGER NOT NULL DEFAULT 8",
+    "international_security_lane_count": "INTEGER NOT NULL DEFAULT 8",
+}
+
+# ADIM (Operational-Day Scope) `Airport.timezone` bu tabloya SONRADAN
+# eklendi - `create_all()` var olan `airports` tablosuna yeni kolon
+# eklemediği için, önceki bir şemadan gelen (bu kolon olmadan
+# oluşturulmuş) bir `airports` tablosu bu kolon olmadan kalır ve
+# `Airport.timezone` okuyan her sorgu ("no such column") ile çöker.
+# Nullable olduğu için DEFAULT gerekmez - mevcut satırlar NULL alır,
+# `resolve_airport_timezone()` bunu zaten açıkça ele alıyor.
+_SQLITE_AIRPORTS_COLUMNS = {
+    "timezone": "VARCHAR(64)",
 }
 
 
-def _migrate_sqlite_operational_config() -> None:
+def _migrate_sqlite_table(table: str, columns: dict[str, str]) -> None:
     if engine.dialect.name != "sqlite":
         return
 
     inspector = inspect(engine)
-    table = "airport_operational_configs"
     if table not in inspector.get_table_names():
         return
 
     existing = {column["name"] for column in inspector.get_columns(table)}
-    missing = [name for name in _SQLITE_OPERATIONAL_CONFIG_COLUMNS if name not in existing]
+    missing = [name for name in columns if name not in existing]
     if not missing:
         return
 
     with engine.begin() as connection:
         for name in missing:
-            definition = _SQLITE_OPERATIONAL_CONFIG_COLUMNS[name]
+            definition = columns[name]
             connection.exec_driver_sql(
                 f"ALTER TABLE {table} ADD COLUMN {name} {definition}"
             )
@@ -59,7 +75,8 @@ def init_db(drop_first: bool = False) -> None:
     if drop_first:
         Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
-    _migrate_sqlite_operational_config()
+    _migrate_sqlite_table("airport_operational_configs", _SQLITE_OPERATIONAL_CONFIG_COLUMNS)
+    _migrate_sqlite_table("airports", _SQLITE_AIRPORTS_COLUMNS)
 
 
 def get_session() -> Session:

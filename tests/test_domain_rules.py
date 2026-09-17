@@ -131,16 +131,25 @@ def test_delay_minutes_negative_for_early_departure():
 # effective_time
 # --------------------------------------------------------------------
 
-def test_effective_time_departure_subtracts_dynamic_buffer():
-    """Kısa mesafe kalkış: 08:00 - 45 dk = 07:15"""
+def test_effective_time_departure_subtracts_fixed_120_minutes():
+    """
+    ADIM (Airport Queue Model V2): departure passenger arrival artık
+    süreye bağlı dinamik buffer DEĞİL, sabit 120 dakikadır.
+    08:00 - 120 dk = 06:00.
+    """
     flight = departure(8, duration_minutes=90)
-    assert effective_time(flight) == at(7, 15)
+    assert effective_time(flight) == at(6, 0)
 
 
-def test_effective_time_departure_long_haul_subtracts_90():
-    """Senaryo 10: uzun mesafe kalkış 08:00 - 90 dk = 06:30"""
+def test_effective_time_departure_offset_is_duration_independent():
+    """
+    Senaryo 10 (güncellendi): eski davranışta uzun mesafe kalkış farklı
+    bir buffer (90 dk) kullanırdı; artık offset sabit 120 dk olduğu için
+    uçuş süresi (kısa/orta/uzun mesafe farketmeksizin) effective_time'ı
+    ETKİLEMEZ. 08:00 - 120 dk = 06:00, mesafeden bağımsız.
+    """
     flight = departure(8, location="international", duration_minutes=500)
-    assert effective_time(flight) == at(6, 30)
+    assert effective_time(flight) == at(6, 0)
 
 
 def test_effective_time_arrival_adds_fixed_buffer():
@@ -149,9 +158,9 @@ def test_effective_time_arrival_adds_fixed_buffer():
 
 
 def test_effective_time_uses_actual_when_delayed():
-    """Gecikmiş kalkış: actual 09:00 - 45 dk = 08:15"""
+    """Gecikmiş kalkış: actual 09:00 - 120 dk = 07:00"""
     flight = departure(8, duration_minutes=90, delay=60)
-    assert effective_time(flight) == at(8, 15)
+    assert effective_time(flight) == at(7, 0)
 
 
 def test_effective_time_none_when_no_time_at_all():
@@ -166,16 +175,16 @@ def test_effective_time_none_when_no_time_at_all():
 
 def test_window_is_half_open_interval():
     """[start, end) - bitiş anı dahil DEĞİL."""
-    inside = departure(7, 45, duration_minutes=90)    # effective 07:00
-    outside = departure(8, 0, duration_minutes=90)    # effective 07:15
+    inside = departure(9, 0, duration_minutes=90)     # effective 07:00
+    outside = departure(9, 15, duration_minutes=90)   # effective 07:15
     result = flights_in_window([inside, outside], at(7, 0), 15)
     assert result == [inside]
 
 
 def test_window_excludes_cancelled_and_diverted():
-    normal = departure(7, 45, duration_minutes=90)
-    cancelled = departure(7, 45, duration_minutes=90, status="cancelled", key="C1")
-    diverted = departure(7, 45, duration_minutes=90, status="diverted", key="D1")
+    normal = departure(9, 0, duration_minutes=90)
+    cancelled = departure(9, 0, duration_minutes=90, status="cancelled", key="C1")
+    diverted = departure(9, 0, duration_minutes=90, status="diverted", key="D1")
 
     result = flights_in_window([normal, cancelled, diverted], at(7, 0), 15)
     assert result == [normal]
@@ -185,10 +194,13 @@ def test_window_groups_delayed_flights_by_new_time():
     """
     Schedule compression: farklı tarifeli iki uçuş, gecikme sonrası
     aynı pencereye düşer. Ayrı bir dedektöre gerek yok.
+
+    a: scheduled 11:30 + 60 dk gecikme = actual 12:30, - 120 dk = 10:30
+    b: scheduled 12:20 + 15 dk gecikme = actual 12:35, - 120 dk = 10:35
     """
-    a = departure(8, 0, duration_minutes=90, delay=60, key="A")   # eff 08:15
-    b = departure(8, 50, duration_minutes=90, delay=15, key="B")  # eff 08:20
-    result = flights_in_window([a, b], at(8, 15), 15)
+    a = departure(11, 30, duration_minutes=90, delay=60, key="A")
+    b = departure(12, 20, duration_minutes=90, delay=15, key="B")
+    result = flights_in_window([a, b], at(10, 30), 15)
     assert set(f.flight_key for f in result) == {"A", "B"}
 
 
@@ -284,8 +296,8 @@ def test_effective_time_uses_estimated_when_actual_missing():
     flight.dep_actual_utc = None
     flight.dep_estimated_utc = at(9, 0)
 
-    # 09:00 kalkış - 45 dk kısa mesafe buffer'ı
-    assert effective_time(flight) == at(8, 15)
+    # 09:00 kalkış - sabit 120 dk = 07:00
+    assert effective_time(flight) == at(7, 0)
 
 
 def test_effective_time_arrival_uses_estimated_when_actual_missing():
@@ -301,7 +313,7 @@ def test_effective_time_prefers_actual_over_estimated():
     flight.dep_actual_utc = at(9, 0)
     flight.dep_estimated_utc = at(11, 0)
 
-    assert effective_time(flight) == at(8, 15)
+    assert effective_time(flight) == at(7, 0)
 
 
 def test_effective_time_and_delay_minutes_agree_on_source():
@@ -317,3 +329,68 @@ def test_effective_time_and_delay_minutes_agree_on_source():
     assert effective_time(delayed) - effective_time(on_time) == timedelta(
         minutes=60
     )
+
+
+# --------------------------------------------------------------------
+# Bölüm 31 - EXACT TIME -> HOURLY BUCKET testleri (genel-proje.md)
+#
+# İçsel event zamanı (effective_time) dakika hassasiyetini korumalı;
+# grafik bucket'ı ayrı bir adımda (floor_to_window) saate yuvarlanır.
+# Bu iki kavram karıştırılmamalı - burada AÇIKÇA ayrı test edilir.
+# --------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "dep_hour,dep_minute,expected_exact,expected_bucket",
+    [
+        (12, 0, (10, 0), (10, 0)),
+        (12, 3, (10, 3), (10, 0)),
+        (12, 34, (10, 34), (10, 0)),
+        (12, 59, (10, 59), (10, 0)),
+        (13, 0, (11, 0), (11, 0)),
+    ],
+)
+def test_departure_exact_time_and_hourly_bucket_boundaries(
+    dep_hour, dep_minute, expected_exact, expected_bucket
+):
+    """
+    Bölüm 31: departure kalkış saatinden -120 dk ile üretilen airport
+    arrival zamanı dakika hassasiyetinde korunmalı (internal), ama
+    grafik x-ekseni HER ZAMAN saat başlangıcına floor edilmelidir.
+    12:59 -> 10:59 (internal) ama grafik bucket'ı hâlâ 10.00'dır;
+    13:00 -> 11:00 sınırı geçer, hem internal hem bucket 11.00 olur.
+    """
+    from app.queue.engine import floor_to_window
+
+    flight = departure(dep_hour, dep_minute, duration_minutes=90)
+    exact = effective_time(flight)
+
+    assert exact == at(*expected_exact)
+    assert floor_to_window(exact) == at(*expected_bucket)
+
+
+@pytest.mark.parametrize(
+    "arr_hour,arr_minute,expected_exact,expected_bucket",
+    [
+        (13, 0, (13, 15), (13, 0)),
+        (13, 15, (13, 30), (13, 0)),
+        (13, 44, (13, 59), (13, 0)),
+        (13, 45, (14, 0), (14, 0)),
+        (13, 59, (14, 14), (14, 0)),
+    ],
+)
+def test_international_arrival_exact_time_and_hourly_bucket_boundaries(
+    arr_hour, arr_minute, expected_exact, expected_bucket
+):
+    """
+    Bölüm 31: international arrival + sabit 15 dk passport offset'i
+    ile üretilen passport arrival zamanı dakika hassasiyetinde
+    korunmalı; grafik bucket'ı saate floor edilir. 13:44 -> 13:59
+    hâlâ 13.00 bucket'ında; 13:45 -> 14:00 sınırı geçer, 14.00'e düşer.
+    """
+    from app.queue.engine import floor_to_window
+
+    flight = arrival(arr_hour, arr_minute)
+    exact = effective_time(flight)
+
+    assert exact == at(*expected_exact)
+    assert floor_to_window(exact) == at(*expected_bucket)

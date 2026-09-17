@@ -119,13 +119,14 @@ def _fmt(dt: datetime) -> str:
 
 def domestic_departure_records(window_start, count, airport="IST", partner="ESB", aircraft="A320"):
     """
-    IST->ESB (TR->TR), süre 70dk -> kısa mesafe -> 45dk security buffer.
-    dep_scheduled = window_start + 50dk -> effective_time = window_start + 5dk
-    (pencerenin İÇİNDE, uçuş başına 1dk kaydırılarak - aynı pencerede kalır).
+    IST->ESB (TR->TR), süre 70dk. ADIM (Airport Queue Model V2 - sabit
+    -120dk offset): dep_scheduled = window_start + 125dk -> effective_time
+    = window_start + 5dk (pencerenin İÇİNDE, uçuş başına 1dk kaydırılarak
+    - aynı pencerede kalır).
     """
     records = []
     for i in range(count):
-        dep_dt = window_start + timedelta(minutes=50 + i)
+        dep_dt = window_start + timedelta(minutes=125 + i)
         arr_dt = dep_dt + timedelta(minutes=70)
         records.append({
             "flight_iata": f"TK{_next_number()}", "flight_number": _next_number(),
@@ -138,12 +139,14 @@ def domestic_departure_records(window_start, count, airport="IST", partner="ESB"
 
 def international_departure_records(window_start, count, airport="IST", partner="CDG", aircraft="A320"):
     """
-    IST->CDG (TR->FR), süre 210dk -> orta mesafe -> 60dk security buffer.
-    dep_scheduled = window_start + 65dk -> effective_time = window_start + 5dk.
+    IST->CDG (TR->FR), süre 210dk. ADIM (Airport Queue Model V2 - sabit
+    -120dk offset): dep_scheduled = window_start + 125dk -> effective_time
+    = window_start + 5dk (lokasyondan/süreden bağımsız SABİT offset,
+    domestic ile AYNI formül).
     """
     records = []
     for i in range(count):
-        dep_dt = window_start + timedelta(minutes=65 + i)
+        dep_dt = window_start + timedelta(minutes=125 + i)
         arr_dt = dep_dt + timedelta(minutes=210)
         records.append({
             "flight_iata": f"TK{_next_number()}", "flight_number": _next_number(),
@@ -249,21 +252,25 @@ def test_a_wait_time_priority_estimated_wait_wins_over_capacity_exceeded():
 
 def test_a_wait_time_function_used_by_both_current_and_click_selected_window():
     """
-    `graphSectionHtml()` her iki durumda da (idx==null -> current,
-    idx!=null -> tıklanan pencere) AYNI `displayWindow` üzerinden
-    `windowWaitText()`/`waitTimeText()`'i çağırmalı - current ve click
-    için AYRI/farklı bir öncelik mantığı olmamalı.
+    ADIM (Frontend 4-Graph Contract) - `graphSectionHtml()` her iki
+    durumda da (tıklanmamış -> current, tıklanmış -> `window_start`'ı
+    eşleşen pencere) AYNI `displayWindow` üzerinden `waitDetailHtml()`'i
+    çağırmalı - current ve click için AYRI/farklı bir öncelik mantığı
+    olmamalı. İmza artık `graphSectionHtml(key, title, section, kind)`
+    (4. parametre - "single" vs "breakdown" - Bölüm 50: International
+    Departure'ın passport/security wait'lerini AYRI göstermesi için).
     """
     html = _read_index_html()
     script = html.split("<script>", 1)[1]
-    graph_fn = script.split("function graphSectionHtml(key, title, section) {", 1)[1].split("\n  }", 1)[0]
+    graph_fn = script.split("function graphSectionHtml(key, title, section, kind) {", 1)[1].split("\n  }", 1)[0]
 
     assert "state.detail[key]" in graph_fn
     assert "section.current" in graph_fn
-    assert "windowWaitText(key, displayWindow)" in graph_fn
-    # Tek bir waitText hesaplama satırı var - current/click için ikinci
-    # bir kopya YOK.
-    assert graph_fn.count("windowWaitText(") == 1
+    assert "waitDetailHtml(kind, displayWindow)" in graph_fn
+    # Tek bir waitDetailHtml çağrısı var - current/click için ikinci
+    # bir kopya YOK; `displayWindow` HER İKİ durumda da AYNI değişkenden
+    # gelir (yukarıda tek bir yerde çözülür).
+    assert graph_fn.count("waitDetailHtml(") == 1
 
 
 def test_a_waittimetext_never_recomputes_erlang_c():
@@ -689,9 +696,15 @@ def test_i_no_passenger_or_flight_count_in_frontend_graph_rendering():
 # J) CURRENT WAIT STALENESS - mimari değiştirilmedi, sadece doğrulandı
 # ==================================================================
 
-def test_j_poll_interval_is_30_minutes_as_coded():
+def test_j_poll_interval_is_5_minutes_as_coded():
+    """
+    ADIM (Frontend 4-Graph Contract) - Bölüm 26/52: source artık ~5
+    dakikada bir yenileniyor (30 dakika DEĞİL) - bu SADECE dış veri
+    yenilenme sıklığıdır, queue window/prediction window/service
+    interval'dan bağımsız (bkz. index.html'deki yorum).
+    """
     html = _read_index_html()
-    assert "var POLL_MS = 30 * 60 * 1000;" in html
+    assert "var POLL_MS = 5 * 60 * 1000;" in html
 
 
 def test_j_server_predictions_endpoint_never_recomputes_engine():

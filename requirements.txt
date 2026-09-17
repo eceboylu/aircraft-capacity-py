@@ -13,3 +13,12 @@ SQLAlchemy==2.0.52
 # zorunludur. Sürüm PyPI'daki güncel kararlı sürümdür (pip index
 # versions PyMySQL ile doğrulandı).
 PyMySQL==1.2.0
+
+# ADIM (Operational-Day Scope) - stdlib `zoneinfo`'nun IANA timezone
+# veritabanı. Linux/macOS'ta sistem genelde bunu zaten sağlar, ama bu
+# Windows geliştirme ortamında `zoneinfo.ZoneInfo("Europe/Istanbul")`
+# `tzdata` KURULU DEĞİLKEN `ZoneInfoNotFoundError` fırlatıyor (bu ADIM
+# sırasında DOĞRUDAN doğrulandı) - `Airport.timezone`'daki GERÇEK IANA
+# adlarını (flight_airports.sql) yorumlayabilmek için gerekli. Uydurma
+# bir offset/mapping DEĞİL - Python'un resmi tzdata paketi.
+tzdata==2026.4

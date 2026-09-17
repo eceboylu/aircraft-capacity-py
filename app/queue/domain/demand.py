@@ -9,9 +9,9 @@ bu katman mock bir çözümleyiciyle veritabanısız test edilebilir.
 from datetime import datetime, timedelta
 from typing import Sequence
 
-from .flight_rules import security_arrival_buffer_minutes
 from ..constants import (
     DEMAND_WINDOW_MINUTES,
+    DEPARTURE_PASSENGER_ARRIVAL_OFFSET_MINUTES,
     DIRECTION_DEPARTURE,
     EXCLUDED_STATUSES,
     PASSPORT_RELEASE_BUFFER_MINUTES,
@@ -82,7 +82,9 @@ def effective_time(flight) -> datetime | None:
     """
     Uçuşun kuyruğa yansıdığı an.
 
-    Departure : actual > estimated > scheduled, EKSİ dinamik security buffer
+    Departure : actual > estimated > scheduled, EKSİ sabit 120 dk
+                (DEPARTURE_PASSENGER_ARRIVAL_OFFSET_MINUTES - yolcunun
+                havalimanına gerçekte geldiği an, uçuş süresinden BAĞIMSIZ)
     Arrival   : actual > estimated > scheduled, ARTI sabit passport buffer
 
     Zaman önceliği delay_minutes() ile AYNI olmak zorundadır: gecikme
@@ -104,7 +106,7 @@ def effective_time(flight) -> datetime | None:
         )
         if base is None:
             return None
-        return base - timedelta(minutes=security_arrival_buffer_minutes(flight))
+        return base - timedelta(minutes=DEPARTURE_PASSENGER_ARRIVAL_OFFSET_MINUTES)
 
     base = (
         flight.arr_actual_utc

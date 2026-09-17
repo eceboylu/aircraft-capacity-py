@@ -150,8 +150,11 @@ def test_baseline_accumulates_only_after_observation(session):
     assert first.risk == "CRITICAL"
     assert first.baseline_ratio is None
 
+    # ADIM (Airport Queue Model V2 - sabit -120dk offset): departure(9,m)
+    # -> effective_time=07:0m -> saat 7 (eskiden 45dk dinamik buffer ile
+    # 08:1m -> saat 8'di).
     # Gözlem kaydedildi; ikinci çalıştırma artık karşılaştırabiliyor.
-    assert get_baseline(session, "AAA", PROCESS_SECURITY, 8, 0) is not None
+    assert get_baseline(session, "AAA", PROCESS_SECURITY, 7, 0) is not None
 
     run_predictions(session, resolver, update_baseline=False)
     second = session.execute(

@@ -318,8 +318,9 @@ def test_run_predictions_skips_baseline_for_open_window(session):
     store(session, [departure(18, 0, key="D1", number="1", aircraft="A320")])
     resolver = MockCapacityResolver()
 
-    # security_arrival_buffer_minutes=45 -> effective_time 17:15, pencere 17:15-17:30
-    result = run_predictions(session, resolver, now=at(17, 20))
+    # DEPARTURE_PASSENGER_ARRIVAL_OFFSET_MINUTES=120 (sabit) ->
+    # effective_time=16:00, saatlik pencere [16:00-17:00).
+    result = run_predictions(session, resolver, now=at(16, 30))
 
     assert result["predictions"] >= 1
     assert observation_count(session) == 0
@@ -327,10 +328,9 @@ def test_run_predictions_skips_baseline_for_open_window(session):
 
 def test_run_predictions_records_baseline_for_closed_window(session):
     """
-    ADIM 6D-2 HOURLY MIGRATION: departure(18,0) domestic -> security
-    buffer 45dk -> effective_time=17:15 -> saatlik pencere [17:00-18:00).
-    Bu pencere ESKİDEN (15dk) 17:45'te çoktan kapanmıştı; ŞİMDİ (60dk)
-    18:00'da kapanıyor - `now` buna göre güncellendi.
+    ADIM (Airport Queue Model V2 - sabit -120dk offset): departure(18,0)
+    -> effective_time=16:00 -> saatlik pencere [16:00-17:00). `now` bu
+    pencerenin kapandığı (window_end <= now) ana göre seçildi.
     """
     store(session, [departure(18, 0, key="D1", number="1", aircraft="A320")])
     resolver = MockCapacityResolver()

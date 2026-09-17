@@ -144,20 +144,25 @@ def test_empty_hours_produce_no_prediction_rows():
     """
     Uçuşu olmayan pencereye satır yazılmaz - tablo şişmez.
 
-    ADIM (Security Domestic/International Split): international departure
-    artık ÜÇ süreci besler - birleşik security (geriye dönük uyumluluk),
-    passport, VE security_intl (security_dom'u BESLEMEZ - bu uçuş
-    domestic değil).
+    ADIM (Security Domestic/International Split + 4-Graph API Contract):
+    international departure artık DÖRT süreci besler - birleşik security
+    (geriye dönük uyumluluk), passport, security_intl (security_dom'u
+    BESLEMEZ - bu uçuş domestic değil), VE passport_dep (Bölüm 17
+    cohort raporlama ayrımı - bu uçuşun arrival-kökeni yok, bu yüzden
+    passport_arr için satır HİÇ üretilmez).
     """
+    from app.queue.constants import PROCESS_PASSPORT_DEPARTURE
+
     predictions = predict_airport(
         airport_iata="AAA",
         flights=[departure(9, 0, location=LOCATION_INTERNATIONAL)],
         config=roomy_config(),
         demand=make_demand(),
     )
-    assert len(predictions) == 3
+    assert len(predictions) == 4
     assert {p.process for p in predictions} == {
         PROCESS_SECURITY, PROCESS_PASSPORT, PROCESS_SECURITY_INTL,
+        PROCESS_PASSPORT_DEPARTURE,
     }
 
 
@@ -330,16 +335,16 @@ def test_scenario_07_diverted_flight_leaves_demand_but_is_noted():
 
 def test_scenario_08_aircraft_change_reports_capacity_delta():
     """
-    intl_departure(9,0) -> kısa mesafe uluslararası, buffer 45 dk ->
-    effective_time 08:15 -> pencere 08:15-08:30. Event zamanı bu
-    pencerenin İÇİNDE verilir (MADDE 8: event window'a kendi
+    ADIM (Airport Queue Model V2 - sabit -120dk offset): intl_departure(9,0)
+    -> effective_time=07:00 -> saatlik pencere [07:00-08:00). Event zamanı
+    bu pencerenin İÇİNDE verilir (MADDE 8: event window'a kendi
     flight_effective_time'ına göre atanır).
     """
     flight = intl_departure(9, 0, key="CH1", number="701", aircraft="B77W")
     passport = run_window(
         [flight],
         PROCESS_PASSPORT,
-        aircraft_changes={"CH1": [("A320", "B77W", at(8, 15))]},
+        aircraft_changes={"CH1": [("A320", "B77W", at(7, 0))]},
     )
 
     assert REASON_AIRCRAFT_CHANGE in codes(passport)
@@ -409,16 +414,15 @@ def test_scenario_10_long_haul_uses_higher_load_factor_and_buffer():
     assert security_arrival_buffer_minutes(short_haul) == 45
 
 
-def test_scenario_10_buffer_separates_flights_into_different_windows():
+def test_scenario_10_fixed_offset_no_longer_separates_flights_by_duration():
     """
-    Aynı saatte kalkan iki uçuş, buffer farkı yüzünden farklı
-    security penceresine düşer.
-
-    ADIM 6D-2 HOURLY MIGRATION: long_haul effective=12:00-90dk=10:30 ->
-    saatlik pencere 10:00-11:00; short_haul effective=12:00-45dk=11:15
-    -> saatlik pencere 11:00-12:00. Hâlâ İKİ FARKLI pencere (buffer farkı
-    hâlâ bir saat sınırını geçiyor) - sadece pencere başlangıçları artık
-    çeyrek saat değil, tam saat.
+    ADIM (Airport Queue Model V2 - sabit -120dk offset): departure
+    passenger arrival artık uçuş süresinden TÜRETİLEN dinamik bir buffer
+    (eski davranış: long_haul 90dk / short_haul 45dk, bu yüzden aynı
+    saatte kalkan iki uçuş farklı pencerelere düşerdi) DEĞİL, sabit 120
+    dakikadır. Aynı saatte kalkan long/short-haul uçuşlar artık AYNI
+    effective_time'a (12:00-120dk=10:00) ve dolayısıyla AYNI saatlik
+    pencereye düşer - süre artık pencere seçimini etkilemez.
     """
     long_haul = intl_departure(
         12, 0, key="L1", number="801", duration_minutes=600
@@ -427,7 +431,7 @@ def test_scenario_10_buffer_separates_flights_into_different_windows():
         12, 0, key="S1", number="802", duration_minutes=90
     )
     starts = window_starts([long_haul, short_haul])
-    assert starts == [at(10, 0), at(11, 0)]
+    assert starts == [at(10, 0)]
 
 
 # --------------------------------------------------------------------
@@ -610,10 +614,15 @@ def test_domestic_departure_feeds_security_only():
 
 def test_international_departure_feeds_security_passport_and_security_intl():
     """
-    ADIM (Security Domestic/International Split): international
-    departure ÜÇ süreci besler - birleşik `security`, `passport`, VE
-    `security_intl` (`security_dom`'u BESLEMEZ).
+    ADIM (Security Domestic/International Split + 4-Graph API Contract):
+    international departure DÖRT süreci besler - birleşik `security`,
+    `passport`, `security_intl`, VE (Bölüm 17 cohort/kaynak raporlama
+    ayrımı) `passport_dep` (`security_dom`'u ve `passport_arr`'ı
+    BESLEMEZ - bu flight'ın arrival-kökenli hiçbir demand'i yok, bu
+    yüzden `passport_arr` için satır hiç ÜRETİLMEZ).
     """
+    from app.queue.constants import PROCESS_PASSPORT_DEPARTURE
+
     flights = [intl_departure(9, 0, key="ID1", number="1")]
     predictions = predict_airport(
         airport_iata="AAA",
@@ -623,6 +632,7 @@ def test_international_departure_feeds_security_passport_and_security_intl():
     )
     assert sorted(p.process for p in predictions) == sorted([
         PROCESS_PASSPORT, PROCESS_SECURITY, PROCESS_SECURITY_INTL,
+        PROCESS_PASSPORT_DEPARTURE,
     ])
 
 

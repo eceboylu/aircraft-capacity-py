@@ -29,6 +29,8 @@ from .constants import (
     LOCATION_DOMESTIC,
     LOCATION_INTERNATIONAL,
     PROCESS_PASSPORT,
+    PROCESS_PASSPORT_ARRIVAL,
+    PROCESS_PASSPORT_DEPARTURE,
     PROCESS_SECURITY,
     PROCESS_SECURITY_DOMESTIC,
     PROCESS_SECURITY_INTL,
@@ -464,6 +466,39 @@ def _merge_overall_series(*process_results: dict, now: datetime) -> dict:
     return {"process": "overall", "current": current, "windows": windows}
 
 
+def _international_departure_series(
+    passport_departure: dict, international_security: dict, now: datetime,
+) -> dict:
+    """
+    ADIM (4-Graph API Contract) - Bölüm 15/46/51: International Departure
+    grafiği (passport -> international security, İKİ fiziksel aşama).
+
+    Üst seviye risk/estimated_wait_minutes `_merge_overall_series()` ile
+    AYNI "en yüksek severity, gerçek/finite wait varsa ondan" mantığıyla
+    türetilir (Bölüm 15: "Düşük severity'deki bir process'ten yüksek
+    severity'ye sahte wait ödünç alma" - YENİ bir kural DEĞİL, mevcut
+    `overall` ile TUTARLI aynı tie-break). Her pencereye AYRICA `passport`/
+    `international_security` alt-nesneleri eklenir (Bölüm 51 JSON
+    örneği) - frontend hiçbir hesap yapmadan iki aşamayı da gösterebilir.
+    """
+    merged = _merge_overall_series(passport_departure, international_security, now=now)
+    merged["process"] = "international_departure"
+
+    passport_by_start = {w["window_start"]: w for w in passport_departure["windows"]}
+    security_by_start = {w["window_start"]: w for w in international_security["windows"]}
+
+    for window in merged["windows"]:
+        window["passport"] = passport_by_start.get(window["window_start"])
+        window["international_security"] = security_by_start.get(window["window_start"])
+
+    if merged["current"] is not None:
+        start = merged["current"]["window_start"]
+        merged["current"]["passport"] = passport_by_start.get(start)
+        merged["current"]["international_security"] = security_by_start.get(start)
+
+    return merged
+
+
 def airport_predictions(
     session, airport_iata: str, since: datetime | None = None, now: datetime | None = None
 ) -> dict:
@@ -475,12 +510,23 @@ def airport_predictions(
     International Split) + ADIM G: `domestic_security`/
     `international_security`/`international_passport` alanları EKLENDİ;
     `security`/`passport` (ESKİ, birleşik) alanları KALDIRILMADI -
-    geriye dönük uyumlu. `overall` artık (ADIM G) domestic_security +
-    international_security + passport üzerinden hesaplanıyor (eskiden
-    birleşik security + passport'tu) - bu, "GENEL havalimanı yoğunluğu"
-    tanımının ADIM G'de netleşen hâli; `overall_status()` fonksiyonunun
-    kendisi hâlâ genel/2-argümanlı kullanılabilir (geriye dönük), sadece
-    BURADAKİ çağıran taraf artık 3 girdi kullanıyor.
+    geriye dönük uyumlu. `overall` (ADIM G) domestic_security +
+    international_security + passport (birleşik) üzerinden hesaplanır -
+    `overall_status()` fonksiyonunun kendisi hâlâ genel/2-argümanlı
+    kullanılabilir (geriye dönük), sadece BURADAKİ çağıran taraf 3 girdi
+    kullanıyor.
+
+    ADIM (4-Graph API Contract) - Bölüm 15/26/35/46: `domestic_security`,
+    `international_departure` (passport-kalkış-kökeni + international
+    security, İKİ aşama breakdown'lı), `international_arrival` (SADECE
+    varış-kökenli passport) - TAM 4 grafik contract'ı. `overall`
+    DEĞİŞTİRİLMEDİ (Bölüm 35: fiziksel YENİ bir queue yaratmaz, zaten
+    var olan `domestic_security`/`international_security`/`passport`
+    (birleşik) sonuçlarının özeti olarak KALDI - `PROCESS_PASSPORT_
+    DEPARTURE`/`PROCESS_PASSPORT_ARRIVAL` matematiksel olarak birleşik
+    `PROCESS_PASSPORT` ile AYNI utilization/risk/wait'i taşıdığı için
+    -bkz. `engine.py:_passport_cohort_breakdown`- sonuç EŞDEĞERDİR,
+    yine de mevcut, kanıtlanmış formül BOZULMADI).
 
     ADIM 6A-UI: `now` BİR KEZ hesaplanıp TÜM süreçlere AYNI değer
     geçirilir - ayrı ayrı "gerçek an"ı sorgulamak, aralarındaki
@@ -492,8 +538,13 @@ def airport_predictions(
     passport = process_series(session, airport_iata, PROCESS_PASSPORT, since, now)
     domestic_security = process_series(session, airport_iata, PROCESS_SECURITY_DOMESTIC, since, now)
     international_security = process_series(session, airport_iata, PROCESS_SECURITY_INTL, since, now)
+    passport_departure = process_series(session, airport_iata, PROCESS_PASSPORT_DEPARTURE, since, now)
+    passport_arrival = process_series(session, airport_iata, PROCESS_PASSPORT_ARRIVAL, since, now)
 
     overall = _merge_overall_series(domestic_security, international_security, passport, now=now)
+    international_departure = _international_departure_series(
+        passport_departure, international_security, now,
+    )
 
     return {
         "airport": airport_iata,
@@ -501,6 +552,8 @@ def airport_predictions(
         "domestic_security": domestic_security,
         "international_security": international_security,
         "international_passport": passport,
+        "international_departure": international_departure,
+        "international_arrival": passport_arrival,
         "overall": overall,
         "security": security,
         "passport": passport,

@@ -24,6 +24,16 @@ DEMAND_WINDOW_MINUTES = 60
 # özelliği, pencere genişliği DEĞİL) - hourly migration'da DOKUNULMADI.
 PASSPORT_RELEASE_BUFFER_MINUTES = 15
 
+# ADIM (Airport Queue Model V2 - passenger arrival offset): departure
+# yolcusunun havalimanına GERÇEKTE ne zaman geldiği artık uçuş süresine
+# göre değişen dinamik bir buffer (45/60/90 dk, bkz.
+# `flight_rules.security_arrival_buffer_minutes`) DEĞİL, sabit bir
+# varsayımdır - effective departure zamanından SABİT 120 dakika önce.
+# `security_arrival_buffer_minutes()` fonksiyonu SİLİNMEDİ (kendi saf
+# birim testlerinde hâlâ geçerli bir hesaplama olarak duruyor), sadece
+# `effective_time()`'ın departure dalından artık ÇAĞRILMIYOR.
+DEPARTURE_PASSENGER_ARRIVAL_OFFSET_MINUTES = 120
+
 # --- Yön / lokasyon / süreç sözlüğü ------------------------------------
 DIRECTION_DEPARTURE = "departure"
 DIRECTION_ARRIVAL = "arrival"
@@ -43,6 +53,17 @@ PROCESS_PASSPORT = "passport"
 # uyacak şekilde seçildi.
 PROCESS_SECURITY_DOMESTIC = "security_dom"
 PROCESS_SECURITY_INTL = "security_intl"
+
+# ADIM (4-Graph API Contract) - AYRI, mevcut birleşik `PROCESS_PASSPORT`'un
+# (departure+arrival, DEĞİŞMEDİ) cohort/kaynak bazında raporlama BÖLÜNMESİ.
+# Bölüm 17: paylaşılan FİZİKSEL passport havuzu (aynı 8 efektif server)
+# İKİYE AYRILMAZ/duplicate edilmez - bu iki süreç KENDİ Erlang-C/backlog
+# hesabını YAPMAZ, `engine.py:predict_airport()` bunları birleşik
+# `PROCESS_PASSPORT` penceresinin utilization/wait/risk/confidence
+# değerlerini AYNEN kopyalayıp SADECE `expected_passengers`/`flight_count`'u
+# kendi cohort'una göre ayırarak üretir - double-count YOK.
+PROCESS_PASSPORT_DEPARTURE = "passport_dep"
+PROCESS_PASSPORT_ARRIVAL = "passport_arr"
 
 # Talep hesabına girmeyen statüler (AŞAMA 4)
 EXCLUDED_STATUSES = ("cancelled", "diverted")
