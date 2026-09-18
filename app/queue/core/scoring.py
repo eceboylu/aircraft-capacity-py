@@ -201,6 +201,38 @@ def passport_effective_server_count(config) -> int:
     return round(counters * staff_per_counter)
 
 
+def passport_server_count(config, pool: str) -> int:
+    """
+    ADIM (Airport-Scale Queue Capacity) - departure/arrival passport
+    ARTIK AYRI fiziksel havuz (bkz. core/event_queue.py); `config`'in
+    ZATEN çözülmüş (`app/queue/config.py`'nin override->scale->unknown
+    zincirinden geçmiş) `passport_departure_server_count`/`passport_
+    arrival_server_count` alanlarını okur - burada scale/hard-code YOK,
+    sadece `config`'i tüketir.
+
+    `pool` : "departure" veya "arrival".
+    """
+    if pool == "departure":
+        count = config.passport_departure_server_count
+    elif pool == "arrival":
+        count = config.passport_arrival_server_count
+    else:
+        raise ValueError(f'pool "departure" veya "arrival" olmalı (alınan={pool!r})')
+    if count <= 0:
+        raise ValueError(
+            f"passport_{pool}_server_count > 0 olmalı (alınan={count})"
+        )
+    return count
+
+
+def passport_departure_server_count(config) -> int:
+    return passport_server_count(config, "departure")
+
+
+def passport_arrival_server_count(config) -> int:
+    return passport_server_count(config, "arrival")
+
+
 def security_effective_service_rate(config) -> float:
     """Security lane başına servis hızı: 1 / service_time (pax/dk/lane)."""
     service_time = config.security_service_time_minutes
@@ -232,6 +264,22 @@ def passport_capacity_rate(config) -> float:
     """
     return queue_capacity_rate(
         passport_effective_server_count(config),
+        config.passport_service_time_minutes,
+    )
+
+
+def passport_departure_capacity_rate(config) -> float:
+    """Departure passport havuzunun KENDİ referans kapasitesi (server_count x 1/service_time)."""
+    return queue_capacity_rate(
+        passport_departure_server_count(config),
+        config.passport_service_time_minutes,
+    )
+
+
+def passport_arrival_capacity_rate(config) -> float:
+    """Arrival passport havuzunun KENDİ referans kapasitesi - departure'dan BAĞIMSIZ."""
+    return queue_capacity_rate(
+        passport_arrival_server_count(config),
         config.passport_service_time_minutes,
     )
 
@@ -374,17 +422,41 @@ def passport_queue_model(
     backlog_start: float = 0.0,
     current_arrived_demand: float | None = None,
     elapsed_minutes: float | None = None,
+    demand_override: float | None = None,
+    pool: str | None = None,
 ) -> dict:
-    """Passport wrapper: c=efektif görevli sayısı (4 gişe x 2 görevli=8), service time config'ten."""
+    """
+    Passport wrapper.
+
+    pool : ADIM (Airport-Scale Queue Capacity) - `None` ise (varsayılan,
+           geriye dönük uyumlu) ESKİ birleşik `passport_effective_
+           server_count()` (4 gişe x 2 görevli) kullanılır - legacy
+           `PROCESS_PASSPORT` (combined) satırı için hâlâ geçerli.
+           "departure"/"arrival" verilirse `passport_server_count(config,
+           pool)` - AYRI fiziksel havuzun KENDİ server sayısı - kullanılır
+           (bkz. `engine.py`'nin PROCESS_PASSPORT_DEPARTURE/ARRIVAL
+           hesabı).
+    demand_override : security_queue_model() ile AYNI amaç - departure/
+           arrival event-driven demand'i `window_flights`'tan YENİDEN
+           TOPLAMAK yerine doğrudan kullanmak için (bkz. Bölüm 6'daki
+           bulgu: eski kodda PASSPORT için bu parametre HİÇ
+           kullanılmıyordu - artık departure/arrival AYRI havuzlar
+           event-driven demand'e ihtiyaç duyuyor).
+    """
+    server_count = (
+        passport_effective_server_count(config) if pool is None
+        else passport_server_count(config, pool)
+    )
     return queue_capacity_model(
         window_flights=window_flights,
         demand_fn=demand_fn,
-        server_count=passport_effective_server_count(config),
+        server_count=server_count,
         service_time_minutes=config.passport_service_time_minutes,
         window_minutes=window_minutes,
         backlog_start=backlog_start,
         current_arrived_demand=current_arrived_demand,
         elapsed_minutes=elapsed_minutes,
+        demand_override=demand_override,
     )
 
 

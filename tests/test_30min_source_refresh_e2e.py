@@ -340,8 +340,26 @@ def test_all_four_graphs_reflect_r1_in_the_api(r0_r1):
 
         overall_14 = _window(result["overall"], hour_start(14))
         assert overall_14["risk"] == RISK_CRITICAL
-        assert overall_14["estimated_wait_minutes"] == \
-            _window(result["international_passport"], hour_start(14))["estimated_wait_minutes"]
+
+        # ADIM (Overall Graph Legacy Passport Bug Fix): Overall artık
+        # `domestic_security` + `international_security` + `passport_
+        # departure` + `passport_arrival`'dan (event-driven, gerçek
+        # ServiceEvent wait'i) türüyor - eski, legacy `international_
+        # passport` (= birleşik PROCESS_PASSPORT, hâlâ 8-server Erlang-C
+        # formülü) ile eşitlik ARTIK beklenmiyor (14:00'te bu ikisi
+        # GERÇEKTEN farklı: 39.5 vs 241.9 - legacy 8-server referansı
+        # bu saatteki gerçek talebi olduğundan çok daha kötü gösteriyor).
+        #
+        # Bu saatte TEK gerçek katkı sağlayan süreç international_arrival
+        # (= passport_arrival) - overall_14'ün wait'i BUNUNLA birebir
+        # eşleşmeli (domestic_security/international_security/
+        # international_departure bu saatte hiç pencereye sahip değil).
+        contributing = _window(result["international_arrival"], hour_start(14))
+        assert contributing is not None
+        assert overall_14["estimated_wait_minutes"] == contributing["estimated_wait_minutes"]
+
+        legacy = _window(result["international_passport"], hour_start(14))
+        assert overall_14["estimated_wait_minutes"] != legacy["estimated_wait_minutes"]
     finally:
         session.close()
 

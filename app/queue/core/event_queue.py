@@ -23,10 +23,14 @@ aynı anda gelen N kişi) TEK bir (origin, count) birimi olarak kuyruğa
 girer, sadece SERVİS ANINDA teker teker sunuculara dağıtılır (O(N log c),
 bkz. AŞAMA 41).
 
-BU ADIMDA ENTEGRASYON YOK: bu modül mevcut `engine.py`/`predict_airport()`/
-API/frontend'e BAĞLANMADI - mevcut saatlik graph/API contract'ı bu turda
-DEĞİŞMİYOR (görev kapsamı). Bu, bağımsız test edilebilir, gelecekteki bir
-entegrasyon turu için hazır bir ÇEKİRDEKTİR.
+ENTEGRASYON: bu modül `engine.py:_event_driven_queue_demand()` tarafından
+KULLANILIYOR (Event-Driven Engine Entegrasyonu ADIM'ından beri) - saatlik
+graph/API contract'ı bu modülün ÇIKTISINDAN türetilir (bkz. `floor_to_
+window()`'un SADECE raporlama aşamasında uygulanması).
+
+ADIM (Airport-Scale Queue Capacity): `simulate_passport()` artık TEK bir
+ORTAK havuz DEĞİL - departure ve arrival için AYRI, bağımsız `simulate_
+fifo_queue()` çağrısı (bkz. fonksiyonun kendi docstring'i).
 """
 
 from __future__ import annotations
@@ -204,13 +208,19 @@ def _merge_adjacent_events(events: list[ServiceEvent]) -> list[ServiceEvent]:
 def simulate_passport(
     departure_arrivals: Sequence[tuple[datetime, float]],
     arrival_arrivals: Sequence[tuple[datetime, float]],
-    effective_server_count: int,
+    departure_server_count: int,
+    arrival_server_count: int,
     service_time_minutes: float,
 ) -> dict[str, list[ServiceEvent]]:
     """
-    AŞAMA 8/9/17 - ORTAK fiziksel passport havuzu (4 gişe x 2 görevli
-    = 8 efektif server, TEK `simulate_fifo_queue` çağrısı - sunucular
-    departure/arrival için AYRI AYRI yaratılmaz, aynı heap'i paylaşır).
+    ADIM (Airport-Scale Queue Capacity) - departure ve arrival passport
+    ARTIK İKİ AYRI fiziksel havuz (AYRI `simulate_fifo_queue()` çağrısı,
+    AYRI deque, AYRI server-availability heap'i). Eskiden (bkz. git
+    history) TEK bir `tagged` listesi TEK bir heap'e giriyordu - bu
+    ORTAK-havuz varsayımı airport-scale kuralı gereği KALDIRILDI: large
+    bir havalimanında departure=20, arrival=30 server gibi FARKLI
+    büyüklükte iki fiziksel kaynak olabiliyor, tek bir sayı bunu ifade
+    edemez.
 
     departure_arrivals : uluslararası kalkış yolcusunun passport kuyruğuna
                           giriş zamanı + miktarı (mevcut `effective_time()`
@@ -218,8 +228,15 @@ def simulate_passport(
                           varsaymaz, dışarıdan hazır liste alır).
     arrival_arrivals    : uluslararası varış yolcusunun passport'a giriş
                           zamanı (mevcut +15dk sabit buffer sonrası an).
+    departure_server_count / arrival_server_count
+                        : HER havuzun KENDİ, BAĞIMSIZ server sayısı -
+                          `core/scoring.py:passport_departure_server_
+                          count()`/`passport_arrival_server_count()`'tan
+                          gelir (config'ten, hard-code YOK).
 
-    Dönen sözlük:
+    Dönen sözlük ŞEKLİ DEĞİŞMEDİ (aşağı akışta gereksiz refactor'ı
+    önlemek için - `engine.py` AYNI `{"departure": [...], "arrival":
+    [...]}`'i tüketmeye devam eder):
       "departure" : passport'tan GERÇEKTEN çıkan kalkış-bağlantılı
                     yolcuların ServiceEvent listesi - `completion_time`
                     bu passenger'ların international security'ye
@@ -227,17 +244,25 @@ def simulate_passport(
                     `simulate_international_departure_journey`).
       "arrival"   : passport'tan çıkan varış-bağlantılı yolcular -
                     yolculuk burada BİTER, hiçbir kuyruğa aktarılmaz
-                    (AŞAMA 30 - security'ye 0 kez girer).
+                    (AŞAMA 30 - security'ye 0 kez girer). Departure
+                    havuzunu HİÇ etkilemez, departure'ı da HİÇ etkilemez
+                    (iki BAĞIMSIZ heap - arrival'ın kuyruğu ne kadar
+                    dolu olursa olsun departure'ın kendi serverları
+                    ETKİLENMEZ, ve tam tersi).
     """
-    tagged = [
-        (t, "departure", count) for t, count in departure_arrivals
-    ] + [
-        (t, "arrival", count) for t, count in arrival_arrivals
-    ]
-    events = simulate_fifo_queue(tagged, effective_server_count, service_time_minutes)
+    departure_tagged = [(t, "departure", count) for t, count in departure_arrivals]
+    arrival_tagged = [(t, "arrival", count) for t, count in arrival_arrivals]
+
+    departure_events = simulate_fifo_queue(
+        departure_tagged, departure_server_count, service_time_minutes
+    )
+    arrival_events = simulate_fifo_queue(
+        arrival_tagged, arrival_server_count, service_time_minutes
+    )
+
     return {
-        "departure": [e for e in events if e.origin == "departure"],
-        "arrival": [e for e in events if e.origin == "arrival"],
+        "departure": departure_events,
+        "arrival": arrival_events,
     }
 
 
@@ -261,7 +286,8 @@ def simulate_security(
 def simulate_international_departure_journey(
     departure_arrivals: Sequence[tuple[datetime, float]],
     arrival_arrivals: Sequence[tuple[datetime, float]],
-    passport_server_count: int,
+    passport_departure_server_count: int,
+    passport_arrival_server_count: int,
     passport_service_time_minutes: float,
     international_security_lane_count: int,
     security_service_time_minutes: float,
@@ -290,7 +316,8 @@ def simulate_international_departure_journey(
     """
     passport = simulate_passport(
         departure_arrivals, arrival_arrivals,
-        passport_server_count, passport_service_time_minutes,
+        passport_departure_server_count, passport_arrival_server_count,
+        passport_service_time_minutes,
     )
 
     security_arrivals = [

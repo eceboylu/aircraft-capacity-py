@@ -333,7 +333,7 @@ def _trace(session, resolver, airport_iata):
         (effective_time(f), demand.passenger_demand(f))
         for f in passport_flights(flights) if is_international_arrival(f)
     ]
-    passport = simulate_passport(dep_arrivals, arr_arrivals, effective_server_count=8, service_time_minutes=1.5)
+    passport = simulate_passport(dep_arrivals, arr_arrivals, departure_server_count=8, arrival_server_count=8, service_time_minutes=1.5)
 
     intl_sec_arrivals = [
         (effective_time(f), demand.passenger_demand(f))
@@ -431,7 +431,17 @@ def test_passenger_conservation_no_creation_or_loss(replay):
 
 
 def test_passport_departure_arrival_cohorts_sum_to_combined_pool_without_double_counting(replay):
-    """Bölüm 17: passport_dep + passport_arr HER pencere için birleşik passport'u AYNEN yansıtır (fiziksel havuz İKİ KEZ sayılmaz)."""
+    """
+    ADIM (Airport-Scale Queue Capacity): departure/arrival passport ARTIK
+    AYRI fiziksel havuz (eski "utilization/risk kopyalanır" sözleşmesi
+    KALDIRILDI - bkz. genel-proje.md Bölüm 21). Bu test artık İKİ şeyi
+    doğrular:
+      1) expected_passengers KORUNUR (dep+arr TOPLAMI birleşik/legacy
+         PROCESS_PASSPORT'un raporladığı toplamla AYNI - double-count
+         veya kayıp YOK, sadece raporlama toplamı).
+      2) dep/arr KENDİ BAĞIMSIZ utilization/risk'ine sahiptir - ARTIK
+         combined'dan (ya da birbirinden) KÖRÜ KÖRÜNE KOPYALANMAZ.
+    """
     session = replay["session"]
     combined_by_window = {
         r.window_start: r for r in session.execute(
@@ -458,18 +468,23 @@ def test_passport_departure_arrival_cohorts_sum_to_combined_pool_without_double_
         ).scalars().all()
     }
     assert combined_by_window  # en az bir pencere var
+    independent_utilization_seen = False
     for window, combined in combined_by_window.items():
         dep = dep_by_window.get(window)
         arr = arr_by_window.get(window)
         expected_passengers = (dep.expected_passengers if dep else 0) + (arr.expected_passengers if arr else 0)
         assert combined.expected_passengers == expected_passengers
-        # utilization/risk KOPYALANIR, YENİDEN HESAPLANMAZ (double-count yok).
-        if dep is not None:
-            assert dep.utilization == combined.utilization
-            assert dep.risk == combined.risk
-        if arr is not None:
-            assert arr.utilization == combined.utilization
-            assert arr.risk == combined.risk
+        # dep/arr KENDİ server havuzuna göre HESAPLANMIŞ (config.py
+        # unknown-scale fallback'inde ikisi de 8/8 olsa bile, event-driven
+        # demand'leri FARKLI olduğu için utilization birebir combined'a
+        # eşit OLMAK ZORUNDA DEĞİL - eski "kopyalama" sözleşmesi YOK).
+        if dep is not None and dep.utilization != combined.utilization:
+            independent_utilization_seen = True
+        if arr is not None and arr.utilization != combined.utilization:
+            independent_utilization_seen = True
+    # En az bir pencerede gerçekten BAĞIMSIZ (birbirinden farklı) bir
+    # değer görülmeli - aksi halde "kopyalanmıyor" iddiası kanıtsız kalır.
+    assert independent_utilization_seen
 
 
 # ============================================================

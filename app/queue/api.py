@@ -541,7 +541,21 @@ def airport_predictions(
     passport_departure = process_series(session, airport_iata, PROCESS_PASSPORT_DEPARTURE, since, now)
     passport_arrival = process_series(session, airport_iata, PROCESS_PASSPORT_ARRIVAL, since, now)
 
-    overall = _merge_overall_series(domestic_security, international_security, passport, now=now)
+    # ADIM (Overall Graph Legacy Passport Bug Fix): Overall ARTIK
+    # legacy/8-server `passport` (PROCESS_PASSPORT) serisini KULLANMIYOR -
+    # scale-derived `passport_departure`/`passport_arrival`'ı kullanıyor.
+    # Gerekçe: `passport` hâlâ eski `passport_effective_server_count()`
+    # (4x2=8, Airport.scale'den HABERSİZ) formülüyle hesaplanıyor - bir
+    # large havalimanında (20/30 server) Overall'ın risk/wait'i bu YANLIŞ
+    # referansa göre çıkıyordu, International Departure/Arrival (zaten
+    # passport_departure/passport_arrival kullanıyordu) ile TUTARSIZ
+    # olabiliyordu. `passport`/`international_passport` legacy API
+    # alanları DEĞİŞMEDİ (geriye dönük uyumluluk), SADECE overall'ın
+    # girdisi değişti.
+    overall = _merge_overall_series(
+        domestic_security, international_security,
+        passport_departure, passport_arrival, now=now,
+    )
     international_departure = _international_departure_series(
         passport_departure, international_security, now,
     )

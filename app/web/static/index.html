@@ -399,6 +399,33 @@
     renderRefreshInfo();
   }
 
+  // ADIM (Frontend Wait-Time Formatting) - SADECE GÖSTERİM katmanı.
+  // Backend/API dakika sayısını (ör. 125) DEĞİŞTİRMEZ - bu fonksiyon
+  // sadece o sayıyı okunabilir "saat + dakika" metnine çevirir
+  // (125 -> "2 saat 5 dk"). Queue/risk/passport/security hesapları
+  // bu dosyada ZATEN yok (bkz. waitTimeText docstring'i) - bu
+  // fonksiyon da hiçbir hesap YAPMAZ, sadece biçimlendirir.
+  //
+  // Overall / Domestic Security / International Departure (passport +
+  // international security) / International Arrival (passport) - hepsi
+  // AYNI bu merkezi fonksiyonu kullanır (waitTimeText üzerinden),
+  // mantık HİÇBİR YERDE kopyalanmaz.
+  //
+  // Kurallar:
+  //   null/undefined           -> "Hesaplanamıyor"
+  //   0                        -> "0 dk"
+  //   1-59                     -> "N dk"
+  //   tam saat (60, 120, ...)  -> "N saat"  (gereksiz "0 dk" EKLENMEZ)
+  //   saat + dakika (65, 125)  -> "N saat M dk"
+  function formatWaitMinutes(minutes) {
+    if (minutes == null) return "Hesaplanamıyor";
+    var total = Math.round(minutes);
+    if (total < 60) return total + " dk";
+    var hours = Math.floor(total / 60);
+    var rem = total % 60;
+    return rem === 0 ? hours + " saat" : hours + " saat " + rem + " dk";
+  }
+
   // Bekleme süresi metni SADECE backend'in o pencere için ZATEN
   // döndürdüğü alanlara (`estimated_wait_minutes`, `utilization`)
   // bakar - YENİ bir Erlang-C/ortalama/tahmin hesabı YAPILMAZ.
@@ -415,7 +442,7 @@
   function waitTimeText(w) {
     if (!w) return "—";
     if (w.estimated_wait_minutes != null) {
-      return w.estimated_wait_minutes + " dk";
+      return formatWaitMinutes(w.estimated_wait_minutes);
     }
     if (w.utilization != null && w.utilization >= 1) {
       return "Kapasite aşıldı";

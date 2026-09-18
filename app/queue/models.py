@@ -40,6 +40,12 @@ class Airport(Base):
         String(4), nullable=True, index=True
     )
     timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # ADIM (Airport-Scale Queue Capacity): "large"/"medium"/"small" -
+    # `app/queue/domain/airport_scale.py`'nin çözdüğü değer,
+    # `ingestion/airports_import.py:import_airport_scales()` ile
+    # BİR KEZ import edilir. Bilinmiyorsa None - UYDURMA bir ölçek
+    # ATANMAZ (bkz. config.py'nin unknown-scale davranışı).
+    scale: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
 
 class Flight(Base):
@@ -202,6 +208,22 @@ class AirportOperationalConfig(Base):
     passport_staff_per_counter: Mapped[float] = mapped_column(Float, default=2.0)
     passport_service_rate_per_staff: Mapped[float] = mapped_column(Float, default=1.0)
     passport_efficiency_multiplier: Mapped[float] = mapped_column(Float, default=0.8125)
+
+    # ADIM (Airport-Scale Queue Capacity) - departure/arrival passport
+    # havuzları artık AYRI (bkz. core/event_queue.py). NULLABLE, default
+    # YOK (None) - bu, "airport-specific EXPLICIT override" ile "hiç
+    # dokunulmadı" arasındaki farkı taşır: None ise config.py önce
+    # `Airport.scale`'den türetilmiş değeri, o da yoksa eski
+    # `passport_counter_count x passport_staff_per_counter` (unknown-
+    # scale fallback) kullanır. Eski `passport_counter_count`/
+    # `passport_staff_per_counter` SİLİNMEDİ (geriye dönük uyumluluk -
+    # unknown-scale fallback'i hâlâ onlardan türer).
+    passport_departure_server_count: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=None
+    )
+    passport_arrival_server_count: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=None
+    )
 
     arrival_bank_threshold: Mapped[int] = mapped_column(Integer, default=5)
 

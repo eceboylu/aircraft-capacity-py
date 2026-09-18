@@ -32,11 +32,19 @@ olarak tüketilir, üretilen çıktı yeniden taranmaz.
 """
 
 import json
+import logging
 import re
 
 from sqlalchemy import select
 
+from ..domain.airport_scale import (
+    find_cross_scale_conflicts,
+    parse_scale_list,
+    resolve_airport_scale,
+)
 from ..models import Airport
+
+logger = logging.getLogger(__name__)
 
 # ('IATA', 'ICAO', 'Ad', '{json}') dörtlüsünü yakalar.
 # Her alan hem \x (backslash-escape) hem '' (doubled-quote escape,
@@ -136,6 +144,80 @@ def import_airports(session, path: str) -> int:
         session.merge(Airport(**row))
     session.commit()
     return len(rows)
+
+
+def import_airport_scales(
+    session, large_path: str, medium_path: str, small_path: str,
+) -> dict:
+    """
+    ADIM (Airport-Scale Queue Capacity) - 3 ölçek txt dosyasını
+    ayrıştırıp `Airport.scale`'i doldurur.
+
+    `import_airports()` İLE AYNI güvenlik ilkesi: mevcut `Airport`
+    satırlarının DİĞER alanları (icao/name/city/country/timezone) HİÇ
+    DOKUNULMAZ - `session.merge(Airport(...))` KULLANILMAZ (yeni bir
+    Airport nesnesi merge etmek, ORM'de ayarlanmayan alanları Python
+    varsayılanlarıyla - yani None ile - EZERDİ). Bunun yerine mevcut
+    satırlar SORGULANIP SADECE `.scale` alanı güncellenir.
+
+    Çakışma güvenliği: bir IATA/ICAO kodu BİRDEN FAZLA ölçek dosyasında
+    görünüyorsa (`find_cross_scale_conflicts`), o kod için SESSİZCE bir
+    ölçek SEÇİLMEZ - `scale=None` kalır (log ile açıkça uyarılır, bkz.
+    dönen özetin `iata_conflicts`/`icao_conflicts` alanları).
+
+    Her prediction turunda ÇAĞRILMAZ - bir kereye mahsus/idempotent
+    bootstrap adımıdır (bkz. `pipeline.py:ensure_airport_scales`).
+    """
+    large = parse_scale_list(large_path)
+    medium = parse_scale_list(medium_path)
+    small = parse_scale_list(small_path)
+
+    conflicts = find_cross_scale_conflicts(large, medium, small)
+    conflicting_iata: set[str] = set()
+    for codes in conflicts["iata"].values():
+        conflicting_iata |= codes
+    conflicting_icao: set[str] = set()
+    for codes in conflicts["icao"].values():
+        conflicting_icao |= codes
+
+    if conflicting_iata or conflicting_icao:
+        logger.warning(
+            "airport scale kaynak dosyalarında çakışma bulundu (%d IATA, %d ICAO) - "
+            "bu kodlar için scale=None bırakıldı (sessizce SEÇİLMEDİ): iata=%s icao=%s",
+            len(conflicting_iata), len(conflicting_icao),
+            sorted(conflicting_iata), sorted(conflicting_icao),
+        )
+
+    airports = session.execute(select(Airport)).scalars().all()
+    matched = 0
+    unmatched = 0
+    conflicted = 0
+
+    for airport in airports:
+        iata = (airport.iata_code or "").upper()
+        icao = (airport.icao_code or "").upper()
+        if iata in conflicting_iata or (icao and icao in conflicting_icao):
+            airport.scale = None
+            conflicted += 1
+            continue
+
+        scale = resolve_airport_scale(airport.iata_code, airport.icao_code, large, medium, small)
+        airport.scale = scale
+        if scale is not None:
+            matched += 1
+        else:
+            unmatched += 1
+
+    session.commit()
+
+    return {
+        "airports_checked": len(airports),
+        "matched": matched,
+        "unmatched": unmatched,
+        "conflicted": conflicted,
+        "iata_conflicts": {key: sorted(codes) for key, codes in conflicts["iata"].items()},
+        "icao_conflicts": {key: sorted(codes) for key, codes in conflicts["icao"].items()},
+    }
 
 
 def country_lookup(session) -> dict[str, str]:

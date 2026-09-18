@@ -15,6 +15,7 @@ from app.models import Base
 from app.queue.api import airport_predictions
 from app.queue.constants import (
     PROCESS_PASSPORT,
+    PROCESS_PASSPORT_DEPARTURE,
     PROCESS_SECURITY_DOMESTIC,
     STATUS_CANCELLED,
 )
@@ -93,11 +94,19 @@ def test_cancelled_flight_cannot_be_resurrected_by_a_later_active_snapshot(sessi
 
 
 def test_overall_current_compares_only_processes_from_the_same_hour(session):
-    """Fallback currents from different hours must not be severity-compared."""
+    """
+    Fallback currents from different hours must not be severity-compared.
+
+    ADIM (Overall Graph Legacy Passport Bug Fix): `overall` artık legacy
+    `PROCESS_PASSPORT` yerine `PROCESS_PASSPORT_DEPARTURE`/`PROCESS_
+    PASSPORT_ARRIVAL`'ı kullanıyor - bu test o yüzden `PROCESS_PASSPORT_
+    DEPARTURE` besliyor (test edilen invariant - "farklı saatlerin
+    fallback current'ları karşılaştırılmaz" - DEĞİŞMEDİ).
+    """
     eight = datetime(2026, 9, 16, 8, 0)
     nine = datetime(2026, 9, 16, 9, 0)
     session.add(_prediction(PROCESS_SECURITY_DOMESTIC, eight, "CRITICAL"))
-    session.add(_prediction(PROCESS_PASSPORT, nine, "LOW", wait=0.1))
+    session.add(_prediction(PROCESS_PASSPORT_DEPARTURE, nine, "LOW", wait=0.1))
     session.commit()
 
     result = airport_predictions(session, "AAA", now=datetime(2026, 9, 16, 9, 30))

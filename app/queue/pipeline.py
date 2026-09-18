@@ -38,7 +38,11 @@ from ..seed import seed_curated_fallback, seed_family_and_ga, seed_verified_data
 from ..service import AircraftCapacityService
 from .constants import DIRECTION_ARRIVAL, DIRECTION_DEPARTURE
 from .engine import run_predictions
-from .ingestion.airports_import import country_lookup, import_airports
+from .ingestion.airports_import import (
+    country_lookup,
+    import_airport_scales,
+    import_airports,
+)
 from .ingestion.refresh import refresh_flights
 from .ingestion.sources import (
     aircraft_match_rate,
@@ -53,6 +57,10 @@ logger = logging.getLogger(__name__)
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
 
 AIRPORTS_SQL = "flight_airports.sql"
+# ADIM (Airport-Scale Queue Capacity) - large/medium/small ölçek referansı.
+LARGE_SCALE_TXT = "buyuk_olcekli_havaalanlari.txt"
+MEDIUM_SCALE_TXT = "orta_olcekli_havaalanlari.txt"
+SMALL_SCALE_TXT = "kucuk_olcekli_havaalanlari.txt"
 # Kaynak A - tarife/gecikme beslemesi, yön başına bir dosya.
 SOURCE_A_FILES = {
     DIRECTION_ARRIVAL: "Delays - Type Arrivals.json",
@@ -74,6 +82,30 @@ def ensure_airports(session, data_dir: str = DATA_DIR) -> int:
     if session.query(Airport).first() is not None:
         return 0
     return import_airports(session, _path(data_dir, AIRPORTS_SQL))
+
+
+def ensure_airport_scales(session, data_dir: str = DATA_DIR) -> dict | None:
+    """
+    Airport-scale referansını bir kere yükler (bkz. `ensure_airports()`
+    ile AYNI idempotent bootstrap deseni) - her ~5dk'lık refresh'te 3
+    txt dosyasını YENİDEN parse ETMEZ.
+
+    En az bir `Airport.scale IS NOT NULL` satırı varsa "zaten import
+    edilmiş" sayılır ve atlanır (skip). Airport referansı (`ensure_
+    airports`) HENÜZ çalışmadıysa (tablo boşsa) yapacak bir şey yoktur,
+    None döner - `import_airport_scales()` zaten var olan `Airport`
+    satırlarını GÜNCELLER, kendi satırını YARATMAZ.
+    """
+    if session.query(Airport).first() is None:
+        return None
+    if session.query(Airport).filter(Airport.scale.isnot(None)).first() is not None:
+        return None
+    return import_airport_scales(
+        session,
+        _path(data_dir, LARGE_SCALE_TXT),
+        _path(data_dir, MEDIUM_SCALE_TXT),
+        _path(data_dir, SMALL_SCALE_TXT),
+    )
 
 
 class CapacitySeedError(RuntimeError):
@@ -252,6 +284,7 @@ def run(
     session = get_session()
     try:
         airports_loaded = ensure_airports(session, data_dir)
+        scales_imported = ensure_airport_scales(session, data_dir)
         capacity_seeded = ensure_capacity_reference(session)
         rows = load_flight_rows(session, data_dir, source_a, source_b)
         match_rate = aircraft_match_rate(rows)
@@ -290,6 +323,7 @@ def run(
     elapsed = time.monotonic() - start
     summary = {
         "airports_loaded": airports_loaded,
+        "scales_imported": scales_imported,
         "capacity_seeded": capacity_seeded,
         "flights_parsed": len(rows),
         "aircraft_match_rate": round(match_rate, 3),

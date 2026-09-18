@@ -211,14 +211,28 @@ def _old_path_predictions(flights, config, demand, baseline_fn, passenger_baseli
 
 
 def _as_comparable(predictions):
-    """WindowPrediction listesini (process, window_start) sıralı,
-    alan-alan karşılaştırılabilir bir tuple listesine çevirir."""
+    """
+    WindowPrediction listesini (process, window_start) sıralı,
+    alan-alan karşılaştırılabilir bir tuple listesine çevirir.
+
+    ADIM (Event-Driven Wait Reporting): `estimated_wait_minutes` BİLEREK
+    DIŞARIDA - `predict_airport()` (yeni/bucket yol) artık PROCESS_
+    SECURITY_DOMESTIC/INTL ve PROCESS_PASSPORT_DEPARTURE/ARRIVAL için
+    GERÇEK event-driven wait kullanıyor (`_event_driven_queue_demand()`
+    üzerinden), `predict_window()` (bu dosyanın "eski yol"u, TEK pencere
+    API'si) bu kuplaja hiç erişemiyor - hâlâ eski Erlang-C/fluid `wq`
+    üretiyor. Bu, BİLİNÇLİ ve BEKLENEN bir ayrışma (wait DOĞRULUĞU bu
+    dosyanın konusu DEĞİL - bkz. `tests/test_event_driven_wait_
+    reporting.py`) - bu dosya SADECE "bucket gruplama, uçuş/pencere
+    tarama sonucuyla flight_count/demand/risk/reasons açısından
+    BİREBİR aynı mı" sorusuna cevap veriyor.
+    """
     ordered = sorted(predictions, key=lambda p: (p.process, p.window_start))
     return [
         (
             p.airport_iata, p.process, p.window_start, p.window_end,
             p.flight_count, p.expected_passengers, p.baseline_ratio,
-            p.utilization, p.estimated_wait_minutes, p.risk,
+            p.utilization, p.risk,
             p.confidence, p.flight_ratio, p.passenger_ratio,
             p.reasons_as_dicts(),   # sıra DAHİL karşılaştırılır
         )

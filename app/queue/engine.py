@@ -22,7 +22,7 @@ DOKUNMAZ - baseline, uçak değişikliği ve config dışarıdan verilir.
 Veritabanı bağlantısı sadece `run_predictions` ve yardımcılarındadır.
 """
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 import json
 import logging
@@ -57,7 +57,11 @@ from .core.scoring import (
     confidence_score,
     domestic_security_capacity_rate,
     international_security_capacity_rate,
+    passport_arrival_capacity_rate,
+    passport_arrival_server_count,
     passport_capacity_rate,
+    passport_departure_capacity_rate,
+    passport_departure_server_count,
     passport_effective_server_count,
     passport_queue_model,
     security_capacity_rate,
@@ -87,6 +91,12 @@ logger = logging.getLogger(__name__)
 PROCESSES = (
     PROCESS_SECURITY, PROCESS_PASSPORT,
     PROCESS_SECURITY_DOMESTIC, PROCESS_SECURITY_INTL,
+    # ADIM (Airport-Scale Queue Capacity) - departure/arrival passport
+    # ARTIK AYRI fiziksel havuz (core/event_queue.py), bu yüzden ARTIK
+    # kendi BAĞIMSIZ `_predict_window_core()` satırına sahipler - eski
+    # `_passport_cohort_breakdown()` (birleşik PROCESS_PASSPORT'un
+    # wait/risk'ini KOPYALAYAN yaklaşım) KALDIRILDI (bkz. git history).
+    PROCESS_PASSPORT_DEPARTURE, PROCESS_PASSPORT_ARRIVAL,
 )
 
 # Hangi sürecin hangi uçuşlarla beslendiği (AŞAMA 2).
@@ -95,7 +105,30 @@ _PROCESS_FLIGHTS = {
     PROCESS_PASSPORT: passport_flights,
     PROCESS_SECURITY_DOMESTIC: security_domestic_flights,
     PROCESS_SECURITY_INTL: security_international_flights,
+    PROCESS_PASSPORT_DEPARTURE: passport_departure_flights,
+    PROCESS_PASSPORT_ARRIVAL: passport_arrival_flights,
 }
+
+# `_predict_window_core()`'un PASSPORT dalının hangi fiziksel havuzu
+# kullanacağı (bkz. core/scoring.py:passport_queue_model `pool` param).
+# PROCESS_PASSPORT (birleşik/legacy) None -> eski `passport_effective_
+# server_count()` (4x2=8 tarzı TEK sayı, backward-compat).
+_PASSPORT_POOL_BY_PROCESS = {
+    PROCESS_PASSPORT: None,
+    PROCESS_PASSPORT_DEPARTURE: "departure",
+    PROCESS_PASSPORT_ARRIVAL: "arrival",
+}
+
+# ADIM (Event-Driven Wait Reporting) - `estimated_wait_minutes`'ın
+# GERÇEK ServiceEvent wait'inden (Erlang-C/fluid YERİNE) geldiği
+# süreçler. Legacy PROCESS_PASSPORT/PROCESS_SECURITY (birleşik) BİLEREK
+# DIŞARIDA - kullanıcı-visible wait'in tek kaynağı zaten SADECE bu
+# dördü (api.py: domestic_security/international_departure/
+# international_arrival grafikleri).
+_EVENT_DRIVEN_WAIT_PROCESSES = frozenset({
+    PROCESS_PASSPORT_DEPARTURE, PROCESS_PASSPORT_ARRIVAL,
+    PROCESS_SECURITY_DOMESTIC, PROCESS_SECURITY_INTL,
+})
 
 
 @dataclass
@@ -266,6 +299,7 @@ def _predict_window_core(
     demand_override: float | None = None,
     current_arrived_override: float | None = None,
     lane_count_override: int | None = None,
+    event_driven_wait_override: float | None = None,
 ) -> WindowPrediction:
     """
     `predict_window()`'ın ASIL hesap gövdesi - ADIM 5E-2'de buradan
@@ -296,6 +330,20 @@ def _predict_window_core(
           yerine `config.domestic_security_lane_count` kullanılmasını
           sağlar (bkz. `predict_airport`). Verilmezse (None, diğer tüm
           süreçlerde hep None) eski davranış birebir korunur.
+    event_driven_wait_override
+        : ADIM (Event-Driven Wait Reporting) - verilirse (None DEĞİLSE)
+          `estimated_wait_minutes`, `queue_capacity_model()`'in ürettiği
+          Erlang-C/fluid `wq` YERİNE bu GERÇEK, `ServiceEvent.wait_
+          minutes`'tan türetilmiş passenger-ağırlıklı ortalamayla
+          DEĞİŞTİRİLİR (bkz. `predict_airport`'un `event_wait_by_hour`
+          kullanımı - SADECE PROCESS_PASSPORT_DEPARTURE/ARRIVAL ve
+          PROCESS_SECURITY_DOMESTIC/INTL için doldurulur). `utilization`/
+          `risk` (ikisi de SADECE `rho`'dan türer, `wq`'dan DEĞİL) bu
+          override'dan ETKİLENMEZ - `queue_capacity_model()` hâlâ
+          normal şekilde çağrılır, SADECE dönen `estimated_wait_minutes`
+          alanı üzerine yazılır. Verilmezse (None, legacy PROCESS_
+          PASSPORT/PROCESS_SECURITY dahil diğer tüm süreçlerde hep None)
+          eski davranış (Erlang-C/fluid `wq`) birebir korunur.
     """
     window_end = window_start + timedelta(minutes=window_minutes)
 
@@ -314,12 +362,14 @@ def _predict_window_core(
             if (t := effective_time(f)) is not None and t <= _now
         )
 
-    if process == PROCESS_PASSPORT:
+    if process in _PASSPORT_POOL_BY_PROCESS:
         score = passport_queue_model(
             window_flights, config, demand.passenger_demand, window_minutes,
             backlog_start=backlog_start,
             current_arrived_demand=current_arrived_demand,
             elapsed_minutes=elapsed_minutes,
+            demand_override=demand_override,
+            pool=_PASSPORT_POOL_BY_PROCESS[process],
         )
     else:
         score = security_queue_model(
@@ -344,6 +394,17 @@ def _predict_window_core(
         score["reasons"] = score.get("reasons", []) + density.get("reasons", [])
 
     rho = score["utilization"]
+
+    # ADIM (Event-Driven Wait Reporting) - gerçek ServiceEvent-tabanlı
+    # wait mevcutsa (bu pencerede en az 1 event varsa), Erlang-C/fluid
+    # `wq`'nun YERİNE geçer. `utilization`/`risk` SADECE `rho`'dan
+    # türediği için (yukarıda, `queue_capacity_model()` içinde) bu
+    # override'dan HİÇ etkilenmez - sadece `estimated_wait_minutes`
+    # değişir (Bölüm 15'in "risk eski Erlang-C wait'ten türemesin"
+    # isteği zaten organik olarak sağlanmış oluyor, risk zaten wait'e
+    # değil rho'ya bağlıydı).
+    if event_driven_wait_override is not None:
+        score["estimated_wait_minutes"] = round(event_driven_wait_override, 1)
 
     # MADDE 8: her aircraft-change event'i, FLIGHT'ın şu anki konumuna
     # göre değil, KENDİ flight_effective_time'ına göre bu pencereye
@@ -665,10 +726,14 @@ def _event_driven_queue_demand(
     arrival_arrivals = _arrivals(passport_flights(flights), is_international_arrival)
     domestic_arrivals = _arrivals(security_domestic_flights(flights))
 
+    # ADIM (Airport-Scale Queue Capacity) - departure/arrival passport
+    # ARTIK AYRI fiziksel havuz, kendi server sayısıyla (bkz.
+    # core/event_queue.py:simulate_passport docstring'i).
     passport_result = simulate_passport(
         departure_arrivals,
         arrival_arrivals,
-        passport_effective_server_count(config),
+        passport_departure_server_count(config),
+        passport_arrival_server_count(config),
         config.passport_service_time_minutes,
     )
 
@@ -707,6 +772,32 @@ def _event_driven_queue_demand(
             buckets[key] = buckets.get(key, 0.0) + event.count
         return buckets
 
+    def _bucket_weighted_wait(events) -> dict[datetime, float]:
+        """
+        ADIM (Event-Driven Wait Reporting) - saatlik pencere için GERÇEK,
+        passenger-ağırlıklı ortalama wait: `ServiceEvent.wait_minutes`
+        (= service_start_time - arrival_time) `event.count` ile
+        ağırlıklandırılıp `event.arrival_time`'a göre bucket'lanır (demand
+        bucket'lamasıyla AYNI ilke - Bölüm 2: saatlik bucket SADECE
+        reporting grouping'tir, queue hiçbir zaman saatlik adımlarla
+        ilerlemedi, burada da ilerlemiyor).
+
+        Bu saatte HİÇ event yoksa o saat için anahtar ÜRETİLMEZ (boş
+        bucket'ta wait UYDURULMAZ - çağıran taraf `.get(start)` ile None
+        alır, mevcut Erlang-C/fluid fallback'ine düşer - bkz. Bölüm 9).
+        """
+        weighted_sum: dict[datetime, float] = {}
+        passenger_count: dict[datetime, float] = {}
+        for event in events:
+            key = floor_to_window(event.arrival_time, window_minutes)
+            weighted_sum[key] = weighted_sum.get(key, 0.0) + event.wait_minutes * event.count
+            passenger_count[key] = passenger_count.get(key, 0.0) + event.count
+        return {
+            key: weighted_sum[key] / passenger_count[key]
+            for key in weighted_sum
+            if passenger_count[key] > 0
+        }
+
     def _bucket_current_released(events) -> dict[datetime, float]:
         """
         "An itibariyle" (current) - GERÇEK event.arrival_time <= now olan
@@ -731,7 +822,12 @@ def _event_driven_queue_demand(
         return buckets
 
     process_events = {
+        # Birleşik/legacy - artık İKİ AYRI fiziksel havuzun BASİT
+        # birleşimi (raporlama amaçlı, kendi server'ı YOK - bkz.
+        # capacity_rates altında toplamı).
         PROCESS_PASSPORT: passport_result["departure"] + passport_result["arrival"],
+        PROCESS_PASSPORT_DEPARTURE: passport_result["departure"],
+        PROCESS_PASSPORT_ARRIVAL: passport_result["arrival"],
         PROCESS_SECURITY_DOMESTIC: security_dom_events,
         PROCESS_SECURITY: security_combined_events,
         PROCESS_SECURITY_INTL: security_intl_events,
@@ -742,8 +838,22 @@ def _event_driven_queue_demand(
         for process, events in process_events.items()
     }
 
+    # PROCESS_PASSPORT (birleşik/legacy) KASITLI olarak ESKİ `passport_
+    # capacity_rate()` (4x2=8 tarzı, `passport_counter_count x passport_
+    # staff_per_counter`'dan) formülünü KULLANMAYA DEVAM EDER - departure+
+    # arrival kapasitelerini TOPLAMAK yanlış olurdu: demand departure/
+    # arrival arasında EŞİT DAĞILMIYORSA (ör. saf-arrival bir pencere),
+    # "iki havuzun toplam kapasitesi" o TEK havuza (arrival'a) hiç
+    # AKTARILAMAYAN fazladan kapasite varsayardı - backlog'u OLMADIĞI
+    # kadar hızlı boşaltırdı (bkz. test_passport_backlog_model.py'nin
+    # gerçek regresyon bulgusu). Legacy alan bu yüzden ESKİ, TEK
+    # (`passport_counter_count`/`passport_staff_per_counter`) sayıyla
+    # DEĞİŞMEDEN hesaplanmaya devam eder; departure/arrival'ın KENDİ
+    # GERÇEK kapasiteleri SADECE PROCESS_PASSPORT_DEPARTURE/ARRIVAL'da.
     capacity_rates = {
         PROCESS_PASSPORT: passport_capacity_rate(config),
+        PROCESS_PASSPORT_DEPARTURE: passport_departure_capacity_rate(config),
+        PROCESS_PASSPORT_ARRIVAL: passport_arrival_capacity_rate(config),
         PROCESS_SECURITY_DOMESTIC: domestic_security_capacity_rate(config),
         PROCESS_SECURITY: security_capacity_rate(config),
         PROCESS_SECURITY_INTL: international_security_capacity_rate(config),
@@ -761,10 +871,23 @@ def _event_driven_queue_demand(
         for process, events in process_events.items()
     }
 
+    # ADIM (Event-Driven Wait Reporting) - GERÇEK, ServiceEvent-tabanlı
+    # passenger-ağırlıklı ortalama wait, saate bucket'lanmış. `predict_
+    # airport()` bunu SADECE PROCESS_PASSPORT_DEPARTURE/ARRIVAL ve
+    # PROCESS_SECURITY_DOMESTIC/INTL için `_predict_window_core()`'a
+    # `event_driven_wait_override` olarak geçirir - legacy PROCESS_
+    # PASSPORT/PROCESS_SECURITY (birleşik) bu turda KASITLI olarak
+    # dokunulmadı (eski Erlang-C/fluid davranışı korunur).
+    event_wait_by_hour = {
+        process: _bucket_weighted_wait(events)
+        for process, events in process_events.items()
+    }
+
     return {
         "demand_by_hour": demand_by_hour,
         "backlog_start_by_hour": backlog_start_by_hour,
         "current_released_by_hour": current_released_by_hour,
+        "event_wait_by_hour": event_wait_by_hour,
     }
 
 
@@ -805,10 +928,15 @@ def predict_airport(
     """
     # Invalid config gerçek overload gibi persist edilmez. Ortak helper'lar
     # server count ve service time'ın pozitif olduğunu açıkça doğrular.
-    # Dördü de burada erken doğrulanır (BUG-03 davranışı korunuyor) - hiçbiri
-    # aşağıdaki event-driven simülasyon içinde SESSİZCE patlamaz.
+    # Hepsi burada erken doğrulanır (BUG-03 davranışı korunuyor) - hiçbiri
+    # aşağıdaki event-driven simülasyon içinde SESSİZCE patlamaz. ADIM
+    # (Airport-Scale Queue Capacity): departure/arrival passport AYRI
+    # havuz olduğu için İKİSİ de AYRI doğrulanır (biri geçersizken
+    # diğeri geçerli olabilir - ör. sadece departure override 0 verildi).
     try:
         passport_capacity_rate(config)
+        passport_departure_capacity_rate(config)
+        passport_arrival_capacity_rate(config)
         security_capacity_rate(config)
         domestic_security_capacity_rate(config)
         international_security_capacity_rate(config)
@@ -843,6 +971,7 @@ def predict_airport(
         coupled_demand = coupling["demand_by_hour"][process]
         coupled_backlog = coupling["backlog_start_by_hour"][process]
         coupled_current = coupling["current_released_by_hour"][process]
+        coupled_wait = coupling["event_wait_by_hour"][process]
         # starts = RAW uçuş pencereleri (flight_count/neden tespiti için,
         # DEĞİŞMEDİ) BİRLEŞİMİ simülasyonun ürettiği GERÇEK saatlerle -
         # ikisi FARKLI olabilir (ör. passport geç serbest bıraktığı için
@@ -878,63 +1007,13 @@ def predict_airport(
                 demand_override=coupled_demand.get(start, 0.0),
                 current_arrived_override=coupled_current.get(start, 0.0),
                 lane_count_override=lane_count_overrides.get(process),
+                event_driven_wait_override=(
+                    coupled_wait.get(start)
+                    if process in _EVENT_DRIVEN_WAIT_PROCESSES else None
+                ),
             ))
-
-    predictions.extend(_passport_cohort_breakdown(predictions, flights, demand))
 
     return predictions
-
-
-def _passport_cohort_breakdown(
-    predictions: list[WindowPrediction], flights: list, demand: DemandCalculator,
-) -> list[WindowPrediction]:
-    """
-    ADIM (4-Graph API Contract) - Bölüm 17: paylaşılan FİZİKSEL passport
-    havuzunu (aynı 4x2=8 efektif server) İKİYE AYIRMADAN/duplicate
-    ETMEDEN, International Departure ve International Arrival
-    grafiklerinin ayrı ayrı okuyabileceği cohort/kaynak bazlı raporlama
-    satırları üretir.
-
-    KENDİ Erlang-C/backlog hesabı YOK - her birleşik `PROCESS_PASSPORT`
-    penceresinin utilization/estimated_wait_minutes/risk/confidence/
-    baseline alanları AYNEN kopyalanır (fiziksel kuyruk TEKTİR, iki
-    "görünümü" de AYNI gerçek durumu yansıtmalı - biri diğerinden düşük
-    kapasiteyle hesaplanmış SAHTE bir wait üretmez). SADECE
-    `expected_passengers`/`flight_count` kendi cohort'una (departure-
-    kökenli/arrival-kökenli) göre, `passport_flights()`'ın zaten var
-    olan alt-kümeleriyle (RAW flight bucket, event simülasyonu ile AYNI
-    saatlere düşer çünkü ikisi de aynı `effective_time()`'ı kullanır)
-    yeniden bölünür.
-    """
-    departure_buckets = _bucket_flights_by_window(passport_departure_flights(flights))
-    arrival_buckets = _bucket_flights_by_window(passport_arrival_flights(flights))
-
-    def _cohort_totals(buckets, window_start):
-        window_all = buckets.get(window_start, [])
-        window_flights = [f for f in window_all if f.status not in EXCLUDED_STATUSES]
-        return len(window_flights), sum(demand.passenger_demand(f) for f in window_flights)
-
-    derived: list[WindowPrediction] = []
-    for p in predictions:
-        if p.process != PROCESS_PASSPORT:
-            continue
-        # Diğer split süreçlerle (SECURITY_DOMESTIC/SECURITY_INTL) TUTARLI:
-        # bir cohort'un o pencerede HİÇ flight'ı yoksa satır ÜRETİLMEZ
-        # (sahte sıfır-yolcu satırı yerine, mevcut "boş pencereye satır
-        # açılmaz" ilkesi - bkz. `window_starts` docstring'i).
-        if p.window_start in departure_buckets:
-            dep_count, dep_demand = _cohort_totals(departure_buckets, p.window_start)
-            derived.append(replace(
-                p, process=PROCESS_PASSPORT_DEPARTURE,
-                flight_count=dep_count, expected_passengers=dep_demand,
-            ))
-        if p.window_start in arrival_buckets:
-            arr_count, arr_demand = _cohort_totals(arrival_buckets, p.window_start)
-            derived.append(replace(
-                p, process=PROCESS_PASSPORT_ARRIVAL,
-                flight_count=arr_count, expected_passengers=arr_demand,
-            ))
-    return derived
 
 
 def flight_match_rate(flights) -> float:

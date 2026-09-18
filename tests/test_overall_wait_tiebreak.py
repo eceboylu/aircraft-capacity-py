@@ -15,6 +15,12 @@ arasında finite wait'i olan tercih edilir. Risk seçimi (en yüksek
 severity kazanır) DEĞİŞMEDİ - bu dosya risk matematiğine DOKUNMAZ,
 sadece zaten var olan `QueuePrediction` satırlarını (bu testte doğrudan
 DB'ye yazılan) doğru şekilde birleştirdiğini doğrular.
+
+ADIM (Overall Graph Legacy Passport Bug Fix): `overall` artık legacy
+(birleşik) `PROCESS_PASSPORT` yerine `PROCESS_PASSPORT_DEPARTURE`/
+`PROCESS_PASSPORT_ARRIVAL`'ı girdi olarak alıyor - bu dosyanın "ikinci
+süreç" örnekleri o yüzden `PROCESS_PASSPORT_DEPARTURE`'a taşındı (tie-
+break MANTIĞI DEĞİŞMEDİ, sadece hangi process'in test edildiği).
 """
 
 import json
@@ -27,7 +33,7 @@ from sqlalchemy.orm import sessionmaker
 from app.models import Base
 from app.queue.api import airport_predictions
 from app.queue.constants import (
-    PROCESS_PASSPORT,
+    PROCESS_PASSPORT_DEPARTURE,
     PROCESS_SECURITY_INTL,
     RISK_CRITICAL,
     RISK_HIGH,
@@ -78,7 +84,7 @@ def add_row(session, process, risk, estimated_wait_minutes, utilization=None):
 
 def test_1_equal_critical_severity_prefers_the_finite_wait(session):
     add_row(session, PROCESS_SECURITY_INTL, RISK_CRITICAL, None)
-    add_row(session, PROCESS_PASSPORT, RISK_CRITICAL, 18.3, utilization=1.4)
+    add_row(session, PROCESS_PASSPORT_DEPARTURE, RISK_CRITICAL, 18.3, utilization=1.4)
 
     result = airport_predictions(session, "IST", now=NOW)
 
@@ -94,7 +100,7 @@ def test_1_equal_critical_severity_prefers_the_finite_wait(session):
 
 def test_2_lower_severity_wait_is_never_borrowed(session):
     add_row(session, PROCESS_SECURITY_INTL, RISK_CRITICAL, None)
-    add_row(session, PROCESS_PASSPORT, RISK_HIGH, 40.0)
+    add_row(session, PROCESS_PASSPORT_DEPARTURE, RISK_HIGH, 40.0)
 
     result = airport_predictions(session, "IST", now=NOW)
 
@@ -109,7 +115,7 @@ def test_2_lower_severity_wait_is_never_borrowed(session):
 
 def test_3_equal_high_severity_prefers_the_finite_wait(session):
     add_row(session, PROCESS_SECURITY_INTL, RISK_HIGH, None)
-    add_row(session, PROCESS_PASSPORT, RISK_HIGH, 12.0)
+    add_row(session, PROCESS_PASSPORT_DEPARTURE, RISK_HIGH, 12.0)
 
     result = airport_predictions(session, "IST", now=NOW)
 
@@ -124,7 +130,7 @@ def test_3_equal_high_severity_prefers_the_finite_wait(session):
 
 def test_4_no_finite_wait_anywhere_stays_null(session):
     add_row(session, PROCESS_SECURITY_INTL, RISK_LOW, None)
-    add_row(session, PROCESS_PASSPORT, RISK_LOW, None)
+    add_row(session, PROCESS_PASSPORT_DEPARTURE, RISK_LOW, None)
 
     result = airport_predictions(session, "IST", now=NOW)
 
@@ -138,7 +144,7 @@ def test_4_no_finite_wait_anywhere_stays_null(session):
 
 def test_5_current_and_series_window_use_the_same_tiebreak_rule(session):
     add_row(session, PROCESS_SECURITY_INTL, RISK_CRITICAL, None)
-    add_row(session, PROCESS_PASSPORT, RISK_CRITICAL, 18.3, utilization=1.4)
+    add_row(session, PROCESS_PASSPORT_DEPARTURE, RISK_CRITICAL, 18.3, utilization=1.4)
 
     result = airport_predictions(session, "IST", now=NOW)
 

@@ -24,6 +24,7 @@ from app.queue.api import airport_predictions
 from app.queue.constants import (
     DEMAND_WINDOW_MINUTES,
     PROCESS_PASSPORT,
+    PROCESS_PASSPORT_DEPARTURE,
     PROCESS_SECURITY,
     PROCESS_SECURITY_DOMESTIC,
     PROCESS_SECURITY_INTL,
@@ -137,9 +138,19 @@ def test_overall_picks_highest_real_risk_at_same_hour(session):
 
 
 def test_overall_window_carries_real_estimated_wait_not_average(session):
+    """
+    ADIM (Overall Graph Legacy Passport Bug Fix): Overall artık
+    `domestic_security` + `international_security` + `passport_
+    departure` + `passport_arrival`'dan türüyor - legacy (birleşik)
+    `PROCESS_PASSPORT` ARTIK Overall'ın girdisi DEĞİL (bkz. `api.py:
+    airport_predictions`). Bu test o yüzden `PROCESS_PASSPORT_
+    DEPARTURE` besliyor - test edilen invariant (Overall, gerçek
+    contributing process'in wait'ini AYNEN taşır, ortalama/uydurma
+    ÜRETMEZ) DEĞİŞMEDİ.
+    """
     add_prediction(session, process=PROCESS_SECURITY_DOMESTIC, risk=RISK_LOW)
     add_prediction(
-        session, process=PROCESS_PASSPORT, risk=RISK_HIGH, estimated_wait_minutes=17.0
+        session, process=PROCESS_PASSPORT_DEPARTURE, risk=RISK_HIGH, estimated_wait_minutes=17.0
     )
     result = airport_predictions(session, "IST", now=NOW)
     assert result["overall"]["current"]["risk"] == RISK_HIGH

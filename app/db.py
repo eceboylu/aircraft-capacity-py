@@ -35,6 +35,12 @@ _SQLITE_OPERATIONAL_CONFIG_COLUMNS = {
     # yeni kolonlar eklenir.
     "domestic_security_lane_count": "INTEGER NOT NULL DEFAULT 8",
     "international_security_lane_count": "INTEGER NOT NULL DEFAULT 8",
+    # ADIM (Airport-Scale Queue Capacity) - NULLABLE, DEFAULT YOK: None,
+    # "bu airport için özellikle set edilmedi" anlamına gelir (bkz.
+    # models.py) - mevcut satırlar NULL alır, scale-derived değere
+    # düşer, davranışları DEĞİŞMEZ.
+    "passport_departure_server_count": "INTEGER",
+    "passport_arrival_server_count": "INTEGER",
 }
 
 # ADIM (Operational-Day Scope) `Airport.timezone` bu tabloya SONRADAN
@@ -46,6 +52,9 @@ _SQLITE_OPERATIONAL_CONFIG_COLUMNS = {
 # `resolve_airport_timezone()` bunu zaten açıkça ele alıyor.
 _SQLITE_AIRPORTS_COLUMNS = {
     "timezone": "VARCHAR(64)",
+    # ADIM (Airport-Scale Queue Capacity) - large/medium/small, nullable
+    # (bkz. models.py `Airport.scale` docstring'i).
+    "scale": "VARCHAR(16)",
 }
 
 

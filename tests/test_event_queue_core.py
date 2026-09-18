@@ -1,11 +1,15 @@
 """
 ADIM (Event-Driven Queue Core) - `app/queue/core/event_queue.py` doğrulaması.
 
-Bu modül HENÜZ `engine.py`/API/frontend'e bağlanmadı (bu turun kapsamı
-dışında) - testler doğrudan SAF fonksiyonları hedefler. Mevcut
-Erlang-C/capacity-rate fonksiyonları (`core/scoring.py`, `core/erlang.py`)
-SADECE referans/çapraz-doğrulama için import edilir, production mantığı
-DEĞİŞTİRİLMEDİ.
+Bu modül `engine.py:_event_driven_queue_demand()` tarafından KULLANILIYOR
+- testler doğrudan SAF fonksiyonları hedefler. Mevcut Erlang-C/
+capacity-rate fonksiyonları (`core/scoring.py`, `core/erlang.py`) SADECE
+referans/çapraz-doğrulama için import edilir.
+
+ADIM (Airport-Scale Queue Capacity): `simulate_passport()`'un eski
+ORTAK/shared-pool sözleşmesi KALDIRILDI - departure/arrival ARTIK AYRI
+fiziksel havuz (bkz. ilgili testler, "eski shared-pool contract'ı
+KALDIRILDI" notu).
 """
 
 from datetime import datetime, timedelta
@@ -132,7 +136,8 @@ def test_section9_passport_release_becomes_security_arrival_at_exact_completion_
     result = simulate_international_departure_journey(
         departure_arrivals=[(T(10, 0), 8.0)],
         arrival_arrivals=[],
-        passport_server_count=8,
+        passport_departure_server_count=8,
+        passport_arrival_server_count=8,
         passport_service_time_minutes=1.5,
         international_security_lane_count=8,
         security_service_time_minutes=1.0,
@@ -156,7 +161,8 @@ def test_section9_international_arrival_never_produces_security_event():
     result = simulate_international_departure_journey(
         departure_arrivals=[],
         arrival_arrivals=[(T(13, 0), 40.0)],
-        passport_server_count=8,
+        passport_departure_server_count=8,
+        passport_arrival_server_count=8,
         passport_service_time_minutes=1.5,
         international_security_lane_count=8,
         security_service_time_minutes=1.0,
@@ -167,30 +173,58 @@ def test_section9_international_arrival_never_produces_security_event():
 
 
 # ========================================================================
-# Bölüm 17/29 - Ortak fiziksel passport havuzu - double-count YOK
+# ADIM (Airport-Scale Queue Capacity) - departure/arrival passport ARTIK
+# AYRI fiziksel havuz (eski "shared pool" contract'ı KALDIRILDI - bkz.
+# genel-proje.md bu turun görevi).
 # ========================================================================
 
-def test_shared_passport_pool_is_not_duplicated_between_departure_and_arrival():
+def test_departure_and_arrival_passport_pools_are_physically_independent():
     """
-    Aynı anda gelen departure + arrival cohortu - AYNI 8 server'ı
-    paylaşır (departure'a ayrı 8, arrival'a ayrı 8 VERİLMEZ). Kanıt:
-    aynı anda en fazla 8 servis BAŞLANGICI olabilir (server sayısı kadar),
-    departure+arrival toplamında DEĞİL.
+    Aynı anda gelen departure + arrival cohortu ARTIK AYRI serverlarda
+    işlenir (departure'a KENDİ 8'i, arrival'a KENDİ 8'i - PAYLAŞILMAZ).
+    Kanıt: T(10,0)'da AYNI ANDA HEM departure'ın 8'i HEM arrival'ın 8'i
+    servise başlar - toplam 16 (8 DEĞİL, eski shared-pool contract'ının
+    tersi).
     """
     result = simulate_passport(
         departure_arrivals=[(T(10, 0), 8.0)],
         arrival_arrivals=[(T(10, 0), 8.0)],
-        effective_server_count=8,
+        departure_server_count=8,
+        arrival_server_count=8,
         service_time_minutes=1.5,
     )
     all_events = result["departure"] + result["arrival"]
     starts_at_t0 = [e for e in all_events if e.service_start_time == T(10, 0)]
-    # T(10,0)'da AYNI ANDA en fazla 8 kişi servise başlayabilir (8 server) -
-    # 16 DEĞİL (8 departure + 8 ayrı arrival server'ı OLSAYDI 16 olurdu).
-    assert total_count(starts_at_t0) == 8.0
-    # Toplam giriş (16) korunmuş, sadece paylaşılan havuzda SIRAYLA işlenmiş.
+    # İki BAĞIMSIZ 8-server havuzu AYNI ANDA 16 kişiyi servise alabilir.
+    assert total_count(starts_at_t0) == 16.0
     assert total_count(result["departure"]) == 8.0
     assert total_count(result["arrival"]) == 8.0
+    # Departure'ın TÜMÜ tek dalgada (8/8), arrival'ın TÜMÜ tek dalgada -
+    # biri diğerini BEKLEMEDİ.
+    assert all(e.completion_time == T(10, 1, 30) for e in result["departure"])
+    assert all(e.completion_time == T(10, 1, 30) for e in result["arrival"])
+
+
+def test_heavy_departure_backlog_does_not_delay_arrival_pool():
+    """
+    Departure havuzu ağır bir backlog taşırken (300 pax, 8 server ->
+    ~15dk sürer) arrival havuzu KENDİ boş serverlarıyla HİÇ ETKİLENMEDEN
+    anında işler - iki AYRI heap olduğunun kanıtı.
+    """
+    result = simulate_passport(
+        departure_arrivals=[(T(10, 0), 300.0)],
+        arrival_arrivals=[(T(10, 5), 8.0)],
+        departure_server_count=8,
+        arrival_server_count=8,
+        service_time_minutes=1.5,
+    )
+    # Arrival, departure'ın 300 kişilik kuyruğu YÜZÜNDEN beklemedi -
+    # KENDİ arrival anında (10:05) hemen başladı.
+    for e in result["arrival"]:
+        assert e.service_start_time == T(10, 5)
+        assert e.wait_minutes == 0.0
+    assert total_count(result["arrival"]) == 8.0
+    assert total_count(result["departure"]) == 300.0
 
 
 def test_passport_effective_server_count_matches_real_production_config():
@@ -354,7 +388,8 @@ def test_conservation_international_departure_full_chain_airport_to_security():
     result = simulate_international_departure_journey(
         departure_arrivals=[(T(10, 0), 300.0), (T(10, 30), 317.0)],
         arrival_arrivals=[],
-        passport_server_count=8, passport_service_time_minutes=1.5,
+        passport_departure_server_count=8, passport_arrival_server_count=8,
+        passport_service_time_minutes=1.5,
         international_security_lane_count=8, security_service_time_minutes=1.0,
     )
     assert total_count(result["passport_departure"]) == total_input
@@ -367,7 +402,7 @@ def test_conservation_mixed_departure_and_arrival_no_creation_or_loss():
     result = simulate_passport(
         departure_arrivals=[(T(9, 0), dep_total)],
         arrival_arrivals=[(T(9, 15), arr_total)],
-        effective_server_count=8, service_time_minutes=1.5,
+        departure_server_count=8, arrival_server_count=8, service_time_minutes=1.5,
     )
     assert total_count(result["departure"]) == dep_total
     assert total_count(result["arrival"]) == arr_total
@@ -390,7 +425,8 @@ def test_double_count_international_departure_enters_passport_once_then_security
     result = simulate_international_departure_journey(
         departure_arrivals=[(T(9, 0), 100.0)],
         arrival_arrivals=[],
-        passport_server_count=8, passport_service_time_minutes=1.5,
+        passport_departure_server_count=8, passport_arrival_server_count=8,
+        passport_service_time_minutes=1.5,
         international_security_lane_count=8, security_service_time_minutes=1.0,
     )
     # Passport'a TAM 1 kez (100), security_intl'e TAM 1 kez (100) - 200 DEĞİL.
@@ -402,7 +438,8 @@ def test_double_count_international_arrival_enters_passport_once_security_zero_t
     result = simulate_international_departure_journey(
         departure_arrivals=[],
         arrival_arrivals=[(T(13, 0), 70.0)],
-        passport_server_count=8, passport_service_time_minutes=1.5,
+        passport_departure_server_count=8, passport_arrival_server_count=8,
+        passport_service_time_minutes=1.5,
         international_security_lane_count=8, security_service_time_minutes=1.0,
     )
     assert total_count(result["passport_arrival"]) == 70.0
@@ -420,7 +457,7 @@ def test_double_count_domestic_arrival_never_enters_any_simulated_queue():
     """
     result = simulate_passport(
         departure_arrivals=[], arrival_arrivals=[],
-        effective_server_count=8, service_time_minutes=1.5,
+        departure_server_count=8, arrival_server_count=8, service_time_minutes=1.5,
     )
     assert result["departure"] == []
     assert result["arrival"] == []
