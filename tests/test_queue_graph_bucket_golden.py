@@ -101,17 +101,36 @@ def _hours(section_windows):
     return {w["window_start"] for w in section_windows}
 
 
+def _window_at(section_windows, hour, minute=0):
+    target = DAY.replace(hour=hour, minute=minute).isoformat()
+    for w in section_windows:
+        if w["window_start"] == target:
+            return w
+    return None
+
+
 def test_international_departure_bucket_is_13_00_not_flight_time(api_result):
-    hours = _hours(api_result["international_departure"]["windows"])
+    """
+    ADIM (24-Hour Graph) ile GÜNCELLENDİ: artık TÜM 24 saat bucket
+    listesinde YER ALIR (bkz. api.py `_pad_series_to_24_hours`) - asıl
+    iddia DEĞİŞMEDİ: GERÇEK flight, KENDİ saati (15:00) DEĞİL, queue
+    event saatinde (13:00, -120dk offset) GERÇEK talep taşır; 15:00
+    sıfır-talep (flight_count=0) bucket'ı olarak kalır.
+    """
+    windows = api_result["international_departure"]["passport"]["windows"]
+    hours = _hours(windows)
     assert DAY.replace(hour=13).isoformat() in hours
-    assert DAY.replace(hour=15).isoformat() not in hours  # flight'ın KENDİ saati DEĞİL
-    assert DAY.replace(hour=15, minute=35).isoformat() not in hours
+    assert _window_at(windows, 13)["flight_count"] > 0
+    assert _window_at(windows, 15)["flight_count"] == 0   # flight'ın KENDİ saati - gerçek talep YOK
+    assert _window_at(windows, 15, minute=35) is None      # 15:35 saatlik bucket sınırı değil, hiç yok
 
 
 def test_international_arrival_bucket_is_14_00_not_13_00(api_result):
-    hours = _hours(api_result["international_arrival"]["windows"])
+    windows = api_result["international_arrival"]["windows"]
+    hours = _hours(windows)
     assert DAY.replace(hour=14).isoformat() in hours
-    assert DAY.replace(hour=13).isoformat() not in hours
+    assert _window_at(windows, 14)["flight_count"] > 0
+    assert _window_at(windows, 13)["flight_count"] == 0
 
 
 def test_domestic_security_bucket_is_08_00(api_result):
@@ -121,12 +140,18 @@ def test_domestic_security_bucket_is_08_00(api_result):
 
 def test_window_start_values_are_exact_hour_boundaries(api_result):
     """Her section'daki HER window_start dakika/saniye=0 olmalı (saatlik floor)."""
-    for section in ("overall", "domestic_security", "international_departure", "international_arrival"):
-        for w in api_result[section]["windows"]:
-            ts = datetime.fromisoformat(w["window_start"])
-            assert ts.minute == 0
-            assert ts.second == 0
-            assert ts.microsecond == 0
+    all_windows = (
+        api_result["overall"]["windows"]
+        + api_result["domestic_security"]["windows"]
+        + api_result["international_departure"]["passport"]["windows"]
+        + api_result["international_departure"]["security"]["windows"]
+        + api_result["international_arrival"]["windows"]
+    )
+    for w in all_windows:
+        ts = datetime.fromisoformat(w["window_start"])
+        assert ts.minute == 0
+        assert ts.second == 0
+        assert ts.microsecond == 0
 
 
 def test_international_arrival_section_has_no_security_breakdown():
@@ -139,12 +164,18 @@ def test_international_arrival_section_has_no_security_breakdown():
     assert "international_security" not in source.split('"international_arrival"')[1].split("\n")[0]
 
 
-def test_international_departure_windows_carry_both_passport_and_security_subobjects(api_result):
-    windows = api_result["international_departure"]["windows"]
-    assert windows
-    for w in windows:
-        assert "passport" in w
-        assert "international_security" in w
+def test_international_departure_has_independent_passport_and_security_series(api_result):
+    """
+    ADIM (International Departure Split Graphs): tek pencerenin İÇİNDE
+    `passport`/`international_security` alt-nesneleri YOK artık - passport
+    ve security KENDİ BAĞIMSIZ `windows` listesini taşıyan iki AYRI seri.
+    """
+    intl_dep = api_result["international_departure"]
+    assert intl_dep["passport"]["windows"]
+    assert intl_dep["security"]["windows"]
+    for w in intl_dep["passport"]["windows"]:
+        assert "passport" not in w
+        assert "international_security" not in w
 
 
 def test_domestic_security_shows_only_domestic_departure_demand_not_international(api_result):
@@ -157,7 +188,13 @@ def test_domestic_security_shows_only_domestic_departure_demand_not_internationa
 
 
 def test_backend_estimated_wait_minutes_field_is_numeric_or_null_never_a_formatted_string(api_result):
-    for section in ("overall", "domestic_security", "international_departure", "international_arrival"):
-        for w in api_result[section]["windows"]:
-            value = w["estimated_wait_minutes"]
-            assert value is None or isinstance(value, (int, float))
+    all_windows = (
+        api_result["overall"]["windows"]
+        + api_result["domestic_security"]["windows"]
+        + api_result["international_departure"]["passport"]["windows"]
+        + api_result["international_departure"]["security"]["windows"]
+        + api_result["international_arrival"]["windows"]
+    )
+    for w in all_windows:
+        value = w["estimated_wait_minutes"]
+        assert value is None or isinstance(value, (int, float))

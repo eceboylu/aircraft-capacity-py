@@ -11,10 +11,11 @@ tek metadata, tek veritabanı, tek create_all.
     edildiğinde satır eklenir.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     Float,
     Integer,
@@ -241,6 +242,25 @@ class QueuePrediction(Base):
     process: Mapped[str] = mapped_column(String(16))   # security | passport
     window_start: Mapped[datetime] = mapped_column(DateTime, index=True)
     window_end: Mapped[datetime] = mapped_column(DateTime)
+    # ADIM (Current Operational Day Isolation) - bu satırı ÜRETEN
+    # `run_predictions()` çağrısının, bu havalimanı için çözdüğü YEREL
+    # takvim günü (`operational_day.operational_date(tz, now)` - BÖLÜM
+    # 58/61'in "flight selection"ı için kullandığı AYNI kaynak).
+    # `window_start` (event'in KENDİSİ, `effective_time()`'ın -120dk/+15dk
+    # kaydırdığı UTC an) İLE KARIŞTIRILMAZ: bir günün flight'ı, backlog/
+    # offset nedeniyle `window_start` olarak ÖNCEKİ/SONRAKİ takvim gününe
+    # düşebilir (Bölüm 61 - cross-midnight/queue-carry event'ler HÂLÂ
+    # KORUNUR) - ama bu satır GERÇEKTE hangi operasyonel GÜNÜN talebinden
+    # üretildiğini burada TAŞIR. `api.py:process_series()` "sadece
+    # BUGÜNÜN grafiği" filtresini `window_start` ARALIĞI ile DEĞİL, bu
+    # alanla yapar - böylece kalıcı/çok-günlü bir DB'de ESKİ bir günün
+    # TAMAMEN AYRI, GERÇEK verisi "bugünün" current grafiğine SIZMAZ,
+    # ama AYNI günün kendi sınır-geçişli event'leri asla YANLIŞLIKLA
+    # dışlanmaz. NULLABLE: eski (bu ADIM'dan ÖNCE yazılmış) satırlar VEYA
+    # timezone'u çözülemeyen havalimanları için `None` - çağıran taraf
+    # (`process_series`/`prune_stale_predictions`) bu durumda ESKİ,
+    # `window_start` tabanlı (geniş/superset) davranışa GERİ DÖNER.
+    operational_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
 
     flight_count: Mapped[int] = mapped_column(Integer, default=0)
     expected_passengers: Mapped[int] = mapped_column(Integer, default=0)

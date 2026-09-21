@@ -140,7 +140,7 @@ def test_large_airport_engine_replay_overall_does_not_use_legacy_8_server_passpo
     # AYNI saatte olmalı ve worst-of mantığı departure/arrival'ın KENDİ
     # riskini yansıtmalı - legacy passport'un DEĞİL.
     overall_windows = {w["window_start"]: w for w in api["overall"]["windows"]}
-    dep_windows = {w["window_start"]: w for w in api["international_departure"]["windows"]}
+    dep_windows = {w["window_start"]: w for w in api["international_departure"]["passport"]["windows"]}
     assert overall_windows  # en az bir pencere var
     for start, overall_window in overall_windows.items():
         # legacy passport riski CRITICAL/farklı olsa bile overall bunu
@@ -239,8 +239,8 @@ def test_international_departure_and_arrival_unaffected_by_fix(session):
 
     api = airport_predictions(session, "IST", now=datetime(2026, 9, 15, 8, 30))
 
-    dep_window = api["international_departure"]["windows"][0]
-    assert dep_window["passport"]["estimated_wait_minutes"] == 7.0
+    dep_window = api["international_departure"]["passport"]["windows"][0]
+    assert dep_window["estimated_wait_minutes"] == 7.0
     arr_window = api["international_arrival"]["windows"][0]
     assert arr_window["estimated_wait_minutes"] == 9.0
 

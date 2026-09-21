@@ -41,6 +41,11 @@ from .constants import (
     RISK_ORDER,
     RISK_UNKNOWN,
 )
+from .domain.operational_day import (
+    operational_date as resolve_operational_date,
+    operational_day_window,
+    resolve_airport_timezone,
+)
 from .models import Airport, Flight, QueuePrediction
 
 # --- Risk -> UI durum etiketi (TEK yer, SADECE sunum) ------------------
@@ -269,14 +274,46 @@ def traffic_breakdown(
     }
 
 
-def _window_to_dict(row: QueuePrediction) -> dict:
+def _to_local_iso(moment_utc: datetime, tz) -> str | None:
+    """
+    ADIM (24-Hour Graph Timezone Display) - naive UTC bir `datetime`'ı
+    (`QueuePrediction.window_start`/`window_end` ile AYNI birim -
+    engine.py'nin tamamı naive UTC, bkz. `domain_now()` docstring'i)
+    havalimanının GERÇEK yerel saatine çevirir. `tz` (bir `zoneinfo.
+    ZoneInfo`) çözülemiyorsa (Bölüm 2 - "raw behavior'a güvenli
+    fallback") `None` döner - UYDURMA bir offset ÜRETİLMEZ, çağıran
+    taraf `window_start_local: None` bırakır ve frontend kendi
+    fallback'iyle (`window.window_start_local || window.window_start`)
+    ham UTC'yi gösterir.
+
+    `zoneinfo` kullanır (sabit +2/+3 HARD-CODE edilmedi) - DST'li
+    (Europe/Paris, Europe/Zurich gibi) havalimanlarında yılın doğru
+    gününe göre GERÇEK offset otomatik uygulanır.
+    """
+    if tz is None:
+        return None
+    aware_utc = moment_utc.replace(tzinfo=timezone.utc)
+    return aware_utc.astimezone(tz).isoformat()
+
+
+def _window_to_dict(row: QueuePrediction, tz=None) -> dict:
     """
     Tek bir `QueuePrediction` satırının JSON-uyumlu görünümü.
     Hiçbir alan burada YENİDEN HESAPLANMAZ.
+
+    `window_start`/`window_end` (CANONICAL, internal/UTC - DEĞİŞMEDİ,
+    geriye dönük uyumlu) YANINDA, `tz` verilirse (havalimanının GERÇEK
+    yerel saat dilimi çözülebiliyorsa) `window_start_local`/`window_end_
+    local` da eklenir - frontend'in grafik label'ı için OKUMASI GEREKEN
+    alan (bkz. `_synthetic_zero_demand_window` - padded sıfır-talep
+    bucket'ları da AYNI iki alanı taşır, frontend real/padded farkını
+    BİLMEZ).
     """
     return {
         "window_start": row.window_start.isoformat(),
         "window_end": row.window_end.isoformat(),
+        "window_start_local": _to_local_iso(row.window_start, tz),
+        "window_end_local": _to_local_iso(row.window_end, tz),
         "flight_count": row.flight_count,
         "expected_passengers": row.expected_passengers,
         "baseline_ratio": row.baseline_ratio,
@@ -295,6 +332,120 @@ def _window_to_dict(row: QueuePrediction) -> dict:
 def _utcnow() -> datetime:
     """Naive UTC 'şimdi' - `QueuePrediction.window_start` da naive UTC'dir (bkz. constants.py)."""
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _synthetic_zero_demand_window(window_start: datetime, window_end: datetime, tz=None) -> dict:
+    """
+    ADIM (24-Hour Graph) - Bölüm B: bir saatte GERÇEKTEN hiçbir uçuş/
+    event olmadığı KESİN olduğunda (bkz. `_pad_series_to_24_hours`
+    çağıran taraf garantisi - sadece bu havalimanı için tahmin
+    üretimi GERÇEKTEN çalıştıysa, yani `windows` boş DEĞİLSE VEYA
+    zaten bu süreç için hiç satır YOKSA bile timezone çözülebiliyorsa)
+    üretilen, SIFIR-TALEP bucket'ı.
+
+    Bu UYDURMA bir tahmin DEĞİLDİR - `flight_count=0`/`expected_
+    passengers=0` zaten doğru (o saat hiç uçuş yoksa gerçek toplam
+    zaten sıfırdır); `estimated_wait_minutes=0.0`/`risk=LOW` bunun
+    doğrudan, tartışmasız sonucudur (talep yok -> kuyruk yok). Backend
+    `core/scoring.py`'nin KENDİSİ hâlâ bu sonucu ÜRETİR (demand=0 ->
+    rho=0 -> LOW/0.0) - burada SADECE o hesabın demand=0 için HER
+    ZAMAN aynı olacağı sonucu, performans amacıyla (her boş saat için
+    gerçek motoru tekrar çağırmadan) tekrarlanır. `confidence=1.0`:
+    "bu saatte talep yoktur" gözlemi varsayıma dayanmaz, doğrudan
+    `Flight` tablosunun kendisinden (o saatte hiç kayıt yok) gelir.
+
+    ADIM (24-Hour Graph Timezone Display) - Bölüm 7: padded (sıfır-talep)
+    bucket'lar da GERÇEK satırlarla AYNI `window_start_local`/`window_end_
+    local` alanlarını taşır - frontend real/padded ayrımını hiç BİLMEZ,
+    ikisi de AYNI contract'ı kullanır.
+    """
+    return {
+        "window_start": window_start.isoformat(),
+        "window_end": window_end.isoformat(),
+        "window_start_local": _to_local_iso(window_start, tz),
+        "window_end_local": _to_local_iso(window_end, tz),
+        "flight_count": 0,
+        "expected_passengers": 0,
+        "baseline_ratio": None,
+        "flight_ratio": None,
+        "passenger_ratio": None,
+        "utilization": 0.0,
+        "estimated_wait_minutes": 0.0,
+        "risk": RISK_LOW,
+        "risk_label": ui_label_for_risk(RISK_LOW),
+        "confidence": 1.0,
+        "reasons": [],
+        "calculated_at": None,
+    }
+
+
+def _pad_series_to_24_hours(windows: list[dict], day_start: datetime, tz=None) -> list[dict]:
+    """
+    ADIM (24-Hour Graph) - Bölüm A/B/C/D: bir sürecin `windows`
+    listesini, havalimanının YEREL operasyonel gününün (`day_start`
+    - `operational_day_window()`'dan, engine.py/run_date_shift_replay.py
+    ile AYNI production fonksiyonu) TAM 24 saatine (`day_start`,
+    `day_start+1h`, ..., `day_start+23h`) tamamlar.
+
+    KATKISAL/YIKICI OLMAYAN (additive) davranış: bu fonksiyon `windows`
+    listesindeki HİÇBİR satırı SİLMEZ/ÜZERİNE YAZMAZ - `day_start`'ın
+    dışında kalan (ör. başka bir güne ait, gerçek geçmiş) satırlar
+    AYNEN listede kalır. SADECE `day_start..day_start+24h` aralığında
+    eksik olan saatler `_synthetic_zero_demand_window()` ile EKLENİR.
+    Bu ayrım kritik: `now` (dolayısıyla `day_start`) test/production
+    çağrısına göre GERÇEK flight verisinden BAĞIMSIZ bir güne denk
+    gelebilir (ör. `now` verilmeden gerçek duvar-saati kullanıldığında)
+    - böyle bir durumda bile mevcut GERÇEK pencereler ASLA kaybolmaz,
+    sadece o günün 24 saati de listeye eklenir (bkz. regresyon:
+    `tests/test_30min_source_refresh_e2e.py`).
+
+    Cross-day event güvenliği (Bölüm D): bu fonksiyon `window_start`
+    değerlerini DEĞİŞTİRMEZ/KAYDIRMAZ - gerçek satırlar zaten
+    `effective_time()`'ın ürettiği (departure -120dk / arrival +15dk)
+    DOĞRU UTC saatine sahiptir (bkz. engine.py `floor_to_window`);
+    burada SADECE `day_start..day_start+24h` aralığındaki 24 SLOT'un
+    HANGİLERİNİN dolu olduğuna bakılır - bir gece yarısını aşan event
+    zaten kendi doğru (önceki/sonraki güne taşmış olabilecek) saatinde
+    durur, bu fonksiyon onu YANLIŞ bir güne TAŞIMAZ.
+    """
+    by_start = {w["window_start"]: w for w in windows}
+    for k in range(24):
+        start = day_start + timedelta(hours=k)
+        end = start + timedelta(hours=1)
+        key = start.isoformat()
+        if key not in by_start:
+            by_start[key] = _synthetic_zero_demand_window(start, end, tz)
+    return sorted(by_start.values(), key=lambda w: w["window_start"])
+
+
+def _resolve_airport_tz_and_day_start(session, airport_iata: str, now: datetime):
+    """
+    ADIM (24-Hour Graph, genişletildi: Timezone Display) - havalimanının
+    GERÇEK `Airport.timezone`'undan (bilinmiyorsa/`zoneinfo`'da
+    tanınmıyorsa ikisi de None - UYDURMA bir UTC varsayımı/offset
+    ÜRETİLMEZ, bkz. `resolve_airport_timezone` docstring'i) çözülen
+    `(tz, day_start)` çifti döner:
+
+      - `tz`        : `window_start_local` üretimi için (bkz.
+                       `_to_local_iso`) - Bölüm 2/3.
+      - `day_start` : 24 saatlik padding penceresinin UTC başlangıcı
+                       (bkz. `_pad_series_to_24_hours`) - DEĞİŞMEDİ.
+
+    `tz` None dönerse çağıran taraf PADDING YAPMAZ VE local alanları
+    `None` bırakır - "her zaman 24 saat/local label" garantisi, güvenilir
+    bir yerel gün sınırı KURULABİLEN havalimanları için geçerlidir
+    (production'daki TÜM gerçek havalimanları zaten `flight_airports.
+    sql`'den bir timezone taşır; sınırlama SADECE bu alanın gerçekten
+    boş/tanınmayan olduğu nadir durum için not edilir, gizlenmez).
+    """
+    airport = session.get(Airport, airport_iata)
+    if airport is None:
+        return None, None
+    tz = resolve_airport_timezone(airport.timezone)
+    if tz is None:
+        return None, None
+    day_start, _day_end = operational_day_window(tz, now)
+    return tz, day_start
 
 
 def _pick_current(rows: list[QueuePrediction], now: datetime) -> QueuePrediction | None:
@@ -337,6 +488,8 @@ def process_series(
     process: str,
     since: datetime | None = None,
     now: datetime | None = None,
+    day_start: datetime | None = None,
+    tz=None,
 ) -> dict:
     """
     Bir (havalimanı, süreç) çifti için kronolojik pencere serisi +
@@ -348,6 +501,26 @@ def process_series(
     Pencere yoksa (bu havalimanı/süreç için hiç tahmin üretilmemiş)
     `current: None, windows: []` döner - bu durum çağıran tarafta
     ASLA "NORMAL" ile karıştırılmamalı.
+
+    day_start : ADIM (24-Hour Graph) - verilirse (havalimanının
+                çözülebilen bir timezone'u varsa, bkz.
+                `_resolve_airport_tz_and_day_start`) `windows` bu 24
+                saate `_pad_series_to_24_hours()` ile tamamlanır ve
+                `current` PADDED liste üzerinden (`_pick_current_window`
+                - `_pick_current` ile AYNI üç kollu mantık, ama dict
+                listesi üzerinde) seçilir. Verilmezse (None, varsayılan)
+                ESKİ davranış (sadece gerçek satırlar, padding YOK)
+                birebir korunur - doğrudan çağıranlar/eski testler
+                ETKİLENMEZ.
+    tz        : ADIM (24-Hour Graph Timezone Display) - `day_start` ile
+                AYNI kaynaktan (`_resolve_airport_tz_and_day_start`)
+                gelir; HER pencereye (gerçek VEYA padded, current dahil)
+                `window_start_local`/`window_end_local` eklemek için
+                `_window_to_dict`/`_synthetic_zero_demand_window`'a
+                AYNEN iletilir. `internal UTC eşleştirme` (`by_start`
+                anahtarı hâlâ `window_start` - CANONICAL UTC) bundan
+                HİÇ etkilenmez (Bölüm 8) - sadece SERİLEŞTİRME/görüntü
+                alanı eklenir.
     """
     now = now if now is not None else _utcnow()
 
@@ -360,10 +533,53 @@ def process_series(
     query = query.order_by(QueuePrediction.window_start)
 
     rows = session.execute(query).scalars().all()
-    windows = [_window_to_dict(row) for row in rows]
 
-    current_row = _pick_current(rows, now)
-    current = _window_to_dict(current_row) if current_row is not None else None
+    if day_start is not None:
+        # ADIM (Current Operational Day Isolation) - BUG FIX: `rows` yukarıda
+        # bu havalimanı/süreç için VERİTABANINDAKİ TÜM `QueuePrediction`
+        # satırlarını (önceki operasyonel günler dahil, HİÇBİR tarih filtresi
+        # olmadan) çeker - persistan/çok-günlü bir DB'de (ör. 19 Eylül + 20
+        # Eylül aynı dosyada) bu, `windows`'un birden fazla güne ait GERÇEK
+        # satırları KARIŞIK içermesine yol açıyordu (bkz. rapor - stale-day
+        # leak bulgusu).
+        #
+        # DOĞRU filtre `window_start` ARALIĞI DEĞİL (bu, Bölüm 61'in
+        # KORUNMASI gereken sınır-geçişli/backlog spillover event'lerini -
+        # ör. 00:45 kalkışın -120dk'lık effective_time'ı ÖNCEKİ takvim
+        # gününe, VEYA ağır bir security backlog'unun completion_time'ı
+        # SONRAKİ takvim gününe düşmesi - YANLIŞLIKLA dışlardı, bkz.
+        # `test_cross_midnight_departure_queue_event_stays_on_its_real_hour_
+        # not_shifted` regresyonu). Bunun yerine `QueuePrediction.
+        # operational_date` (bu satırı ÜRETEN `run_predictions()` çağrısının
+        # o havalimanı için çözdüğü YEREL "bugün" - bkz. models.py
+        # docstring'i) kullanılır: bu alan `window_start`'ın kaydığı saatten
+        # BAĞIMSIZ, "hangi günün TALEBİNDEN üretildi" sorusuna cevap verir.
+        #
+        # Eski (bu ADIM'dan ÖNCE yazılmış) satırlarda bu alan `None`dır -
+        # onlar için ESKİ (window_start ARALIĞI tabanlı, superset/additive)
+        # davranışa GERİ DÖNÜLÜR - GERİYE DÖNÜK UYUMLU, mevcut cross-midnight
+        # testleri etkilenmez.
+        target_date = resolve_operational_date(tz, now) if tz is not None else None
+
+        def _belongs_to_current_operational_day(row: QueuePrediction) -> bool:
+            if row.operational_date is None:
+                # Etiketsiz (bu ADIM'dan ÖNCE yazılmış) satır - ESKİ
+                # davranış: HİÇ FİLTRELENMEZ (additive/superset, bkz.
+                # `_pad_series_to_24_hours` docstring'i) - aksi halde
+                # `day_start..day_end` aralığı DIŞINDAKİ meşru cross-
+                # midnight spillover satırları (Bölüm 61) burada da
+                # YANLIŞLIKLA dışlanırdı.
+                return True
+            return row.operational_date == target_date
+
+        rows_for_windows = [r for r in rows if _belongs_to_current_operational_day(r)]
+        windows = [_window_to_dict(row, tz) for row in rows_for_windows]
+        windows = _pad_series_to_24_hours(windows, day_start, tz)
+        current = _pick_current_window(windows, now)
+    else:
+        windows = [_window_to_dict(row, tz) for row in rows]
+        current_row = _pick_current(rows, now)
+        current = _window_to_dict(current_row, tz) if current_row is not None else None
 
     return {
         "process": process,
@@ -447,6 +663,14 @@ def _merge_overall_series(*process_results: dict, now: datetime) -> dict:
         return {
             "window_start": base["window_start"],
             "window_end": base["window_end"],
+            # ADIM (24-Hour Graph Timezone Display) - Bölüm 5: Overall da
+            # görünür 5 grafikten biri - `base` (bir alt-sürecin ZATEN
+            # tz-aware `_window_to_dict`/`_synthetic_zero_demand_window`
+            # çıktısı) hangi local alanları taşıyorsa AYNEN kopyalanır
+            # (tüm alt-süreçler AYNI havalimanı/AYNI tz'den geldiği için
+            # hepsinin local değeri zaten özdeştir).
+            "window_start_local": base.get("window_start_local"),
+            "window_end_local": base.get("window_end_local"),
             "risk": base["risk"],
             "risk_label": base["risk_label"],
             "estimated_wait_minutes": wait,
@@ -466,37 +690,31 @@ def _merge_overall_series(*process_results: dict, now: datetime) -> dict:
     return {"process": "overall", "current": current, "windows": windows}
 
 
-def _international_departure_series(
-    passport_departure: dict, international_security: dict, now: datetime,
+def _international_departure_split(
+    passport_departure: dict, international_security: dict,
 ) -> dict:
     """
-    ADIM (4-Graph API Contract) - Bölüm 15/46/51: International Departure
-    grafiği (passport -> international security, İKİ fiziksel aşama).
+    ADIM (International Departure Split Graphs) - Bölüm 9-12: passport
+    ve security artık İKİ AYRI zaman serisi/grafik olarak sunulur, TEK
+    bir "worst-of" pencereye ZORLANMAZ.
 
-    Üst seviye risk/estimated_wait_minutes `_merge_overall_series()` ile
-    AYNI "en yüksek severity, gerçek/finite wait varsa ondan" mantığıyla
-    türetilir (Bölüm 15: "Düşük severity'deki bir process'ten yüksek
-    severity'ye sahte wait ödünç alma" - YENİ bir kural DEĞİL, mevcut
-    `overall` ile TUTARLI aynı tie-break). Her pencereye AYRICA `passport`/
-    `international_security` alt-nesneleri eklenir (Bölüm 51 JSON
-    örneği) - frontend hiçbir hesap yapmadan iki aşamayı da gösterebilir.
+    Gerekçe (ZRH regresyonu): passport'un GERÇEKTEN doldurduğu backlog,
+    security'ye saatler SONRA (kendi `completion_time`'ı - bkz.
+    `engine.py:_event_driven_queue_demand`) ulaşabilir. Eski birleşik
+    "current" tek bir `window_start` seçtiği için (worst-of), passport
+    06:00'da 66.8 dk gösterirken security'nin current'ı 08:00'a
+    düşünce passport'un KENDİ current'ı sahte biçimde "—" görünebiliyordu
+    (iki fiziksel aşama birbirinin `current` seçimini EZİYORDU). Artık
+    her biri KENDİ `process_series()` sonucunu (kendi `current`/
+    `windows`, kendi `_pick_current` üç kollu mantığı) AYNEN taşır -
+    YENİ bir risk/wait hesabı YOK, sadece TEK "worst-of" birleştirme
+    ADIMI kaldırıldı.
     """
-    merged = _merge_overall_series(passport_departure, international_security, now=now)
-    merged["process"] = "international_departure"
-
-    passport_by_start = {w["window_start"]: w for w in passport_departure["windows"]}
-    security_by_start = {w["window_start"]: w for w in international_security["windows"]}
-
-    for window in merged["windows"]:
-        window["passport"] = passport_by_start.get(window["window_start"])
-        window["international_security"] = security_by_start.get(window["window_start"])
-
-    if merged["current"] is not None:
-        start = merged["current"]["window_start"]
-        merged["current"]["passport"] = passport_by_start.get(start)
-        merged["current"]["international_security"] = security_by_start.get(start)
-
-    return merged
+    return {
+        "process": "international_departure",
+        "passport": passport_departure,
+        "security": international_security,
+    }
 
 
 def airport_predictions(
@@ -517,29 +735,54 @@ def airport_predictions(
     kullanıyor.
 
     ADIM (4-Graph API Contract) - Bölüm 15/26/35/46: `domestic_security`,
-    `international_departure` (passport-kalkış-kökeni + international
-    security, İKİ aşama breakdown'lı), `international_arrival` (SADECE
+    `international_departure`, `international_arrival` (SADECE
     varış-kökenli passport) - TAM 4 grafik contract'ı. `overall`
     DEĞİŞTİRİLMEDİ (Bölüm 35: fiziksel YENİ bir queue yaratmaz, zaten
-    var olan `domestic_security`/`international_security`/`passport`
-    (birleşik) sonuçlarının özeti olarak KALDI - `PROCESS_PASSPORT_
-    DEPARTURE`/`PROCESS_PASSPORT_ARRIVAL` matematiksel olarak birleşik
-    `PROCESS_PASSPORT` ile AYNI utilization/risk/wait'i taşıdığı için
-    -bkz. `engine.py:_passport_cohort_breakdown`- sonuç EŞDEĞERDİR,
-    yine de mevcut, kanıtlanmış formül BOZULMADI).
+    var olan `domestic_security`/`international_security`/
+    `passport_departure`/`passport_arrival` sonuçlarının özeti olarak
+    KALDI).
+
+    ADIM (International Departure Split Graphs): `international_departure`
+    ARTIK "worst-of" tek bir birleşik pencere DEĞİL -
+    `{"process", "passport", "security"}` şekli, `passport` =
+    `PROCESS_PASSPORT_DEPARTURE`'ın kendi `process_series()`'i, `security`
+    = `PROCESS_SECURITY_INTL`'in kendi `process_series()`'i (bkz.
+    `_international_departure_split`). Her ikisi de KENDİ `current`/
+    `windows`'unu, KENDİ `_pick_current` üç kollu mantığıyla taşır -
+    security'nin current'ı passport'unkini ASLA EZMEZ (ZRH regresyonu).
 
     ADIM 6A-UI: `now` BİR KEZ hesaplanıp TÜM süreçlere AYNI değer
     geçirilir - ayrı ayrı "gerçek an"ı sorgulamak, aralarındaki
     milisaniyelik gecikmenin bir pencere sınırını geçip süreçlerin
     FARKLI anlara göre "current" seçmesine yol açabilirdi.
+
+    ADIM (24-Hour Graph) - Bölüm A/B/C: kullanıcı-visible BEŞ grafik
+    (overall/domestic_security/international_departure'ın passport VE
+    security'si/international_arrival) artık HER ZAMAN TAM 24 saat
+    gösterir - `day_start` (havalimanının GERÇEK timezone'undan,
+    `_resolve_airport_tz_and_day_start`) çözülebiliyorsa bu dört gerçek
+    süreç PADDED olarak hesaplanır; `overall`/`international_departure`
+    zaten bunların ÜZERİNE inşa edildiği için (bkz. `_merge_overall_
+    series`/`_international_departure_split`) ONLAR DA otomatik olarak
+    24 saat olur - YENİ bir birleştirme mantığı İCAT EDİLMEDİ. Legacy
+    `security`/`passport` (geriye dönük uyumluluk alanları) BİLİNÇLİ
+    OLARAK PAD EDİLMEDİ - eski davranışları birebir korunur.
+
+    ADIM (24-Hour Graph Timezone Display): AYNI `tz` çözümü, `window_
+    start_local`/`window_end_local` üretmek için BEŞ görünür grafiğin
+    TAMAMINA (bkz. `process_series`'in `tz` parametresi) iletilir.
+    `window_start`/`window_end` (CANONICAL UTC) HİÇ DEĞİŞMEDİ - sadece
+    EK bir görüntü alanı eklendi (Bölüm 3/14 - backward compatible).
     """
     now = now if now is not None else _utcnow()
+    tz, day_start = _resolve_airport_tz_and_day_start(session, airport_iata, now)
+
     security = process_series(session, airport_iata, PROCESS_SECURITY, since, now)
     passport = process_series(session, airport_iata, PROCESS_PASSPORT, since, now)
-    domestic_security = process_series(session, airport_iata, PROCESS_SECURITY_DOMESTIC, since, now)
-    international_security = process_series(session, airport_iata, PROCESS_SECURITY_INTL, since, now)
-    passport_departure = process_series(session, airport_iata, PROCESS_PASSPORT_DEPARTURE, since, now)
-    passport_arrival = process_series(session, airport_iata, PROCESS_PASSPORT_ARRIVAL, since, now)
+    domestic_security = process_series(session, airport_iata, PROCESS_SECURITY_DOMESTIC, since, now, day_start, tz)
+    international_security = process_series(session, airport_iata, PROCESS_SECURITY_INTL, since, now, day_start, tz)
+    passport_departure = process_series(session, airport_iata, PROCESS_PASSPORT_DEPARTURE, since, now, day_start, tz)
+    passport_arrival = process_series(session, airport_iata, PROCESS_PASSPORT_ARRIVAL, since, now, day_start, tz)
 
     # ADIM (Overall Graph Legacy Passport Bug Fix): Overall ARTIK
     # legacy/8-server `passport` (PROCESS_PASSPORT) serisini KULLANMIYOR -
@@ -556,8 +799,12 @@ def airport_predictions(
         domestic_security, international_security,
         passport_departure, passport_arrival, now=now,
     )
-    international_departure = _international_departure_series(
-        passport_departure, international_security, now,
+    # ADIM (International Departure Split Graphs) - Bölüm 9-12: artık
+    # TEK birleşik ("worst-of") pencere DEĞİL, passport/security kendi
+    # BAĞIMSIZ current/windows serisini taşıyor (bkz.
+    # `_international_departure_split` docstring'i - ZRH regresyonu).
+    international_departure = _international_departure_split(
+        passport_departure, international_security,
     )
 
     return {

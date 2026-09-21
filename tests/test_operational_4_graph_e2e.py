@@ -252,21 +252,23 @@ def test_a_wait_time_priority_estimated_wait_wins_over_capacity_exceeded():
 
 def test_a_wait_time_function_used_by_both_current_and_click_selected_window():
     """
-    ADIM (Frontend 4-Graph Contract) - `graphSectionHtml()` her iki
-    durumda da (tıklanmamış -> current, tıklanmış -> `window_start`'ı
-    eşleşen pencere) AYNI `displayWindow` üzerinden `waitDetailHtml()`'i
+    ADIM (Frontend 4-Graph Contract), İmza ADIM (International Departure
+    Split Graphs)'ta SADELEŞTİ - `graphSectionHtml()` her iki durumda da
+    (tıklanmamış -> current, tıklanmış -> `window_start`'ı eşleşen
+    pencere) AYNI `displayWindow` üzerinden `waitDetailHtml()`'i
     çağırmalı - current ve click için AYRI/farklı bir öncelik mantığı
-    olmamalı. İmza artık `graphSectionHtml(key, title, section, kind)`
-    (4. parametre - "single" vs "breakdown" - Bölüm 50: International
-    Departure'ın passport/security wait'lerini AYRI göstermesi için).
+    olmamalı. `kind` parametresi (Bölüm 50'nin "single" vs "breakdown"
+    ayrımı) KALKTI - International Departure artık passport/security
+    için İKİ BAĞIMSIZ `graphSectionHtml()` çağrısı, ayrı bir "breakdown"
+    kind'ına gerek yok.
     """
     html = _read_index_html()
     script = html.split("<script>", 1)[1]
-    graph_fn = script.split("function graphSectionHtml(key, title, section, kind) {", 1)[1].split("\n  }", 1)[0]
+    graph_fn = script.split("function graphSectionHtml(key, title, section) {", 1)[1].split("\n  }", 1)[0]
 
     assert "state.detail[key]" in graph_fn
     assert "section.current" in graph_fn
-    assert "waitDetailHtml(kind, displayWindow)" in graph_fn
+    assert "waitDetailHtml(displayWindow)" in graph_fn
     # Tek bir waitDetailHtml çağrısı var - current/click için ikinci
     # bir kopya YOK; `displayWindow` HER İKİ durumda da AYNI değişkenden
     # gelir (yukarıda tek bir yerde çözülür).
@@ -302,18 +304,35 @@ def domestic_surge_session(session):
 
 
 def test_c_domestic_surge_raises_domestic_security_risk(domestic_surge_session):
+    """
+    ADIM (Visible Risk = Gerçek Queue Pressure) ile GÜNCELLENDİ: risk
+    artık sadece o saatin KENDİ gelen talebine değil, GERÇEK, event-
+    türevli backlog'a da bakıyor. 07:00'ın 9-uçuşluk dalgası (900 pax,
+    8-lane kapasite 480/saat) 08:00'a (KENDİ arrival'ı baseline'a eşit,
+    3 uçuş) devasa bir backlog bırakıyor - gerçek `estimated_wait_
+    minutes` bunu ZATEN gösteriyordu (bu ADIM'dan ÖNCE bile ~70dk),
+    risk artık bu GERÇEĞİ doğru yansıtıyor: 08:00 de CRITICAL olmalı,
+    eski model gibi yapay biçimde LOW'a düşmemeli.
+    """
     result = airport_predictions(domestic_surge_session, "IST", now=datetime(2026, 9, 15, 23, 0))
     assert risk_of(result["domestic_security"], hour_start(6)) == RISK_LOW
     assert risk_of(result["domestic_security"], hour_start(7)) == RISK_CRITICAL
-    assert risk_of(result["domestic_security"], hour_start(8)) == RISK_LOW
+    assert risk_of(result["domestic_security"], hour_start(8)) == RISK_CRITICAL
 
 
 def test_c_domestic_surge_does_not_raise_international_security_or_passport(domestic_surge_session):
+    """
+    ADIM (24-Hour Graph) ile GÜNCELLENDİ: `international_security`
+    (BEŞ görünür grafikten biri, artık 24-saat PADDED) bu saatler için
+    `None` DEĞİL (bkz. api.py `_pad_series_to_24_hours`) - ama GERÇEK/
+    etkilenmiş bir satır da DEĞİL, sıfır-talep (flight_count=0)
+    bucket'ı. `international_passport` (LEGACY, bilinçli olarak PAD
+    EDİLMEDİ) hâlâ eski `None` davranışını korur. Asıl iddia AYNI:
+    domestic surge bu iki süreci HİÇ ETKİLEMEDİ.
+    """
     result = airport_predictions(domestic_surge_session, "IST", now=datetime(2026, 9, 15, 23, 0))
-    # Bu 3 saatte HİÇ international/passport uçuşu yok - o süreçler için
-    # hiç pencere ÜRETİLMEMİŞ olmalı (sahte/etkilenmiş bir satır değil).
     for hour in (6, 7, 8):
-        assert window_of(result["international_security"], hour_start(hour)) is None
+        assert window_of(result["international_security"], hour_start(hour))["flight_count"] == 0
         assert window_of(result["international_passport"], hour_start(hour)) is None
 
 
@@ -385,9 +404,10 @@ def test_d_international_security_surge_t0_t1_t2(intl_security_surge_session):
 
 
 def test_d_domestic_security_unaffected_by_international_surge(intl_security_surge_session):
+    """ADIM (24-Hour Graph): domestic_security artık 24-saat PADDED - bu saatler `None` değil, sıfır-talep bucket'ı (`flight_count=0`)."""
     result = airport_predictions(intl_security_surge_session, "IST", now=datetime(2026, 9, 15, 23, 0))
     for hour in (10, 11, 12):
-        assert window_of(result["domestic_security"], hour_start(hour)) is None
+        assert window_of(result["domestic_security"], hour_start(hour))["flight_count"] == 0
 
 
 def test_d_passport_is_genuinely_affected_because_international_departures_feed_it_too(
@@ -414,12 +434,26 @@ def test_d_passport_is_genuinely_affected_because_international_departures_feed_
 
 
 def test_d_overall_matches_max_of_the_three_real_series(intl_security_surge_session):
+    """
+    `overall`, `_merge_overall_series()`'in GERÇEK girdileri olan
+    `domestic_security`/`international_security`/`passport_departure`/
+    `passport_arrival`'ın worst-of'udur (bkz. api.py - "Overall Graph
+    Legacy Passport Bug Fix" ADIM'ı, legacy `international_passport`
+    ARTIK KULLANILMIYOR). Bu test ÖNCEDEN legacy `international_passport`
+    ile karşılaştırıyordu - bu, `passport_departure`/`passport_arrival`
+    ile (farklı server-count formülü, bkz. core/scoring.py) COĞU zaman
+    TESADÜFEN aynı risk'i üretiyordu; ADIM (Visible Risk = Gerçek Queue
+    Pressure) ile bu tesadüf artık geçerli değil (`passport_departure`
+    backlog-farkındalı, legacy DEĞİL) - test artık `overall`'ın GERÇEK
+    girdisiyle karşılaştırıyor.
+    """
     result = airport_predictions(intl_security_surge_session, "IST", now=datetime(2026, 9, 15, 23, 0))
     for hour in (10, 11, 12):
         ds = risk_of(result["domestic_security"], hour_start(hour))
         isec = risk_of(result["international_security"], hour_start(hour))
-        pax = risk_of(result["international_passport"], hour_start(hour))
-        candidates = [r for r in (ds, isec, pax) if r is not None]
+        pdep = risk_of(result["international_departure"]["passport"], hour_start(hour))
+        parr = risk_of(result["international_arrival"], hour_start(hour))
+        candidates = [r for r in (ds, isec, pdep, parr) if r is not None]
         expected = max(candidates, key=lambda r: RISK_ORDER.get(r, -1))
         assert risk_of(result["overall"], hour_start(hour)) == expected
 
@@ -482,9 +516,10 @@ def test_e_international_passport_surge_t0_t1_t2(passport_surge_session):
 
 
 def test_e_domestic_security_never_appears_in_this_window_block(passport_surge_session):
+    """ADIM (24-Hour Graph): domestic_security artık 24-saat PADDED - bu saatler `None` değil, sıfır-talep bucket'ı (`flight_count=0`)."""
     result = airport_predictions(passport_surge_session, "IST", now=datetime(2026, 9, 15, 23, 0))
     for hour in (15, 16, 17):
-        assert window_of(result["domestic_security"], hour_start(hour)) is None
+        assert window_of(result["domestic_security"], hour_start(hour))["flight_count"] == 0
 
 
 def test_e_international_security_never_sees_the_arrivals_own_demand(passport_surge_session):
@@ -506,18 +541,25 @@ def test_e_international_security_never_sees_the_arrivals_own_demand(passport_su
     """
     result = airport_predictions(passport_surge_session, "IST", now=datetime(2026, 9, 15, 23, 0))
     w15 = window_of(result["international_security"], hour_start(15))
-    if w15 is not None:
-        # D'nin kalkış sürgüsünden kalan KÜÇÜK bir kuyruk kalıntısı OLABİLİR
-        # (matematiksel üst sınır: passport'un TEK saatlik kapasitesi,
-        # 160 pax) - ama bu 15:00'ın KENDİ varış talebi (100 pax, E190)
-        # DEĞİL; farklı bir sayı olmalı ve passport'un kapasitesini AŞAMAZ.
-        assert w15["expected_passengers"] <= 160.0
+    # ADIM (24-Hour Graph): w15 artık HER ZAMAN bir dict (24-saat PADDED,
+    # `None` DEĞİL) - gerçek bir kalıntı yoksa sıfır-talep bucket'ı
+    # (expected_passengers=0) döner, bu da aşağıdaki üst-sınır iddiasını
+    # otomatik olarak sağlar; `if w15 is not None` koruması artık gereksiz.
+    # D'nin kalkış sürgüsünden kalan KÜÇÜK bir kuyruk kalıntısı OLABİLİR
+    # (matematiksel üst sınır: passport'un TEK saatlik kapasitesi,
+    # 160 pax) - ama bu 15:00'ın KENDİ varış talebi (100 pax, E190)
+    # DEĞİL; farklı bir sayı olmalı ve passport'un kapasitesini AŞAMAZ.
+    assert w15["expected_passengers"] <= 160.0
     # 16:00/17:00'da artık hiçbir kalkış-bağlantılı kalıntı kalmamış
     # olmalı (15:00'daki küçük kalıntı security'nin KENDİ 480/saat
     # kapasitesiyle o saat içinde tükeniyor) - varışların KENDİ talebi
     # (300/100 pax) hiçbir zaman security'ye YANSIMAMALI.
     for hour in (16, 17):
-        assert window_of(result["international_security"], hour_start(hour)) is None
+        # `flight_count` DEĞİL `expected_passengers` kontrol edilir -
+        # coupling demand_override ile flight_count=0 olsa bile talep
+        # (expected_passengers) sızabilirdi; asıl iddia "hiçbir talep
+        # (gerçek veya coupled) yok"tur.
+        assert window_of(result["international_security"], hour_start(hour))["expected_passengers"] == 0
 
 
 # ==================================================================
@@ -632,9 +674,10 @@ def test_h_ist_surge_does_not_change_control_airport_adb(session):
         risk_of(baseline_result["domestic_security"], hour_start(6))
     assert window_of(after_result["domestic_security"], hour_start(6))["flight_count"] == \
         window_of(baseline_result["domestic_security"], hour_start(6))["flight_count"]
-    # IST'in surge saatlerinde (07:00 CRITICAL) ADB için hiçbir pencere
-    # yok - havalimanları KARIŞMIYOR.
-    assert window_of(after_result["domestic_security"], hour_start(7)) is None
+    # IST'in surge saatlerinde (07:00 CRITICAL) ADB'nin KENDİ 07:00'ı
+    # hâlâ sıfır-talep (ADIM 24-Hour Graph ile artık `None` değil, ama
+    # flight_count=0) - havalimanları KARIŞMIYOR.
+    assert window_of(after_result["domestic_security"], hour_start(7))["flight_count"] == 0
 
 
 # ==================================================================
@@ -657,13 +700,20 @@ def test_i_click_on_one_window_never_changes_another_graph_or_window(domestic_su
     Frontend `state.detail[key]` per-grafik AYRI (bkz. index.html) -
     burada API sözleşmesi düzeyinde doğrulanan şey: aynı `windows`
     dizisinde 07:00 ve 08:00 penceresi BİRBİRİNDEN bağımsız, farklı
-    risk/wait taşıyor (frontend'in "sadece tıklanan pencereyi göster"
+    veri taşıyor (frontend'in "sadece tıklanan pencereyi göster"
     davranışının dayandığı veri garantisi).
+
+    NOT (ADIM Visible Risk = Gerçek Queue Pressure ile GÜNCELLENDİ):
+    07:00/08:00 artık İKİSİ de CRITICAL (08:00, 07:00'ın devasa backlog'unu
+    GERÇEKTEN devralıyor - bkz. `test_c_domestic_surge_raises_domestic_
+    security_risk`) - risk eşitliği bu testin ASIL iddiasını (bağımsız
+    pencereler) YALANLAMAZ; `estimated_wait_minutes` (gerçek, event-
+    türevli, birbirinden FARKLI) bağımsızlığı hâlâ kanıtlıyor.
     """
     result = airport_predictions(domestic_surge_session, "IST", now=datetime(2026, 9, 15, 23, 0))
     w7 = window_of(result["domestic_security"], hour_start(7))
     w8 = window_of(result["domestic_security"], hour_start(8))
-    assert w7["risk"] != w8["risk"]
+    assert w7["estimated_wait_minutes"] != w8["estimated_wait_minutes"]
     assert w7["window_start"] != w8["window_start"]
 
 

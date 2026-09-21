@@ -341,6 +341,7 @@ def queue_capacity_model(
     current_arrived_demand: float | None = None,
     elapsed_minutes: float | None = None,
     demand_override: float | None = None,
+    risk_backlog_start: float = 0.0,
 ) -> dict:
     """
     Passport ve security için TEK queue matematik implementasyonu.
@@ -362,6 +363,25 @@ def queue_capacity_model(
                        wait) KENDİSİ HİÇ DEĞİŞMEDİ, sadece demand'in
                        KAYNAĞI değişti. Verilmezse (None) eski davranış
                        birebir korunur.
+
+    risk_backlog_start : ADIM (Visible Risk = Gerçek Queue Pressure) -
+                       `backlog_start` (yukarıdaki, WAIT hesabını besleyen,
+                       fluid/analitik backlog) İLE KARIŞTIRILMAMALI: bu,
+                       SADECE `risk` sınıflandırması için kullanılan,
+                       GERÇEK/event-türevli ("T anında henüz servise
+                       başlamamış, önceki pencerelerden taşınan gerçek
+                       bekleyen yolcu sayısı" - bkz. `engine.py:
+                       _event_derived_backlog_by_hour()`) backlog'dur.
+                       `rho` (= incoming-only utilization, `utilization`
+                       API alanında GERİYE DÖNÜK UYUMLU olarak AYNEN
+                       kalır) BU parametreden HİÇ ETKİLENMEZ - SADECE
+                       yeni `queue_pressure` (risk'in TEK girdisi) bunu
+                       kullanır. Verilmezse (varsayılan 0.0) `queue_
+                       pressure == rho` olur - ESKİ risk davranışı
+                       BİREBİR korunur (legacy `PROCESS_PASSPORT`/
+                       `PROCESS_SECURITY` ve doğrudan `predict_window()`
+                       çağıranları dahil - hiçbiri bu parametreyi
+                       VERMEZ, dolayısıyla ETKİLENMEZ).
     """
     demand = (
         sum(demand_fn(f) for f in window_flights)
@@ -376,13 +396,23 @@ def queue_capacity_model(
     service_capacity = capacity_rate * window_minutes
     backlog_end = max(0.0, backlog_start + demand - service_capacity)
 
-    if rho >= 1.0:
+    # ADIM (Visible Risk = Gerçek Queue Pressure) - risk ARTIK sadece bu
+    # pencerenin KENDİ gelen talebine (`rho`) değil, GERÇEK, event-türevli
+    # bekleyen backlog'a da bakar: "bu saat sunucuların temizlemesi
+    # gereken TOPLAM yük (eski bekleyen + yeni gelen) / toplam kapasite".
+    # Birim kontrolü: (kişi + kişi) / kişi = boyutsuz - AYNI `rho` ile
+    # AYNI ölçek/eşik bantlarını (0.7/0.9/1.0) kullanabilir. `rho`'nun
+    # KENDİSİ (incoming-only) `utilization` alanında DEĞİŞMEDEN kalır
+    # (Bölüm 6 - API geriye-uyumluluğu, diagnostic/internal değer).
+    queue_pressure = (demand + risk_backlog_start) / service_capacity
+
+    if queue_pressure >= 1.0:
         risk = RISK_CRITICAL
         reasons = [PASSPORT_OVERLOAD_MESSAGE]
-    elif rho < PASSPORT_RHO_LOW:
+    elif queue_pressure < PASSPORT_RHO_LOW:
         risk = RISK_LOW
         reasons = []
-    elif rho < PASSPORT_RHO_MEDIUM:
+    elif queue_pressure < PASSPORT_RHO_MEDIUM:
         risk = RISK_MEDIUM
         reasons = []
     else:
@@ -407,6 +437,7 @@ def queue_capacity_model(
         "service_rate": round(mu, 6),
         "capacity_rate": round(capacity_rate, 6),
         "utilization": round(rho, 3),
+        "queue_pressure": round(queue_pressure, 3),
         "estimated_wait_minutes": round(wq, 1),
         "backlog_end": round(backlog_end, 3),
         "risk": risk,
@@ -424,6 +455,7 @@ def passport_queue_model(
     elapsed_minutes: float | None = None,
     demand_override: float | None = None,
     pool: str | None = None,
+    risk_backlog_start: float = 0.0,
 ) -> dict:
     """
     Passport wrapper.
@@ -457,6 +489,7 @@ def passport_queue_model(
         current_arrived_demand=current_arrived_demand,
         elapsed_minutes=elapsed_minutes,
         demand_override=demand_override,
+        risk_backlog_start=risk_backlog_start,
     )
 
 
@@ -470,6 +503,7 @@ def security_queue_model(
     elapsed_minutes: float | None = None,
     demand_override: float | None = None,
     lane_count_override: int | None = None,
+    risk_backlog_start: float = 0.0,
 ) -> dict:
     """
     Security wrapper: c=lane_count, service time config'ten.
@@ -496,6 +530,7 @@ def security_queue_model(
         current_arrived_demand=current_arrived_demand,
         elapsed_minutes=elapsed_minutes,
         demand_override=demand_override,
+        risk_backlog_start=risk_backlog_start,
     )
 
 

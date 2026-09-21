@@ -528,14 +528,17 @@ def test_airport_isolation_ist_and_adb_never_mix(replay):
 
 def test_api_contract_has_all_four_graphs_and_reflects_r1_changes(replay):
     api0, api1 = replay["api0"]["IST"], replay["api1"]["IST"]
-    for section in ("overall", "domestic_security", "international_departure", "international_arrival"):
+    for section in ("overall", "domestic_security", "international_arrival"):
         assert section in api0
         assert section in api1
         assert "windows" in api0[section]
 
-    # International departure grafiği passport+security_intl breakdown taşır.
-    id0_windows = api0["international_departure"]["windows"]
-    assert any("passport" in w and "international_security" in w for w in id0_windows)
+    # International departure grafiği artık İKİ BAĞIMSIZ seri (passport/
+    # security_intl) - bkz. api.py `_international_departure_split`.
+    for stage in ("passport", "security"):
+        assert stage in api0["international_departure"]
+        assert stage in api1["international_departure"]
+        assert "windows" in api0["international_departure"][stage]
 
     # R1: TK207 iptal olduğu için 14:00 penceresindeki international_arrival
     # talebi SIFIRLANMALI (window'un kendisi, kalan backlog serbest bırakma
@@ -552,8 +555,14 @@ def test_api_contract_has_all_four_graphs_and_reflects_r1_changes(replay):
     assert all(r.flight_count == 0 and r.expected_passengers == 0 for r in r1_passport_windows)
 
 
-def test_frontend_contract_file_unchanged_this_turn():
-    """Bu turda frontend render kodu DEĞİŞTİRİLMEDİ - sadece backend/engine gerçek veriyle doğrulandı."""
+def test_frontend_contract_file_reflects_split_graphs():
+    """
+    ADIM (International Departure Split Graphs) ile bu satır GÜNCELLENDİ:
+    International Departure artık TEK birleşik "breakdown" grafiği değil,
+    passport/security için İKİ BAĞIMSIZ panel (bkz. api.py
+    `_international_departure_split`, index.html `renderContent`).
+    """
     from pathlib import Path
     html = (Path(__file__).parents[1] / "app" / "web" / "static" / "index.html").read_text(encoding="utf-8")
-    assert 'graphSectionHtml("international_departure", "INTERNATIONAL DEPARTURE", data.international_departure, "breakdown")' in html
+    assert 'graphSectionHtml("international_departure_passport", "INTERNATIONAL DEPARTURE — PASSPORT", data.international_departure.passport)' in html
+    assert 'graphSectionHtml("international_departure_security", "INTERNATIONAL DEPARTURE — SECURITY", data.international_departure.security)' in html

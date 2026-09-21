@@ -344,4 +344,4 @@ def test_frontend_contract_unchanged():
 
     html = (Path(__file__).parents[1] / "app" / "web" / "static" / "index.html").read_text(encoding="utf-8")
     assert "function formatWaitMinutes(minutes)" in html
-    assert 'graphSectionHtml("international_arrival", "INTERNATIONAL ARRIVAL", data.international_arrival, "single")' in html
+    assert 'graphSectionHtml("international_arrival", "INTERNATIONAL ARRIVAL", data.international_arrival)' in html

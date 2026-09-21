@@ -57,12 +57,28 @@ _SQLITE_AIRPORTS_COLUMNS = {
     "scale": "VARCHAR(16)",
 }
 
+# ADIM (Current Operational Day Isolation) - `queue_predictions` tablosuna
+# SONRADAN eklenen kolon (bkz. models.py `QueuePrediction.operational_date`
+# docstring'i). Nullable/DEFAULT YOK: mevcut (bu ADIM'dan önce yazılmış)
+# satırlar NULL alır - `process_series()`/`prune_stale_predictions()` bunu
+# açıkça ele alıp ESKİ (window_start tabanlı) davranışa geri döner.
+_SQLITE_QUEUE_PREDICTIONS_COLUMNS = {
+    "operational_date": "DATE",
+}
 
-def _migrate_sqlite_table(table: str, columns: dict[str, str]) -> None:
-    if engine.dialect.name != "sqlite":
+
+def _migrate_sqlite_table(table: str, columns: dict[str, str], target_engine=None) -> None:
+    """
+    `target_engine` verilmezse bu modülün global (production) `engine`'i
+    kullanılır - GERİYE DÖNÜK UYUMLU. Verilirse (ör. test harness'ının
+    KENDİ, izole sqlite dosyası) SADECE o engine üzerinde çalışır - bu
+    fonksiyon production `engine`'e HİÇ dokunmaz.
+    """
+    target_engine = target_engine if target_engine is not None else engine
+    if target_engine.dialect.name != "sqlite":
         return
 
-    inspector = inspect(engine)
+    inspector = inspect(target_engine)
     if table not in inspector.get_table_names():
         return
 
@@ -71,7 +87,7 @@ def _migrate_sqlite_table(table: str, columns: dict[str, str]) -> None:
     if not missing:
         return
 
-    with engine.begin() as connection:
+    with target_engine.begin() as connection:
         for name in missing:
             definition = columns[name]
             connection.exec_driver_sql(
@@ -86,6 +102,7 @@ def init_db(drop_first: bool = False) -> None:
     Base.metadata.create_all(engine)
     _migrate_sqlite_table("airport_operational_configs", _SQLITE_OPERATIONAL_CONFIG_COLUMNS)
     _migrate_sqlite_table("airports", _SQLITE_AIRPORTS_COLUMNS)
+    _migrate_sqlite_table("queue_predictions", _SQLITE_QUEUE_PREDICTIONS_COLUMNS)
 
 
 def get_session() -> Session:

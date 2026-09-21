@@ -104,11 +104,12 @@ def test_api_response_carries_exactly_four_main_graph_keys(session):
 
 
 # ========================================================================
-# Bölüm 15/51 - International Departure: passport + international
-# security breakdown, sahte wait ödünç alma YOK.
+# ADIM (International Departure Split Graphs) - Bölüm 9-12: passport ve
+# security artık İKİ BAĞIMSIZ seri - "worst-of" merge/sahte wait ödünç
+# alma mantığı bu yüzeyden KALDIRILDI, her süreç KENDİ değerini taşır.
 # ========================================================================
 
-def test_international_departure_carries_passport_and_security_breakdown(session):
+def test_international_departure_carries_independent_passport_and_security_series(session):
     window_start = datetime(2026, 9, 15, 8, 0)
     window_end = datetime(2026, 9, 15, 9, 0)
     add_prediction(
@@ -126,23 +127,22 @@ def test_international_departure_carries_passport_and_security_breakdown(session
     intl_dep = result["international_departure"]
 
     assert intl_dep["process"] == "international_departure"
-    window = intl_dep["windows"][0]
+    assert intl_dep["passport"]["process"] == PROCESS_PASSPORT_DEPARTURE
+    assert intl_dep["security"]["process"] == PROCESS_SECURITY_INTL
 
-    # Breakdown - frontend HİÇBİR hesap yapmadan iki aşamayı da okuyabilir.
-    assert window["passport"]["estimated_wait_minutes"] == 21.4
-    assert window["passport"]["risk"] == RISK_HIGH
-    assert window["international_security"]["risk"] == RISK_CRITICAL
-    assert window["international_security"]["estimated_wait_minutes"] is None
-
-    # Üst seviye: EN YÜKSEK severity (CRITICAL) kazanır - ama CRITICAL
-    # olan security_intl'in wait'i None; DÜŞÜK severity'deki (HIGH)
-    # passport'un 21.4'ü SAHTE ÖDÜNÇ ALINMAZ (Bölüm 15).
-    assert window["risk"] == RISK_CRITICAL
-    assert window["estimated_wait_minutes"] is None
+    # Her seri KENDİ değerini taşır - diğerinin risk'i/wait'i tarafından
+    # ASLA EZİLMEZ/ÖDÜNÇ ALINMAZ (Bölüm 9-12, eski "worst-of" merge
+    # kaldırıldı).
+    passport_window = intl_dep["passport"]["windows"][0]
+    security_window = intl_dep["security"]["windows"][0]
+    assert passport_window["estimated_wait_minutes"] == 21.4
+    assert passport_window["risk"] == RISK_HIGH
+    assert security_window["risk"] == RISK_CRITICAL
+    assert security_window["estimated_wait_minutes"] is None
 
 
-def test_international_departure_uses_real_wait_when_the_worst_severity_has_one(session):
-    """İki süreç de AYNI (en yüksek) severity'deyse ve BİRİ finite wait taşıyorsa, o wait KULLANILIR (uydurma DEĞİL, gerçek satırdan)."""
+def test_international_departure_each_series_keeps_its_own_finite_wait(session):
+    """Passport CRITICAL+18.3dk taşırken security CRITICAL+None taşısa bile, ikisi ASLA birbirine karışmaz - her biri kendi değerini gösterir."""
     window_start = datetime(2026, 9, 15, 8, 0)
     window_end = datetime(2026, 9, 15, 9, 0)
     add_prediction(
@@ -157,13 +157,13 @@ def test_international_departure_uses_real_wait_when_the_worst_severity_has_one(
     )
 
     result = airport_predictions(session, "IST", now=datetime(2026, 9, 15, 8, 30))
-    window = result["international_departure"]["windows"][0]
+    intl_dep = result["international_departure"]
 
-    assert window["risk"] == RISK_CRITICAL
-    assert window["estimated_wait_minutes"] == 18.3   # security_intl'in null'ı KAZANMADI
+    assert intl_dep["passport"]["windows"][0]["estimated_wait_minutes"] == 18.3
+    assert intl_dep["security"]["windows"][0]["estimated_wait_minutes"] is None
 
 
-def test_international_departure_current_also_carries_breakdown(session):
+def test_international_departure_current_is_independent_per_series(session):
     window_start = datetime(2026, 9, 15, 8, 0)
     window_end = datetime(2026, 9, 15, 9, 0)
     add_prediction(
@@ -176,10 +176,41 @@ def test_international_departure_current_also_carries_breakdown(session):
     )
 
     result = airport_predictions(session, "IST", now=datetime(2026, 9, 15, 8, 30))
-    current = result["international_departure"]["current"]
+    intl_dep = result["international_departure"]
 
-    assert current is not None
-    assert "passport" in current and "international_security" in current
+    assert intl_dep["passport"]["current"] is not None
+    assert intl_dep["security"]["current"] is not None
+
+
+def test_international_departure_zrh_style_cross_hour_split_never_shows_dash_for_passport(session):
+    """
+    ZRH regresyonu: passport 06:00'da doldurup security'ye ancak 08:00'da
+    ulaşan bir yolcu akışında, passport'un KENDİ current'ı ("—" DEĞİL,
+    gerçek 66.8dk) security'nin current'ından (08:00, 0dk) ETKİLENMEMELİ.
+    """
+    add_prediction(
+        session, process=PROCESS_PASSPORT_DEPARTURE,
+        window_start=datetime(2026, 9, 15, 6, 0), window_end=datetime(2026, 9, 15, 7, 0),
+        risk=RISK_CRITICAL, estimated_wait_minutes=66.8, expected_passengers=320,
+    )
+    add_prediction(
+        session, process=PROCESS_SECURITY_INTL,
+        window_start=datetime(2026, 9, 15, 8, 0), window_end=datetime(2026, 9, 15, 9, 0),
+        risk=RISK_LOW, estimated_wait_minutes=0.0, expected_passengers=320,
+    )
+
+    # "now" 06:xx içinde - passport'un current'ı KENDİ 06:00 penceresi
+    # olmalı, security'nin 08:00 (henüz gelecekteki) penceresine ZORLANMAZ.
+    result = airport_predictions(session, "IST", now=datetime(2026, 9, 15, 6, 15))
+    intl_dep = result["international_departure"]
+
+    passport_current = intl_dep["passport"]["current"]
+    security_current = intl_dep["security"]["current"]
+
+    assert passport_current["window_start"] == datetime(2026, 9, 15, 6, 0).isoformat()
+    assert passport_current["estimated_wait_minutes"] == 66.8
+    assert security_current["window_start"] == datetime(2026, 9, 15, 8, 0).isoformat()
+    assert security_current["estimated_wait_minutes"] == 0.0
 
 
 # ========================================================================

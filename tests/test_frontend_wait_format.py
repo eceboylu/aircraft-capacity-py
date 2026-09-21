@@ -70,16 +70,17 @@ def test_wait_time_text_delegates_to_format_wait_minutes_not_raw_concat():
     assert '+ " dk"' not in fn
 
 
-def test_all_four_wait_surfaces_route_through_wait_time_text():
+def test_all_five_wait_surfaces_route_through_wait_time_text():
     """
-    Overall / Domestic Security / International Departure (passport +
-    security) / International Arrival (passport) - hepsi `waitDetailHtml()`
-    üzerinden `waitTimeText()`'e gider (bkz. index.html) - dolayısıyla
-    hepsi AYNI `formatWaitMinutes()`'ı kullanır, mantık dört yerde
-    kopyalanmaz.
+    Overall / Domestic Security / International Departure — Passport /
+    International Departure — Security / International Arrival - hepsi
+    (artık BAĞIMSIZ panel/grafik olarak, bkz. api.py
+    `_international_departure_split`) `waitDetailHtml()` üzerinden AYNI
+    `waitTimeText()`'e gider (bkz. index.html) - dolayısıyla hepsi AYNI
+    `formatWaitMinutes()`'ı kullanır, mantık beş yerde kopyalanmaz.
     """
     fn = _extract_function("waitDetailHtml")
-    assert fn.count("waitTimeText(") == 3  # single kind (1) + breakdown passport/security (2)
+    assert fn.count("waitTimeText(") == 1
 
 
 def test_format_wait_minutes_never_duplicated_elsewhere_in_script():

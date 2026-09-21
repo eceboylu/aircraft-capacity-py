@@ -36,6 +36,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from sqlalchemy import create_engine, select  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
+from app.db import _migrate_sqlite_table  # noqa: E402
 from app.models import AircraftCapacity, Base  # noqa: E402
 from app.queue.api import airport_predictions  # noqa: E402
 from app.queue.constants import (  # noqa: E402
@@ -172,6 +173,12 @@ def replay(
 
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine)
+    # ADIM (Current Operational Day Isolation) - `create_all()` bu
+    # dosyadan ÖNCE oluşturulmuş, PERSISTENT bir `queue_predictions`
+    # tablosuna yeni `operational_date` kolonunu EKLEMEZ (sadece eksik
+    # TABLOLARI yaratır) - `app.db`'nin production migration mekanizması
+    # burada da (KENDİ, izole `engine`'i üzerinde) çalıştırılır.
+    _migrate_sqlite_table("queue_predictions", {"operational_date": "DATE"}, target_engine=engine)
     session = sessionmaker(bind=engine)()
 
     dep_path = fixture_dir / "Delays - Type Departures.json"

@@ -1,0 +1,35 @@
+[Unit]
+Description=Airport Queue Monitor - background ingestion/prediction worker (5 dk döngü)
+After=network.target
+
+[Service]
+Type=simple
+User=airportqueue
+Group=airportqueue
+WorkingDirectory=/opt/airport-queue
+Environment=PYTHONUNBUFFERED=1
+# Environment=DATABASE_URL=sqlite:////opt/airport-queue/database.sqlite
+ExecStart=/opt/airport-queue/venv/bin/python -m app.worker
+Restart=always
+RestartSec=10
+
+# `app/worker.py:run_forever()` KENDİ İÇİNDE 5 dk'lık döngüyü yönetir
+# (her tur kendi try/except'i içinde izole edilir - bkz. modül
+# docstring'i) - bu yüzden systemd bir TIMER'a gerek YOK, TEK, sürekli
+# çalışan bir servis yeterli. `Restart=always` sadece worker
+# process'inin KENDİSİ (ör. OOM, segfault gibi) ölürse devreye girer -
+# normal "bir refresh turu başarısız oldu" durumu zaten worker'ın
+# KENDİ döngüsü içinde ele alınır, process hiç ÖLMEZ.
+#
+# ALTERNATİF (bu projede TERCİH EDİLMEDİ, ama eşdeğer bir kurulum):
+# worker'ı kendi iç döngüsü OLMAYAN tek-seferlik bir komut
+# (`python -m app.queue.pipeline`) olarak bırakıp, 5 dk'da bir
+# tetikleyen AYRI bir `airport-queue-worker.timer` (OnUnitActiveSec=5min)
+# eklemek. İki yaklaşım da "worker web server'dan ayrı, worker hatası
+# web server'ı düşürmez" invariant'ını sağlar.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/airport-queue
+
+[Install]
+WantedBy=multi-user.target

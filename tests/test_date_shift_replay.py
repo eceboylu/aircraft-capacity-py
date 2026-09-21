@@ -96,9 +96,16 @@ def cbr_original(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def cbr_shifted(tmp_path_factory):
+    """
+    ADIM (Airport Scale Test Matrix) NOTU: `REPLAY_DIR` artık CBR için
+    EK `TM9xxx` işaretli scale-matrix test flight'ları da içeriyor (bkz.
+    `_generate_scale_matrix_test_flights.py`) - bu identity-proof'un
+    (SADECE gerçek 5-flight CBR domestic kümesiyle) etkilenmemesi için
+    `exclude_flight_iata_prefix="TM9"` ile filtrelenir.
+    """
     r = replay(
         REPLAY_DIR, tmp_path_factory.mktemp("ds") / "cbr_shifted.sqlite",
-        CBR_NOW_SHIFTED, airports=["CBR"],
+        CBR_NOW_SHIFTED, airports=["CBR"], exclude_flight_iata_prefix="TM9",
     )
     yield r
     r["session"].close()
@@ -127,11 +134,18 @@ def test_source_a_record_counts_preserved_after_shift():
     assert len(shift_arr) >= len(orig_arr)
     assert [r.get("flight_iata") for r in shift_dep[:len(orig_dep)]] == [r.get("flight_iata") for r in orig_dep]
     assert [r.get("flight_iata") for r in shift_arr[:len(orig_arr)]] == [r.get("flight_iata") for r in orig_arr]
-    # Eklenen fazlalık SADECE TS9xxx marker'lı test flight'ları olmalı (Bölüm 18).
+    # Eklenen fazlalık SADECE TS9xxx (Bölüm 18) VEYA TM9xxx (ADIM Airport
+    # Scale Test Matrix - CBR/MFG/OAG, bkz. `_generate_scale_matrix_test_
+    # flights.py`) marker'lı test flight'ları olmalı.
     extra_dep = shift_dep[len(orig_dep):]
     extra_arr = shift_arr[len(orig_arr):]
-    assert all((r.get("flight_iata") or "").startswith("TS9") for r in extra_dep)
-    assert all((r.get("flight_iata") or "").startswith("TS9") for r in extra_arr)
+
+    def _is_marked_test_flight(record):
+        iata = record.get("flight_iata") or ""
+        return iata.startswith("TS9") or iata.startswith("TM9")
+
+    assert all(_is_marked_test_flight(r) for r in extra_dep)
+    assert all(_is_marked_test_flight(r) for r in extra_arr)
 
 
 def test_source_b_updated_shifted_exactly_4_days_and_count_preserved():
@@ -245,17 +259,33 @@ def _windows_by_start(windows):
     }
 
 
+def _resolve_section(api_result: dict, path: str) -> dict:
+    """
+    ADIM (International Departure Split Graphs) - `international_departure`
+    artık tek düz bir seri değil, `{process, passport, security}` -
+    bu yüzden bazı bölümler dotted-path ile ("international_departure.
+    passport") adreslenir; diğerleri (overall/domestic_security/
+    international_arrival) düz kalır.
+    """
+    node = api_result
+    for part in path.split("."):
+        node = node[part]
+    return node
+
+
 @pytest.mark.parametrize("section,fields", [
     ("overall", ("risk", "estimated_wait_minutes")),
     ("domestic_security", ("flight_count", "expected_passengers", "risk", "estimated_wait_minutes")),
     ("international_arrival", ("flight_count", "expected_passengers", "risk", "estimated_wait_minutes")),
-    ("international_departure", ("risk", "estimated_wait_minutes")),
+    ("international_departure.passport", ("risk", "estimated_wait_minutes")),
+    ("international_departure.security", ("risk", "estimated_wait_minutes")),
 ])
 def test_graph_series_identical_except_date_shift(cdg_original, cdg_shifted, section, fields):
-    original_windows = cdg_original["api_by_airport"]["CDG"][section]["windows"]
-    shifted_by_start = _windows_by_start(cdg_shifted["api_by_airport"]["CDG"][section]["windows"])
+    original_windows = _resolve_section(cdg_original["api_by_airport"]["CDG"], section)["windows"]
+    shifted_windows = _resolve_section(cdg_shifted["api_by_airport"]["CDG"], section)["windows"]
+    shifted_by_start = _windows_by_start(shifted_windows)
 
-    assert len(original_windows) == len(cdg_shifted["api_by_airport"]["CDG"][section]["windows"])
+    assert len(original_windows) == len(shifted_windows)
     for w in original_windows:
         expected_start = datetime.fromisoformat(w["window_start"]) + SHIFT
         match = shifted_by_start.get(expected_start)
@@ -264,49 +294,56 @@ def test_graph_series_identical_except_date_shift(cdg_original, cdg_shifted, sec
             assert w[field] == match[field], f"{section}.{field} @ {w['window_start']}"
 
 
-def test_international_departure_passport_and_security_subobjects_match_after_shift(
+def test_international_departure_passport_and_security_series_match_after_shift(
     cdg_original, cdg_shifted,
 ):
-    original_windows = cdg_original["api_by_airport"]["CDG"]["international_departure"]["windows"]
-    shifted_by_start = _windows_by_start(
-        cdg_shifted["api_by_airport"]["CDG"]["international_departure"]["windows"]
-    )
-    checked_passport = 0
-    checked_security = 0
-    for w in original_windows:
-        expected_start = datetime.fromisoformat(w["window_start"]) + SHIFT
-        match = shifted_by_start[expected_start]
-        if w["passport"] is not None:
-            assert match["passport"] is not None
-            assert w["passport"]["flight_count"] == match["passport"]["flight_count"]
-            assert w["passport"]["expected_passengers"] == match["passport"]["expected_passengers"]
-            assert w["passport"]["estimated_wait_minutes"] == match["passport"]["estimated_wait_minutes"]
-            checked_passport += 1
-        else:
-            assert match["passport"] is None
-        if w["international_security"] is not None:
-            assert match["international_security"] is not None
-            assert w["international_security"]["expected_passengers"] == match["international_security"]["expected_passengers"]
-            assert w["international_security"]["estimated_wait_minutes"] == match["international_security"]["estimated_wait_minutes"]
-            checked_security += 1
-        else:
-            assert match["international_security"] is None
-    assert checked_passport >= 1
-    assert checked_security >= 1
+    """
+    ADIM (International Departure Split Graphs): passport/security artık
+    İKİ BAĞIMSIZ seri - her biri KENDİ `windows` listesinde +4 gün
+    kaydırma dışında birebir aynı olmalı (eskiden tek pencerenin İÇİNDEKİ
+    alt-nesneler karşılaştırılıyordu, artık iki AYRI seri karşılaştırılır).
+    """
+    intl_dep_o = cdg_original["api_by_airport"]["CDG"]["international_departure"]
+    intl_dep_s = cdg_shifted["api_by_airport"]["CDG"]["international_departure"]
+
+    for stage, fields in (
+        ("passport", ("flight_count", "expected_passengers", "estimated_wait_minutes")),
+        ("security", ("expected_passengers", "estimated_wait_minutes")),
+    ):
+        original_windows = intl_dep_o[stage]["windows"]
+        shifted_by_start = _windows_by_start(intl_dep_s[stage]["windows"])
+        assert original_windows, stage
+        for w in original_windows:
+            expected_start = datetime.fromisoformat(w["window_start"]) + SHIFT
+            match = shifted_by_start[expected_start]
+            for field in fields:
+                assert w[field] == match[field], f"{stage}.{field} @ {w['window_start']}"
 
 
 def test_domestic_security_graph_shift_cbr(cbr_original, cbr_shifted):
-    """CBR: gerçek datadaki en yoğun tek-havalimanılı Domestic Departure kümesi."""
+    """
+    CBR: gerçek datadaki en yoğun tek-havalimanılı Domestic Departure
+    kümesi. ADIM (24-Hour Graph) ile GÜNCELLENDİ: seri artık TAM 24
+    saat (bkz. `_pad_series_to_24_hours`) - GERÇEK (flight_count>0)
+    olan TEK saat aranır, diğer 23 saat sıfır-talep bucket'ı olarak
+    kalır (asıl iddia AYNI: tek gerçek yoğun saat +4 gün kaydırılmış).
+    """
     orig = cbr_original["api_by_airport"]["CBR"]["domestic_security"]["windows"]
     shifted = cbr_shifted["api_by_airport"]["CBR"]["domestic_security"]["windows"]
-    assert len(orig) == 1
-    assert len(shifted) == 1
-    o, s = orig[0], shifted[0]
+    assert len(orig) == 24
+    assert len(shifted) == 24
+    orig_real = [w for w in orig if w["flight_count"] > 0]
+    shifted_real = [w for w in shifted if w["flight_count"] > 0]
+    assert len(orig_real) == 1
+    assert len(shifted_real) == 1
+    o, s = orig_real[0], shifted_real[0]
     assert datetime.fromisoformat(s["window_start"]) - datetime.fromisoformat(o["window_start"]) == SHIFT
     assert o["flight_count"] == s["flight_count"] == 5
     assert o["expected_passengers"] == s["expected_passengers"] == 900
     assert o["risk"] == s["risk"]
     assert o["estimated_wait_minutes"] == s["estimated_wait_minutes"]
+    # Diğer 23 saat GERÇEKTEN sıfır-talep - uydurma bir değer YOK.
+    assert all(w["estimated_wait_minutes"] == 0.0 for w in orig if w["flight_count"] == 0)
 
 
 # ========================================================================
@@ -314,13 +351,21 @@ def test_domestic_security_graph_shift_cbr(cbr_original, cbr_shifted):
 # ========================================================================
 
 def test_passenger_conservation_departure_passport_equals_security_total(cdg_original, cdg_shifted):
+    """
+    ADIM (International Departure Split Graphs): passport ve security
+    artık AYRI seriler, farklı saatlere dağılabilirler (cross-hour
+    coupling) - ama TOPLAM yolcu korunumu (departure passport'un
+    serbest bıraktığı toplam == security'nin karşıladığı toplam)
+    hâlâ geçerli, sadece artık HER SERİNİN KENDİ `windows` toplamından
+    hesaplanıyor.
+    """
     for label, result in (("original", cdg_original), ("shifted", cdg_shifted)):
-        windows = result["api_by_airport"]["CDG"]["international_departure"]["windows"]
+        intl_dep = result["api_by_airport"]["CDG"]["international_departure"]
         total_passport_dep = sum(
-            (w["passport"] or {}).get("expected_passengers", 0) for w in windows
+            w["expected_passengers"] for w in intl_dep["passport"]["windows"]
         )
         total_security = sum(
-            (w["international_security"] or {}).get("expected_passengers", 0) for w in windows
+            w["expected_passengers"] for w in intl_dep["security"]["windows"]
         )
         assert total_passport_dep == total_security == 2645, label
 
@@ -330,14 +375,17 @@ def test_passenger_conservation_departure_passport_equals_security_total(cdg_ori
 # ========================================================================
 
 def test_all_hourly_buckets_shifted_exactly_4_days(cdg_original, cdg_shifted):
-    for section in ("overall", "domestic_security", "international_departure", "international_arrival"):
+    for section in (
+        "overall", "domestic_security", "international_arrival",
+        "international_departure.passport", "international_departure.security",
+    ):
         orig_starts = {
             datetime.fromisoformat(w["window_start"])
-            for w in cdg_original["api_by_airport"]["CDG"][section]["windows"]
+            for w in _resolve_section(cdg_original["api_by_airport"]["CDG"], section)["windows"]
         }
         shifted_starts = {
             datetime.fromisoformat(w["window_start"])
-            for w in cdg_shifted["api_by_airport"]["CDG"][section]["windows"]
+            for w in _resolve_section(cdg_shifted["api_by_airport"]["CDG"], section)["windows"]
         }
         expected_shifted_starts = {t + SHIFT for t in orig_starts}
         assert expected_shifted_starts == shifted_starts, section
@@ -509,9 +557,13 @@ def test_four_graph_contract_holds_for_every_airport_with_predictions(all_airpor
     api = all_airports_shifted["api_by_airport"]
     assert len(api) > 10
     for code, data in api.items():
-        for key in ("overall", "domestic_security", "international_departure", "international_arrival"):
+        for key in ("overall", "domestic_security", "international_arrival"):
             assert key in data, f"{code} eksik graph anahtarı: {key}"
             assert "windows" in data[key]
+        assert "international_departure" in data, f"{code} eksik graph anahtarı: international_departure"
+        for stage in ("passport", "security"):
+            assert stage in data["international_departure"], f"{code} eksik stage: {stage}"
+            assert "windows" in data["international_departure"][stage]
 
 
 def test_airport_scale_bootstrap_ran_via_real_production_pipeline_function(all_airports_shifted):
@@ -757,8 +809,17 @@ def test_extra_airport_fra_is_new_not_in_original_78():
 
 
 def test_extra_airport_imported_and_count_increased_to_79(expanded_replay):
-    """Bölüm 8/17: distinct airport count 78 -> 79, FRA dahil."""
-    assert len(expanded_replay["airports"]) == 79
+    """
+    Bölüm 8/17: distinct airport count 78 -> 79, FRA dahil.
+
+    ADIM (Airport Scale Test Matrix) NOTU: `REPLAY_DIR` artık MFG/OAG
+    için de EK, ÖNCEDEN bu fixture'da olmayan test airport'ları
+    içeriyor (bkz. `_generate_scale_matrix_test_flights.py`) - bu
+    yüzden toplam sayı 79'dan 80'e çıktı (CBR zaten 78/79'un içindeydi,
+    MFG/OAG YENİ). Alttaki asıl iddia (FRA'nın gerçekten eklendiği)
+    hâlâ AYNEN doğrulanıyor.
+    """
+    assert len(expanded_replay["airports"]) == 80
     assert "FRA" in expanded_replay["airports"]
     assert expanded_replay["scale_by_airport"]["FRA"] == "large"
 
@@ -789,13 +850,23 @@ def test_all_generated_flight_keys_unique(expanded_replay):
 
 
 def test_no_original_real_flight_lost_in_expanded_fixture(expanded_replay):
-    """Bölüm 2/17: gerçek 200 flight'ın TAMAMI hâlâ mevcut (TS9xxx SADECE eklendi, hiçbiri SİLİNMEDİ/DEĞİŞTİRİLMEDİ)."""
+    """
+    Bölüm 2/17: gerçek 200 flight'ın TAMAMI hâlâ mevcut - TS9xxx (ADIM
+    International Departure Split Graphs öncesi) VE TM9xxx (ADIM Airport
+    Scale Test Matrix - CBR/MFG/OAG) SADECE EKLENDİ, gerçek 200 flight'tan
+    hiçbiri SİLİNMEDİ/DEĞİŞTİRİLMEDİ.
+    """
     import json
 
     dep = json.load(open(REPLAY_DIR / "Delays - Type Departures.json", encoding="utf-8"))["response"]
     arr = json.load(open(REPLAY_DIR / "Delays - Type Arrivals.json", encoding="utf-8"))["response"]
-    real_count = sum(1 for r in dep if not (r.get("flight_iata") or "").startswith("TS9"))
-    real_count += sum(1 for r in arr if not (r.get("flight_iata") or "").startswith("TS9"))
+
+    def _is_test_marker(record):
+        iata = record.get("flight_iata") or ""
+        return iata.startswith("TS9") or iata.startswith("TM9")
+
+    real_count = sum(1 for r in dep if not _is_test_marker(r))
+    real_count += sum(1 for r in arr if not _is_test_marker(r))
     assert real_count == 200
     assert expanded_replay["parsed_flights"] >= 200
 
@@ -827,26 +898,45 @@ def test_fra_isolated_from_cdg_despite_shared_replay_run(expanded_replay):
     assert expanded_replay["api_by_airport"]["CDG"]["overall"]["windows"] != expanded_replay["api_by_airport"]["FRA"]["overall"]["windows"]
 
 
-def test_cdg_all_four_graphs_have_multiple_windows(expanded_replay):
-    """Bölüm 13: CDG'de Overall/Domestic Security/International Departure/International Arrival dört grafiğin HEPSİ birden fazla saat/window gösteriyor (tek saatlik nokta veri DEĞİL)."""
+def test_cdg_all_five_graphs_have_multiple_windows(expanded_replay):
+    """Bölüm 13: CDG'de Overall/Domestic Security/International Departure—Passport/—Security/International Arrival BEŞ grafiğin HEPSİ birden fazla saat/window gösteriyor (tek saatlik nokta veri DEĞİL)."""
     api = expanded_replay["api_by_airport"]["CDG"]
-    for key in ("overall", "domestic_security", "international_departure", "international_arrival"):
+    for key in ("overall", "domestic_security", "international_arrival"):
         assert len(api[key]["windows"]) > 1, key
+    for stage in ("passport", "security"):
+        assert len(api["international_departure"][stage]["windows"]) > 1, stage
 
 
 def test_international_departure_passport_security_coupling_present(expanded_replay):
-    """Bölüm 14: en az bir CDG International Departure penceresinde passport completion sonraki/farklı saate geçmiş security event'i besliyor (cross-hour coupling - bug DEĞİL, tasarım)."""
-    windows = expanded_replay["api_by_airport"]["CDG"]["international_departure"]["windows"]
-    passport_only_hours = {
-        w["window_start"] for w in windows
-        if w["passport"] is not None and w["international_security"] is None
-    }
-    security_only_hours = {
-        w["window_start"] for w in windows
-        if w["international_security"] is not None and w["passport"] is None
-    }
-    # En az bir tarafta diğerinde olmayan bir saat var - cross-hour ayrışma gerçekten oluşuyor.
-    assert passport_only_hours or security_only_hours
+    """
+    Bölüm 14: passport ve security artık İKİ BAĞIMSIZ seri (bkz. ADIM
+    International Departure Split Graphs) - cross-hour coupling'in
+    kanıtı, iki serinin AYNI saatte TAŞIDIĞI yolcu SAYISININ (passport'un
+    kendi kalkış talebi vs security'nin, passport completion_time'ından
+    beslenen, zaman-kaydırmalı gerçek talebi) BİREBİR AYNI OLMAMASIDIR -
+    security basitçe passport'u "kopyalamıyor" (bkz. gerçek ölçüm: CDG
+    06:00'da passport=2645 pax iken security aynı saatte SADECE 420 pax
+    taşıyor - kalan security'ye başka saatlere/zaten oluşmuş completion
+    event'lerine göre dağılıyor).
+
+    ADIM (24-Hour Graph) NOTU: her iki seri artık 24-saat PADDED (bkz.
+    `_pad_series_to_24_hours`) - CDG fixture'ı GÜNÜN NEREDEYSE HER
+    SAATİNDE gerçek talep taşıdığı için (Bölüm 3'ün "her saat en az 1
+    event" deseni) ham `window_start` KÜMELERİ (hangi saatlerde herhangi
+    bir talep var) artık ÇOK BENZER/aynı olabiliyor - bu yüzden asıl
+    coupling kanıtı KÜME FARKI değil, DEĞER FARKIDIR.
+    """
+    intl_dep = expanded_replay["api_by_airport"]["CDG"]["international_departure"]
+    passport_by_hour = {w["window_start"]: w["expected_passengers"] for w in intl_dep["passport"]["windows"]}
+    security_by_hour = {w["window_start"]: w["expected_passengers"] for w in intl_dep["security"]["windows"]}
+    differing_hours = [
+        h for h in passport_by_hour
+        if passport_by_hour[h] != security_by_hour.get(h)
+    ]
+    # En az bir saatte passport'un kendi talebi ile security'nin o
+    # saatteki (zaman-kaydırmalı) talebi FARKLI - security passport'u
+    # birebir KOPYALAMIYOR, gerçek bir coupling/zaman kayması var.
+    assert differing_hours
 
 
 def test_wait_visible_on_low_and_non_low_risk_windows(expanded_replay):

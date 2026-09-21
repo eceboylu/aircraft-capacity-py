@@ -1,0 +1,26 @@
+[Unit]
+Description=Airport Queue Monitor - web server (read-only API + static frontend)
+After=network.target
+
+[Service]
+Type=simple
+User=airportqueue
+Group=airportqueue
+WorkingDirectory=/opt/airport-queue
+Environment=PYTHONUNBUFFERED=1
+# DATABASE_URL verilmezse app/db.py'nin varsayılanı (proje kökündeki
+# database.sqlite) kullanılır - production'da açıkça ayarlanmalı.
+# Environment=DATABASE_URL=sqlite:////opt/airport-queue/database.sqlite
+ExecStart=/opt/airport-queue/venv/bin/python -m app.web.server --port 8000
+Restart=always
+RestartSec=5
+
+# Web server SADECE DB'den okur (bkz. app/queue/api.py modül başlığı) -
+# worker (airport-queue-worker.service) tamamen AYRI bir servistir;
+# biri crash/restart olsa diğeri ETKİLENMEZ (iki ayrı systemd unit).
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/airport-queue
+
+[Install]
+WantedBy=multi-user.target

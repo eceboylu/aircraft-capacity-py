@@ -23,7 +23,7 @@ Veritabanı bağlantısı sadece `run_predictions` ve yardımcılarındadır.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import json
 import logging
 
@@ -151,6 +151,14 @@ class WindowPrediction:
     flight_ratio: float | None = None
     passenger_ratio: float | None = None
     reasons: list[DetectedReason] = field(default_factory=list)
+    # ADIM (Current Operational Day Isolation) - bkz. `QueuePrediction.
+    # operational_date` docstring'i (models.py). `predict_airport()`'ın
+    # DOĞRUDAN çağıranları (çoğu mevcut test) bunu HİÇ SET ETMEZ - `None`
+    # kalır (eski/tz'siz davranış). `run_predictions()` (bkz. altta)
+    # KENDİ ürettiği her `WindowPrediction`'a, o havalimanı için
+    # `operational_day.operational_date(tz, resolved_now)` sonucunu
+    # SONRADAN atar - `predict_airport()`'ın imzası DEĞİŞTİRİLMEDİ.
+    operational_date: date | None = None
 
     def reasons_as_dicts(self) -> list[dict]:
         return [r.to_dict() for r in self.reasons]
@@ -300,6 +308,7 @@ def _predict_window_core(
     current_arrived_override: float | None = None,
     lane_count_override: int | None = None,
     event_driven_wait_override: float | None = None,
+    risk_backlog_start: float = 0.0,
 ) -> WindowPrediction:
     """
     `predict_window()`'ın ASIL hesap gövdesi - ADIM 5E-2'de buradan
@@ -344,6 +353,15 @@ def _predict_window_core(
           alanı üzerine yazılır. Verilmezse (None, legacy PROCESS_
           PASSPORT/PROCESS_SECURITY dahil diğer tüm süreçlerde hep None)
           eski davranış (Erlang-C/fluid `wq`) birebir korunur.
+    risk_backlog_start
+        : ADIM (Visible Risk = Gerçek Queue Pressure) - `queue_capacity_
+          model()`'e AYNEN iletilir (bkz. o fonksiyonun docstring'i) -
+          SADECE `risk` sınıflandırmasının girdisi olan `queue_pressure`
+          için kullanılır, `wq`/`utilization` bundan ETKİLENMEZ.
+          Verilmezse (varsayılan 0.0, legacy PROCESS_PASSPORT/PROCESS_
+          SECURITY VE doğrudan `predict_window()` çağıranları dahil
+          diğer tüm yollarda hep 0.0) `queue_pressure == rho` olur -
+          ESKİ risk davranışı birebir korunur.
     """
     window_end = window_start + timedelta(minutes=window_minutes)
 
@@ -370,6 +388,7 @@ def _predict_window_core(
             elapsed_minutes=elapsed_minutes,
             demand_override=demand_override,
             pool=_PASSPORT_POOL_BY_PROCESS[process],
+            risk_backlog_start=risk_backlog_start,
         )
     else:
         score = security_queue_model(
@@ -379,6 +398,7 @@ def _predict_window_core(
             elapsed_minutes=elapsed_minutes,
             demand_override=demand_override,
             lane_count_override=lane_count_override,
+            risk_backlog_start=risk_backlog_start,
         )
         density = security_density_score(
             window_flights,
@@ -637,6 +657,51 @@ def _hourly_backlog_chain(
     return backlog_start
 
 
+def _event_derived_backlog_by_hour(events, starts) -> dict[datetime, float]:
+    """
+    ADIM (Visible Risk = Gerçek Queue Pressure) - Bölüm 2/4: bir pencere
+    başlangıcı `T` için GERÇEK, event-türevli backlog - `_hourly_backlog_
+    chain()`'in ürettiği fluid/analitik yaklaşıklığın YERİNE DEĞİL,
+    YANINDA (o fonksiyon hâlâ DEĞİŞMEDEN WAIT hesabını besliyor) - SADECE
+    `risk` sınıflandırması için ayrı, daha kesin bir backlog kaynağı.
+    Yeni bir simülasyon ÇALIŞTIRMAZ - `_event_driven_queue_demand()`'ın
+    ZATEN ürettiği `ServiceEvent` listesi üzerinde post-processing'dir.
+
+    Tanım (Bölüm 2 - doğrulanmış): `T` anında HENÜZ SERVİSE BAŞLAMAMIŞ,
+    önceki pencerelerden taşınan GERÇEK bekleyen yolcu sayısı:
+
+        arrival_time < T  AND  service_start_time > T
+
+    (sınırlar KASITLI asimetrik - `arrival_time < T` demektir "bu birim
+    ÖNCEKİ bir pencerede kuyruğa girdi"; `T`'nin KENDİSİNDE giren
+    birimler bu pencerenin KENDİ `arrivals_in_window`'udur, `_bucket_by_
+    arrival`'ın aynı `T`'yi "bu pencereye ait" saydığı ayrım noktasıyla
+    TUTARLI kesiliyor - bu yüzden bir birim ASLA hem backlog hem arrival
+    olarak İKİ KEZ sayılmaz, bkz. `test_visible_risk_queue_pressure.py`
+    double-count testi).
+
+    `service_start_time <= T < completion_time` olan (T anında ZATEN
+    servis alan, "in-service") birimler BİLİNÇLİ OLARAK DIŞLANMIŞTIR -
+    residual-workload modellemesi (Bölüm 3) burada YAPILMADI:
+    `service_time_minutes` (tipik 1-1.5 dk) `window_minutes`'a (60 dk)
+    göre ihmal edilebilir küçük olduğu için bir sunucunun `T` sınırını
+    aşan servisinin bıraktığı kalıntı iş en fazla `c * service_time_
+    minutes` kişilik bir kapasite payıdır - bu, `service_capacity`'nin
+    (`c * mu * window_minutes`) küçük, sınırlı bir kesridir; tam bir
+    "kalan iş" modeli eklemek (ör. `completion_time - T` oranı)
+    doğruluğu ölçülebilir şekilde artırmadan karmaşıklığı yükseltirdi
+    (bkz. rapor - Bölüm 3 gerekçesi). Bu birimler backlog_start(T)'YE
+    DAHİL EDİLMEZ.
+    """
+    return {
+        start: sum(
+            e.count for e in events
+            if e.arrival_time < start and e.service_start_time > start
+        )
+        for start in starts
+    }
+
+
 def _event_driven_queue_demand(
     flights: list,
     config: AirportConfigView,
@@ -888,6 +953,11 @@ def _event_driven_queue_demand(
         "backlog_start_by_hour": backlog_start_by_hour,
         "current_released_by_hour": current_released_by_hour,
         "event_wait_by_hour": event_wait_by_hour,
+        # ADIM (Visible Risk = Gerçek Queue Pressure) - ham ServiceEvent
+        # listeleri (process başına) - `predict_airport()`'un `_event_
+        # derived_backlog_by_hour()` çağırması için. Yeni bir simülasyon
+        # DEĞİL, sadece ZATEN hesaplanmış event'lerin dışa aktarılması.
+        "process_events": process_events,
     }
 
 
@@ -979,6 +1049,18 @@ def predict_airport(
         # SECURITY_DOMESTIC için ikisi PRATİKTE AYNIDIR çünkü arrival_time
         # zaten flight'ın kendi effective_time'ıdır).
         starts = sorted(set(buckets) | set(coupled_demand))
+
+        # ADIM (Visible Risk = Gerçek Queue Pressure) - GERÇEK, event-
+        # türevli backlog SADECE 4 görünür/event-driven-wait sürecinde
+        # (`_EVENT_DRIVEN_WAIT_PROCESSES`) hesaplanır - legacy PROCESS_
+        # PASSPORT/PROCESS_SECURITY (birleşik) bu turda KASITLI olarak
+        # DOKUNULMADI (Bölüm 12 - legacy visible risk'e sızmasın; zaten
+        # visible 5 grafiğin hiçbiri bunları kullanmıyor).
+        risk_backlog_by_hour = (
+            _event_derived_backlog_by_hour(coupling["process_events"][process], starts)
+            if process in _EVENT_DRIVEN_WAIT_PROCESSES else {}
+        )
+
         for start in starts:
             window_all = buckets.get(start, [])
             window_flights = [
@@ -1011,6 +1093,7 @@ def predict_airport(
                     coupled_wait.get(start)
                     if process in _EVENT_DRIVEN_WAIT_PROCESSES else None
                 ),
+                risk_backlog_start=risk_backlog_by_hour.get(start, 0.0),
             ))
 
     return predictions
@@ -1119,6 +1202,7 @@ def persist_predictions(session, predictions: list[WindowPrediction]) -> dict:
             updated += 1
 
         existing.window_end = prediction.window_end
+        existing.operational_date = prediction.operational_date
         existing.flight_count = prediction.flight_count
         existing.expected_passengers = prediction.expected_passengers
         existing.baseline_ratio = prediction.baseline_ratio
@@ -1136,7 +1220,10 @@ def persist_predictions(session, predictions: list[WindowPrediction]) -> dict:
 
 
 def prune_stale_predictions(
-    session, airport_iata: str, keep: set[tuple[str, datetime]]
+    session,
+    airport_iata: str,
+    keep: set[tuple[str, datetime]],
+    operational_date_value: date | None = None,
 ) -> int:
     """
     Bu havalimanının, yeni hesapta ARTIK ÜRETİLMEYEN tahmin satırlarını
@@ -1151,12 +1238,28 @@ def prune_stale_predictions(
 
     Uzun vadeli hafıza bu tabloda değil, historical_flight_counts
     tablosundadır; buradan silinen satır geçmiş bilgisini götürmez.
+
+    ADIM (Current Operational Day Isolation) - BUG FIX: `keep`, BU
+    ÇAĞRIDA sadece havalimanının BUGÜNKÜ (yerel) operasyonel gününe ait
+    flight'lardan üretildi (bkz. `run_predictions` - operational-day
+    filtresi). Eskiden bu fonksiyon havalimanının TÜM (her gün, her
+    süreç) satırlarını tarayıp `keep`'te olmayan HERŞEYİ siliyordu -
+    bu, persistan/çok-günlü bir DB'de (Bölüm 6 - "OLD DATA KAYBOLMASIN")
+    ÖNCEKİ GÜNLERİN GERÇEK geçmişini, o güne ait YENİ bir flight/
+    prediction üretildiği AN silinmesine yol açıyordu (kendi günü
+    dışındaki hiçbir satır zaten `keep`'te olamaz).
+
+    `operational_date_value` verilirse (timezone çözülebilen bir
+    havalimanı) tarama SADECE `operational_date == operational_date_value`
+    satırlarıyla SINIRLANIR - böylece diğer günlerin satırları bu
+    fonksiyona hiç GÖRÜNMEZ, silinemez. `None` ise (timezone çözülemeyen
+    havalimanı - Bölüm 59 limitation, eski davranış) tarama ESKİ, TÜM
+    satırlar üzerinde çalışır - GERİYE DÖNÜK UYUMLU.
     """
-    rows = session.execute(
-        select(QueuePrediction).where(
-            QueuePrediction.airport_iata == airport_iata
-        )
-    ).scalars().all()
+    query = select(QueuePrediction).where(QueuePrediction.airport_iata == airport_iata)
+    if operational_date_value is not None:
+        query = query.where(QueuePrediction.operational_date == operational_date_value)
+    rows = session.execute(query).scalars().all()
 
     removed = 0
     for row in rows:
@@ -1294,14 +1397,16 @@ def run_predictions(
             # BU FİLTREDEN ETKİLENMEZ, `effective_time()` DEĞİŞMEDEN
             # kendi hesabını yapmaya devam eder.
             tz = resolve_airport_timezone(timezones.get(code))
+            airport_operational_date: date | None = None
             if tz is not None:
                 flights = filter_flights_for_operational_day(
                     all_flights, tz, resolved_now
                 )
+                airport_operational_date = operational_date(tz, resolved_now)
                 logger.info(
                     "operational-day filtresi uygulandı (airport=%s, "
                     "local_date=%s, %d/%d uçuş seçildi)",
-                    code, operational_date(tz, resolved_now),
+                    code, airport_operational_date,
                     len(flights), len(all_flights),
                 )
             else:
@@ -1330,6 +1435,14 @@ def run_predictions(
                 window_minutes=window_minutes,
                 now=resolved_now,
             )
+            # ADIM (Current Operational Day Isolation) - bu havalimanı için
+            # ÇÖZÜLEN yerel "bugün" (`airport_operational_date`, tz
+            # çözülemiyorsa None) HER `WindowPrediction`'a etiketlenir -
+            # `predict_airport()`'ın kendisi bunu BİLMEZ/HESAPLAMAZ, sadece
+            # burada, ÜRETİLDİKTEN SONRA atanır (bkz. `WindowPrediction.
+            # operational_date` docstring'i).
+            for p in predictions:
+                p.operational_date = airport_operational_date
             per_airport[code] = len(predictions)
             total.extend(predictions)
 
@@ -1337,6 +1450,7 @@ def run_predictions(
                 session,
                 code,
                 {(p.process, p.window_start) for p in predictions},
+                operational_date_value=airport_operational_date,
             )
         except Exception:
             # Bilinçli geniş except: havalimanı-bazlı izolasyon sınırı

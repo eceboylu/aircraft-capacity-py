@@ -244,7 +244,7 @@ def test_cancellation_is_applied_to_the_same_row_not_a_new_one(r0_r1):
 
 
 def test_cancelled_flight_excluded_from_security_demand_after_r1(r0_r1):
-    result_r1 = airport_predictions(_session(r0_r1), "IST")
+    result_r1 = airport_predictions(_session(r0_r1), "IST", now=PIPELINE_NOW)
     w = _window(result_r1["international_security"], hour_start(9))
     # Pencere hâlâ VAR (bucket, iptal/yönlendirme nedenlerinin
     # bağlanabilmesi için cancelled uçuşu da içeriyor - bkz.
@@ -286,7 +286,7 @@ def test_aircraft_change_increases_passport_demand_at_its_window(r0_r1):
     # R1 aynı pencereyi UPSERT ederken A320(180)'i B77W(350)'ye çevirdiği
     # için pencere talebinin artmış olması gerekiyor; bu R1 sonrası DB'de
     # zaten kalıcı olan sonuçtan doğrudan okunuyor.
-    w_r1 = _window(airport_predictions(session, "IST")["international_passport"], hour_start(10))
+    w_r1 = _window(airport_predictions(session, "IST", now=PIPELINE_NOW)["international_passport"], hour_start(10))
     assert w_r1["expected_passengers"] == _real_capacity(session, "B77W")
     assert w_r1["expected_passengers"] > _real_capacity(session, "A320")
     session.close()
@@ -299,7 +299,7 @@ def test_aircraft_change_increases_passport_demand_at_its_window(r0_r1):
 def test_estimated_time_change_moves_flight_to_the_new_60min_window(r0_r1):
     session = _session(r0_r1)
     try:
-        result = airport_predictions(session, "IST")
+        result = airport_predictions(session, "IST", now=PIPELINE_NOW)
         w11 = _window(result["international_passport"], hour_start(11))
         w12 = _window(result["international_passport"], hour_start(12))
         # A2 artık 11:00'da değil - o pencerede A2'nin talebi YOK.
@@ -318,7 +318,7 @@ def test_estimated_time_change_moves_flight_to_the_new_60min_window(r0_r1):
 def test_passport_risk_utilization_wait_change_between_r0_and_r1(r0_r1):
     session = _session(r0_r1)
     try:
-        result_r1 = airport_predictions(session, "IST")
+        result_r1 = airport_predictions(session, "IST", now=PIPELINE_NOW)
         w_r1 = _window(result_r1["international_passport"], hour_start(14))
         assert w_r1["risk"] == RISK_CRITICAL
         assert w_r1["utilization"] > 1.0
@@ -334,7 +334,7 @@ def test_passport_risk_utilization_wait_change_between_r0_and_r1(r0_r1):
 def test_all_four_graphs_reflect_r1_in_the_api(r0_r1):
     session = _session(r0_r1)
     try:
-        result = airport_predictions(session, "IST")
+        result = airport_predictions(session, "IST", now=PIPELINE_NOW)
         for key in ("overall", "domestic_security", "international_security", "international_passport"):
             assert key in result
 
@@ -465,8 +465,8 @@ def test_baseline_ledger_prevents_the_same_window_from_being_recorded_twice(r0_r
 def test_ist_changes_do_not_affect_control_airport_adb(r0_r1):
     session = _session(r0_r1)
     try:
-        result = airport_predictions(session, "IST")
-        adb_result = airport_predictions(session, "ADB")
+        result = airport_predictions(session, "IST", now=PIPELINE_NOW)
+        adb_result = airport_predictions(session, "ADB", now=PIPELINE_NOW)
         assert result["airport"] != adb_result["airport"]
 
         adb_window = _window(adb_result["domestic_security"], hour_start(8))

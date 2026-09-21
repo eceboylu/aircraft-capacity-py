@@ -91,13 +91,78 @@
     color: var(--ink-soft);
     margin: 0 0 8px 8px;
   }
+
+  /* ---- Havalimanı arama/dropdown seçici (desktop + mobile ORTAK) ---- */
+  #airport-selector { margin-bottom: 6px; }
+  #selected-airport-label {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    font-size: 13.5px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--ink);
+    cursor: pointer;
+    line-height: 1.3;
+    min-height: 40px;
+  }
+  #selected-airport-label .muted { color: var(--ink-soft); }
+  #airport-search {
+    display: none;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 13.5px;
+    padding: 10px 12px;
+    margin-top: 6px;
+    border-radius: 8px;
+    border: 1px solid var(--accent);
+    outline: none;
+    color: var(--ink);
+    background: var(--panel);
+  }
+  #airport-selector.open #selected-airport-label { display: none; }
+  #airport-selector.open #airport-search { display: block; }
+  #airport-list {
+    display: none;
+    margin-top: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+  }
+  #airport-selector.open #airport-list { display: block; }
+  @media (max-width: 760px) {
+    #airport-list { max-height: 50vh; }
+  }
+
+  /* ADIM (Desktop Airport Selector Always Open) - Bölüm 1/6: masaüstünde
+     arama kutusu + liste SAYFA AÇILIR AÇILMAZ görünür - "open" class'ına
+     BAĞIMLI DEĞİL (mobilde hâlâ dropdown/toggle davranışı - bkz. yukarıdaki
+     .open kuralları - AYNEN korunuyor, bu blok SADECE >760px'te devreye
+     girer). Bu kural bilinçli olarak dosyada YUKARIDAKİ .open kurallarından
+     SONRA tanımlandı - eşit özgüllükteki (ID seçici) kurallarda CSS
+     sırası kazanır, bu yüzden >760px'te bu blok .open şartından bağımsız
+     olarak KAZANIR (mobil <=760px'te ise bu blok hiç eşleşmez, .open
+     davranışı DEĞİŞMEDEN kalır). */
+  @media (min-width: 761px) {
+    #selected-airport-label { display: none; }
+    #airport-search { display: block; margin-top: 0; }
+    #airport-list { display: block; max-height: min(60vh, 480px); }
+  }
+
   .airport-item {
     display: block;
     width: 100%;
     text-align: left;
     font-family: inherit;
     font-size: 13.5px;
-    padding: 9px 10px;
+    padding: 11px 10px;
+    min-height: 44px;   /* touch-friendly hedef (Bölüm H) */
     border-radius: 8px;
     border: none;
     background: none;
@@ -110,7 +175,7 @@
   .airport-item .code { font-weight: 700; }
   .airport-item .name { display: block; font-size: 11.5px; color: var(--ink-soft); font-weight: 400; }
   .airport-item.active .name { color: var(--accent); opacity: 0.75; }
-  #airport-sidebar .empty { color: var(--ink-soft); font-size: 13px; padding: 0 8px; }
+  #airport-sidebar .empty { color: var(--ink-soft); font-size: 13px; padding: 8px; }
 
   #airport-content { flex: 1 1 auto; padding: 20px 24px; min-width: 0; }
 
@@ -196,7 +261,12 @@
 <div class="layout">
   <div id="airport-sidebar">
     <h2>Havalimanları</h2>
-    <div id="airport-list"></div>
+    <div id="airport-selector">
+      <button type="button" id="selected-airport-label"></button>
+      <input id="airport-search" type="text" autocomplete="off"
+             placeholder="Havalimanı ara... (IATA veya isim)">
+      <div id="airport-list"></div>
+    </div>
   </div>
   <div id="airport-content"></div>
 </div>
@@ -230,6 +300,8 @@
     selected: null,         // seçili IATA kodu
     predictionsByIata: {},  // iata -> son BAŞARILI /predictions yanıtı
     charts: {},
+    searchQuery: "",        // ADIM (Airport Search) - kullanıcının arama kutusuna yazdığı METİN
+    selectorOpen: false,    // ADIM (Airport Search/Mobile Selector) - dropdown açık mı
     // ADIM (Frontend 4-Graph Contract) - Bölüm 50/64/67: her grafik
     // kendi tıklanan penceresini BAĞIMSIZ tutar. `null` = "şu anki
     // pencere" (current) gösterilsin. DEĞER olarak array INDEX değil,
@@ -240,7 +312,11 @@
     // "refresh sonrası 10.00 bucket hâlâ varsa selection kaybolmamalı").
     // Bucket artık yoksa `graphSectionHtml` güvenli şekilde `current`'a
     // düşer.
-    detail: { overall: null, domestic_security: null, international_departure: null, international_arrival: null },
+    detail: {
+      overall: null, domestic_security: null,
+      international_departure_passport: null, international_departure_security: null,
+      international_arrival: null,
+    },
   };
 
   function escapeHtml(text) {
@@ -266,8 +342,94 @@
     return isoString.slice(11, 16);
   }
 
+  // ADIM (24-Hour Graph Timezone Display) - Bölüm 4/14: BEŞ görünür
+  // grafiğin (Overall/Domestic Security/Intl Departure — Passport/
+  // — Security/Intl Arrival) pencere label'ı artık backend'in
+  // hesapladığı `window_start_local` (havalimanının GERÇEK yerel saati,
+  // bkz. app/queue/api.py `_to_local_iso`) üzerinden üretilir -
+  // `window_start` (CANONICAL/internal UTC) DEĞİŞMEDİ, sadece hangi
+  // alanın LABEL için okunacağı değişti. `window_start_local` yoksa
+  // (havalimanının timezone'u çözülemediyse - nadir, bkz. backend
+  // fallback notu) ham `window_start`'a (UTC) güvenli şekilde düşülür -
+  // frontend YENİ bir offset/dönüşüm İCAT ETMEZ, sadece backend'in
+  // ZATEN hesapladığı alanı okur. `traffic_breakdown()` (Operasyon
+  // Dağılımı) bu contract'ın DIŞINDA - kendi ham `window_start`'ını
+  // (hhmm() ile) kullanmaya devam eder (backend ona hiç local alan
+  // eklemedi, Bölüm 5 kapsamı SADECE 5 risk/wait grafiği).
+  function windowLabel(window) {
+    var value = (window && window.window_start_local) || (window && window.window_start);
+    return value ? hhmm(value) : "";
+  }
+
+  function windowLabelRange(window) {
+    var startValue = (window && window.window_start_local) || (window && window.window_start);
+    var endValue = (window && window.window_end_local) || (window && window.window_end);
+    if (!startValue || !endValue) return "";
+    return hhmm(startValue) + "–" + hhmm(endValue);
+  }
+
   function airportLabel(entry) {
     return entry.name ? entry.iata + " - " + entry.name : entry.iata;
+  }
+
+  // ADIM (Frontend Airport Search) - Bölüm F: case-insensitive, Türkçe
+  // karakterlere karşı normalize edilmiş arama. "İstanbul"/"istanbul"/
+  // "İSTANBUL" hepsi AYNI şekilde eşleşsin diye Türkçe'ye özgü harfler
+  // (İ/I/ı/Ş/ş/Ğ/ğ/Ü/ü/Ö/ö/Ç/ç) ASCII karşılıklarına çevrilir, SONRA
+  // `toLowerCase()` uygulanır (sıra önemli: `"İ".toLowerCase()` bazı
+  // ortamlarda "i̇" - noktalı, birleşik karakter - üretebilir).
+  var TURKISH_FOLD_MAP = {
+    "İ": "i", "I": "i", "ı": "i",
+    "Ş": "s", "ş": "s",
+    "Ğ": "g", "ğ": "g",
+    "Ü": "u", "ü": "u",
+    "Ö": "o", "ö": "o",
+    "Ç": "c", "ç": "c",
+  };
+  function normalizeSearchText(text) {
+    if (!text) return "";
+    var folded = String(text).replace(/[İIışŞğĞüÜöÖçÇ]/g, function (ch) {
+      return TURKISH_FOLD_MAP[ch] || ch;
+    });
+    return folded.toLowerCase();
+  }
+
+  function filteredDirectory() {
+    var query = normalizeSearchText(state.searchQuery.trim());
+    if (!query) return state.directory;
+    return state.directory.filter(function (entry) {
+      var haystack = normalizeSearchText(entry.iata) + " " + normalizeSearchText(entry.name || "");
+      return haystack.indexOf(query) !== -1;
+    });
+  }
+
+  function openSelector() {
+    state.selectorOpen = true;
+    document.getElementById("airport-selector").classList.add("open");
+    document.getElementById("airport-search").focus();
+  }
+
+  function closeSelector() {
+    state.selectorOpen = false;
+    state.searchQuery = "";
+    document.getElementById("airport-selector").classList.remove("open");
+    var input = document.getElementById("airport-search");
+    input.value = "";
+    input.blur();
+  }
+
+  // ADIM (Desktop Airport Selector Always Open) - Bölüm 6/8: masaüstünde
+  // arama/liste zaten HER ZAMAN görünür (bkz. CSS `@media (min-width:761px)`) -
+  // bu yüzden seçim yapıldığında `closeSelector()` (listeyi kapatır, arama
+  // metnini TEMİZLER) SADECE mobilde çağrılmalı; masaüstünde kullanıcı
+  // filtre metnini/listeyi korumalı, hızlıca başka bir havalimanına
+  // geçebilmeli (Bölüm 3). `window.matchMedia` yoksa (ör. bazı test
+  // ortamları) güvenli varsayım "mobil DEĞİL" (masaüstü davranışı) - bu,
+  // mobil davranışını YANLIŞLIKLA tetiklemek yerine sessizce hiçbir şey
+  // KAPATMAMA yönünde daha az yıkıcı bir varsayımdır.
+  function isMobileViewport() {
+    return typeof window.matchMedia === "function" &&
+      window.matchMedia("(max-width: 760px)").matches;
   }
 
   // ------------- fetch -------------
@@ -322,6 +484,18 @@
   }
 
   function selectAirport(iata) {
+    // ADIM (Frontend Airport Search + Desktop Always Open) - Bölüm G/I
+    // (mobil): seçim yapılınca dropdown/arama KAPANIR - aynı havalimanı
+    // zaten seçiliyken tekrar tıklansa BİLE dropdown kapanmalı; bu
+    // yüzden "aynıysa hiçbir şey yapma" kısayolu en üstte DEĞİL, önce
+    // KAPATMA yapılır. Bölüm 3/8 (masaüstü): liste zaten HER ZAMAN açık
+    // olduğu için `closeSelector()` masaüstünde ÇAĞRILMAZ - kullanıcı
+    // arama metnini/listeyi koruyarak hızlıca başka bir havalimanına
+    // geçebilir.
+    if (isMobileViewport()) {
+      closeSelector();
+    }
+    renderSidebar();
     if (iata === state.selected) return;
     state.selected = iata;
     renderSidebar();
@@ -338,13 +512,30 @@
 
   // ------------- render: sidebar -------------
 
+  function renderSelectedLabel() {
+    var label = document.getElementById("selected-airport-label");
+    var entry = state.directory.filter(function (e) { return e.iata === state.selected; })[0];
+    if (entry) {
+      label.innerHTML = escapeHtml(airportLabel(entry));
+    } else {
+      label.innerHTML = '<span class="muted">Havalimanı seç...</span>';
+    }
+  }
+
   function renderSidebar() {
+    renderSelectedLabel();
+
     var el = document.getElementById("airport-list");
     if (!state.directory.length) {
       el.innerHTML = '<div class="empty">Henüz izlenen havalimanı yok.</div>';
       return;
     }
-    el.innerHTML = state.directory.map(function (entry) {
+    var visible = filteredDirectory();
+    if (!visible.length) {
+      el.innerHTML = '<div class="empty">"' + escapeHtml(state.searchQuery) + '" için sonuç bulunamadı.</div>';
+      return;
+    }
+    el.innerHTML = visible.map(function (entry) {
       var active = entry.iata === state.selected ? " active" : "";
       return (
         '<button class="airport-item' + active + '" data-iata="' + entry.iata + '">' +
@@ -357,6 +548,44 @@
       btn.addEventListener("click", function () {
         selectAirport(btn.getAttribute("data-iata"));
       });
+    });
+  }
+
+  // ADIM (Frontend Airport Search/Mobile Selector) - Bölüm G/H/I: arama
+  // kutusu odaklanınca (masaüstü tıklama VEYA mobil dokunma - ikisi de
+  // "focus" event'i tetikler) dropdown açılır; yazarken CANLI filtrelenir;
+  // dropdown DIŞINA tıklanınca kapanır (seçim yapmadan vazgeçme).
+  function wireAirportSelector() {
+    var selectorEl = document.getElementById("airport-selector");
+    var labelEl = document.getElementById("selected-airport-label");
+    var inputEl = document.getElementById("airport-search");
+
+    labelEl.addEventListener("click", openSelector);
+    inputEl.addEventListener("focus", openSelector);
+    inputEl.addEventListener("input", function () {
+      state.searchQuery = inputEl.value;
+      renderSidebar();
+      // renderSidebar() `#airport-list`'i YENİDEN OLUŞTURUYOR (innerHTML) -
+      // input'un KENDİSİ DOM'da aynı elemandır (yeniden oluşturulmuyor),
+      // bu yüzden odak/imleç konumu KORUNUR - kullanıcı yazmaya kesintisiz devam eder.
+    });
+    // ADIM (Desktop Airport Selector Always Open) - Bölüm 6: dışına
+    // tıklama/Escape ile "kapatma" SADECE mobilde bir anlam taşır -
+    // masaüstünde panel zaten HER ZAMAN açık (CSS), bu ikisi tetiklenirse
+    // SADECE arama metnini gereksiz yere TEMİZLERDİ (kullanıcı grafiğe
+    // tıklayınca filtresi sıfırlanır gibi sürpriz bir davranış). Bu
+    // yüzden ikisi de `isMobileViewport()` ile korunuyor.
+    document.addEventListener("click", function (evt) {
+      if (isMobileViewport() && state.selectorOpen && !selectorEl.contains(evt.target)) {
+        closeSelector();
+        renderSidebar();
+      }
+    });
+    document.addEventListener("keydown", function (evt) {
+      if (evt.key === "Escape" && isMobileViewport() && state.selectorOpen) {
+        closeSelector();
+        renderSidebar();
+      }
     });
   }
 
@@ -379,22 +608,27 @@
       return;
     }
 
-    // ADIM (Frontend 4-Graph Contract) - Bölüm 15/16/26: TAM 4 ana
+    // ADIM (International Departure Split Graphs) - Bölüm 9-13: TAM 5
     // grafik - Overall / Domestic Security / International Departure
-    // (passport+international security, 2 aşamalı) / International
-    // Arrival (SADECE varış-kökenli passport). Beşinci bir "domestic
-    // arrival" grafiği YOK (Bölüm 16).
+    // — Passport / International Departure — Security / International
+    // Arrival (SADECE varış-kökenli passport). Passport ve security
+    // artık İKİ BAĞIMSIZ grafik/current/wait - biri diğerinin current
+    // saatini ASLA EZMEZ (ZRH regresyonu, bkz. api.py
+    // `_international_departure_split`). Beşinci bir "domestic arrival"
+    // grafiği YOK (Bölüm 16, değişmedi).
     root.innerHTML =
       "<h2>" + escapeHtml(heading) + "</h2>" +
-      graphSectionHtml("overall", "GENEL HAVALİMANI YOĞUNLUĞU", data.overall, "single") +
-      graphSectionHtml("domestic_security", "DOMESTIC SECURITY", data.domestic_security, "single") +
-      graphSectionHtml("international_departure", "INTERNATIONAL DEPARTURE", data.international_departure, "breakdown") +
-      graphSectionHtml("international_arrival", "INTERNATIONAL ARRIVAL", data.international_arrival, "single") +
+      graphSectionHtml("overall", "GENEL HAVALİMANI YOĞUNLUĞU", data.overall) +
+      graphSectionHtml("domestic_security", "DOMESTIC SECURITY", data.domestic_security) +
+      graphSectionHtml("international_departure_passport", "INTERNATIONAL DEPARTURE — PASSPORT", data.international_departure.passport) +
+      graphSectionHtml("international_departure_security", "INTERNATIONAL DEPARTURE — SECURITY", data.international_departure.security) +
+      graphSectionHtml("international_arrival", "INTERNATIONAL ARRIVAL", data.international_arrival) +
       breakdownHtml(data.breakdown);
 
     drawChart(data.overall.windows, "chart-overall", "overall");
     drawChart(data.domestic_security.windows, "chart-domestic_security", "domestic_security");
-    drawChart(data.international_departure.windows, "chart-international_departure", "international_departure");
+    drawChart(data.international_departure.passport.windows, "chart-international_departure_passport", "international_departure_passport");
+    drawChart(data.international_departure.security.windows, "chart-international_departure_security", "international_departure_security");
     drawChart(data.international_arrival.windows, "chart-international_arrival", "international_arrival");
     renderRefreshInfo();
   }
@@ -406,9 +640,10 @@
   // bu dosyada ZATEN yok (bkz. waitTimeText docstring'i) - bu
   // fonksiyon da hiçbir hesap YAPMAZ, sadece biçimlendirir.
   //
-  // Overall / Domestic Security / International Departure (passport +
-  // international security) / International Arrival (passport) - hepsi
-  // AYNI bu merkezi fonksiyonu kullanır (waitTimeText üzerinden),
+  // Overall / Domestic Security / International Departure — Passport /
+  // International Departure — Security (artık iki BAĞIMSIZ grafik,
+  // bkz. `_international_departure_split`) / International Arrival -
+  // hepsi AYNI bu merkezi fonksiyonu kullanır (waitTimeText üzerinden),
   // mantık HİÇBİR YERDE kopyalanmaz.
   //
   // Kurallar:
@@ -450,22 +685,16 @@
     return "Hesaplanamıyor";
   }
 
-  // ADIM (Frontend 4-Graph Contract) - Bölüm 50: International
-  // Departure iki fiziksel aşamalıdır (passport -> international
-  // security) - JOURNEY-level tek bir wait backend'de TANIMLI DEĞİL
-  // (bkz. app/queue/api.py: her pencere `passport`/`international_
-  // security` alt-nesnelerini AYRI taşır, birleşik bir "journey wait"
-  // alanı YOK). Bu yüzden burada da SAHTE bir toplama/ortalama
-  // YAPILMAZ - iki aşama HER ZAMAN ayrı gösterilir.
-  function waitDetailHtml(kind, displayWindow) {
+  // ADIM (International Departure Split Graphs) - Bölüm 14: risk
+  // seviyesi FARK ETMEKSİZİN (LOW dahil) sayısal wait varsa GÖSTERİLİR,
+  // risk wait'i gizlemez. International Departure artık İKİ AYRI
+  // grafik olduğu için (bkz. `_international_departure_split`) burada
+  // tek bir pencerenin wait'i gösterilir - passport/security KENDİ
+  // ayrı `graphSectionHtml()` çağrısıyla render edilir, artık BURADA
+  // birleştirilmez.
+  function waitDetailHtml(displayWindow) {
     if (!displayWindow) {
       return '<div class="wait-line">Bu saat için veri yok</div>';
-    }
-    if (kind === "breakdown") {
-      return (
-        '<div class="wait-line">Passport bekleme: <b>' + escapeHtml(waitTimeText(displayWindow.passport)) + "</b></div>" +
-        '<div class="wait-line">Security bekleme: <b>' + escapeHtml(waitTimeText(displayWindow.international_security)) + "</b></div>"
-      );
     }
     return '<div class="wait-line">Tahmini bekleme süresi: <b>' + escapeHtml(waitTimeText(displayWindow)) + "</b></div>";
   }
@@ -478,7 +707,7 @@
   // `current` da yoksa (windows=[]) "Bu saat için veri yok" gösterilir,
   // sayfa ÇÖKMEZ. Bir grafikte bir pencereye tıklamak DİĞER
   // grafiklerin/`current`ın gösterdiği değeri ASLA karıştırmaz.
-  function graphSectionHtml(key, title, section, kind) {
+  function graphSectionHtml(key, title, section) {
     var windows = section.windows || [];
     var selectedStart = state.detail[key];
     var displayWindow = null;
@@ -497,7 +726,7 @@
       ? '<div class="chart-wrap"><canvas id="' + canvasId + '"></canvas></div>'
       : '<div class="chart-empty">Bu havalimanı için henüz pencere yok.</div>';
 
-    var rangeText = displayWindow ? (hhmm(displayWindow.window_start) + "–" + hhmm(displayWindow.window_end)) : "";
+    var rangeText = displayWindow ? windowLabelRange(displayWindow) : "";
     var suffix = displayWindow && usingCurrent ? " · şu anki pencere" : "";
     var risk = displayWindow ? displayWindow.risk : null;
     var label = displayWindow ? displayWindow.risk_label : null;
@@ -508,7 +737,7 @@
         chartArea +
         '<div class="current-line">' + pillHtml(risk, label) + "</div>" +
         (rangeText ? '<div class="wait-detail">' + escapeHtml(rangeText + suffix) + "</div>" : "") +
-        waitDetailHtml(kind, displayWindow) +
+        waitDetailHtml(displayWindow) +
       "</div>"
     );
   }
@@ -568,7 +797,7 @@
     var canvas = document.getElementById(canvasId);
     if (!canvas) return;
 
-    var labels = windows.map(function (w) { return hhmm(w.window_start); });
+    var labels = windows.map(function (w) { return windowLabel(w); });
     var heights = windows.map(function (w) { return SEVERITY_HEIGHT[w.risk]; });
     var colors = windows.map(function (w) { return SEVERITY_COLOR[w.risk] || SEVERITY_COLOR.UNKNOWN; });
 
@@ -598,7 +827,7 @@
             callbacks: {
               title: function (items) {
                 var w = windows[items[0].dataIndex];
-                return hhmm(w.window_start) + "–" + hhmm(w.window_end);
+                return windowLabelRange(w);
               },
               label: function (item) {
                 var w = windows[item.dataIndex];
@@ -631,6 +860,7 @@
 
   // ------------- boot -------------
 
+  wireAirportSelector();
   loadAll();
   setInterval(loadAll, POLL_MS);
 })();
