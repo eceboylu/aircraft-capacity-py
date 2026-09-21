@@ -1,0 +1,7 @@
+{
+  "request": {
+    "method": "flights"
+  },
+  "response": [],
+  "terms": "synthetic-derived-test-fixture-not-a-published-timetable"
+}

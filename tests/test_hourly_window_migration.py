@@ -68,10 +68,12 @@ def session():
 def test_h_window_identity_is_hourly():
     assert DEMAND_WINDOW_MINUTES == 60
 
-    # ADIM (Airport Queue Model V2 - sabit -120dk offset): domestic
-    # departure için passenger arrival artık sabit 120 dakika önce -
-    # effective_time'ları AYNI saate (08:00-09:00) düşecek şekilde
-    # scheduled saatler seçildi (10:05-120dk=08:05, 10:45-120dk=08:45).
+    # ADIM (Departure Show-Up Profile): iki uçuşun talebi artık show-up
+    # ile BİRDEN FAZLA saate yayılıyor (DEĞİŞTİ) - ama "window identity
+    # HER ZAMAN tam saat (window_start :00'da, window_end +60dk), ASLA
+    # 15dk alt-bölünme YOK" contract'ı (bu testin ASIL iddiası)
+    # DEĞİŞMEDİ: her saat için EN FAZLA 1 satır üretilir (hiçbir saat
+    # tekrarlanmaz/bölünmez).
     flights = [
         departure(10, 5, location=LOCATION_DOMESTIC, key="D1", number="1"),
         departure(10, 45, location=LOCATION_DOMESTIC, key="D2", number="2"),
@@ -80,11 +82,13 @@ def test_h_window_identity_is_hourly():
         "AAA", flights, default_config("AAA"), DemandCalculator(MockCapacityResolver()),
     )
     security = [p for p in predictions if p.process == PROCESS_SECURITY]
-    assert len(security) == 1   # iki uçuş da AYNI saatlik pencereye düştü
-    window = security[0]
-    assert window.window_start.minute == 0
-    assert window.window_start.second == 0
-    assert window.window_end - window.window_start == timedelta(minutes=60)
+    assert len(security) >= 1
+    hours = [w.window_start for w in security]
+    assert len(hours) == len(set(hours))   # her saat EN FAZLA 1 satır - hiçbiri tekrarlanmadı/bölünmedi
+    for window in security:
+        assert window.window_start.minute == 0
+        assert window.window_start.second == 0
+        assert window.window_end - window.window_start == timedelta(minutes=60)
 
 
 # ========================================================================
@@ -94,12 +98,18 @@ def test_h_window_identity_is_hourly():
 
 def test_f_security_is_a_single_real_hourly_computation_not_four_merged_windows():
     """
-    Bir saate yayılmış 4 ayrı domestic departure - eskiden (15dk) 4
-    AYRI QueuePrediction satırı (her biri kendi flight_count/demand'i
-    ile) üretirdi. Şimdi TEK satır üretmeli ve bu satırın flight_count/
-    expected_passengers'ı DÖRDÜNÜN TOPLAMI olmalı - `reporting.py`'nin
-    post-hoc "worst/max" birleştirmesi GİBİ DEĞİL, motorun kendisi
-    TEK bir 60dk penceresi olarak hesaplıyor.
+    Aynı dakikada 4 ayrı domestic departure - eskiden (15dk) 4 AYRI
+    QueuePrediction satırı (her biri kendi flight_count/demand'i ile)
+    üretirdi. Her saat için TEK satır üretmeli - `reporting.py`'nin
+    post-hoc "worst/max" birleştirmesi GİBİ DEĞİL, motorun kendisi HER
+    saati TEK bir 60dk penceresi olarak hesaplıyor (hiçbir saat 15dk alt-
+    bölünmesi almıyor).
+
+    ADIM (Departure Show-Up Profile): 4 flight'ın talebi artık show-up
+    ile BİRDEN FAZLA saate yayılıyor (DEĞİŞTİ, flight_count/expected_
+    passengers TEK satırda TOPLANMIYOR) - ama conservation (flight_count
+    TOPLAMI == 4, expected_passengers TOPLAMI == ham talep) VE "her saat
+    TEK satır" contract'ı (bu testin ASIL iddiası) DEĞİŞMEDİ.
     """
     flights = [
         departure(9, 5, location=LOCATION_DOMESTIC, key=f"D{i}", number=str(i), aircraft="A320")
@@ -109,10 +119,13 @@ def test_f_security_is_a_single_real_hourly_computation_not_four_merged_windows(
     predictions = predict_airport("AAA", flights, default_config("AAA"), demand)
     security = [p for p in predictions if p.process == PROCESS_SECURITY]
 
-    assert len(security) == 1
-    window = security[0]
-    assert window.flight_count == 4
-    assert window.expected_passengers == sum(demand.passenger_demand(f) for f in flights)
+    assert len(security) >= 1
+    hours = [w.window_start for w in security]
+    assert len(hours) == len(set(hours))   # her saat EN FAZLA 1 satır
+    assert sum(w.expected_passengers for w in security) == sum(demand.passenger_demand(f) for f in flights)
+    # flight_count HÂLÂ tek effective_time() noktasında (07:00) toplanıyor (DEĞİŞMEDİ).
+    peak = next(w for w in security if w.flight_count == 4)
+    assert peak.window_start.hour == 7
 
 
 # ========================================================================

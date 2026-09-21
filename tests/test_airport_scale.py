@@ -133,22 +133,28 @@ def test_resolve_returns_none_when_no_codes_given(large, medium, small):
 
 
 def test_resource_mapping_large_medium_small():
+    """
+    ADIM (Generic Scale Resource Update) - değerler gerçek dünya
+    kanıtına göre güncellendi (bkz. rapor: IST 68 departure passport
+    gişesi, SIN ~130 otomatik immigration lane - eski 20/30/22/22
+    mega-hub'lar için çok düşük kalıyordu). Alan adları/mapping AYNI.
+    """
     assert resource_view_for_scale(SCALE_LARGE) == {
-        "departure_passport_servers": 20,
-        "arrival_passport_servers": 30,
-        "domestic_security_lanes": 22,
-        "international_security_lanes": 22,
+        "departure_passport_servers": 30,
+        "arrival_passport_servers": 45,
+        "domestic_security_lanes": 28,
+        "international_security_lanes": 18,
     }
     assert resource_view_for_scale(SCALE_MEDIUM) == {
-        "departure_passport_servers": 6,
-        "arrival_passport_servers": 8,
-        "domestic_security_lanes": 7,
-        "international_security_lanes": 7,
+        "departure_passport_servers": 10,
+        "arrival_passport_servers": 15,
+        "domestic_security_lanes": 12,
+        "international_security_lanes": 6,
     }
     assert resource_view_for_scale(SCALE_SMALL) == {
-        "departure_passport_servers": 4,
+        "departure_passport_servers": 3,
         "arrival_passport_servers": 4,
-        "domestic_security_lanes": 2,
+        "domestic_security_lanes": 4,
         "international_security_lanes": 2,
     }
 

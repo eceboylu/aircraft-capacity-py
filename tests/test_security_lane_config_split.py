@@ -11,6 +11,16 @@ Bu ADIM `passport->security` kuplaj fonksiyonuna (engine.py:
 her havalimanı için ayrı ayarlanabilir, ama `PROCESS_SECURITY_INTL`'in
 queue matematiğine henüz BAĞLANMADI (kuplaj fonksiyonunun içini
 değiştirmeyi gerektirir - bu ADIM'ın kapsamı dışında, bkz. rapor).
+
+ADIM (Departure Show-Up Profile): bu dosyadaki TÜM flight'lar AYNI dakikada
+(09:00) kalkıyor - show-up profili (bkz. `domain/demand.py:departure_
+show_up_events()`) bu durumda HER ZAMAN aynı sabit oranla 3 saate
+(06:00/%20, 07:00/%60, 08:00/%20) bölünür. Bu dosyanın testleri hep 07:00
+saatine bakıyor - bu yüzden beklenen `expected_passengers` artık eski
+"tüm talep" DEĞİL, `0.6 * tüm talep` (60%). `utilization`/`estimated_wait_
+minutes` bu YENİ (0.6 çarpanlı) değerden TÜRETİLDİĞİ için onlar da
+orantılı şekilde güncellendi - queue formülünün KENDİSİ (Erlang-C/backlog)
+DEĞİŞMEDİ, SADECE girdi (demand) değişti.
 """
 
 from sqlalchemy import create_engine, select
@@ -194,8 +204,10 @@ def test_domestic_security_lane_count_changes_utilization_and_wait():
     wide_dom = _at_hour(wide, PROCESS_SECURITY_DOMESTIC, 7)
 
     assert narrow_dom is not None and wide_dom is not None
-    # Talep AYNI (1080 pax) - sadece kapasite farklı.
-    assert narrow_dom.expected_passengers == wide_dom.expected_passengers == 1080
+    # Talep AYNI - show-up profili 09:00 kalkışın %60'ını 07:00'e koyar
+    # (bkz. dosya docstring'i): 1080 * 0.6 = 648, iki config için de AYNI
+    # (sadece KAPASİTE farklı).
+    assert narrow_dom.expected_passengers == wide_dom.expected_passengers == 648.0
 
     # server_count = server_count parametresi (queue_capacity_model'in
     # döndürdüğü ham alan) - gerçekten FARKLI lane sayısı KULLANILDIĞININ
@@ -204,12 +216,12 @@ def test_domestic_security_lane_count_changes_utilization_and_wait():
     assert narrow_dom.estimated_wait_minutes > wide_dom.estimated_wait_minutes
 
     # Sayısal doğrulama - gerçek Erlang-C/backlog formülünden:
-    # 3 lane x 1 dk = 3 pax/dk = 180 pax/saat kapasite; 1080 talep ->
-    # rho = 1080/60 / 3 = 6.0 (>=1 -> CRITICAL, backlog kaçınılmaz).
-    # 10 lane x 1 dk = 10 pax/dk = 600 pax/saat; rho = 18/10 = 1.8 (>=1
-    # -> hâlâ CRITICAL ama daha DÜŞÜK rho / daha KISA bekleme).
-    assert narrow_dom.utilization == 6.0
-    assert wide_dom.utilization == 1.8
+    # 3 lane x 1 dk = 3 pax/dk = 180 pax/saat kapasite; 648 talep ->
+    # rho = 648/60 / 3 = 3.6 (>=1 -> CRITICAL, backlog kaçınılmaz).
+    # 10 lane x 1 dk = 10 pax/dk = 600 pax/saat; rho = 10.8/10 = 1.08
+    # (>=1 -> hâlâ CRITICAL ama daha DÜŞÜK rho / daha KISA bekleme).
+    assert narrow_dom.utilization == 3.6
+    assert wide_dom.utilization == 1.08
 
 
 def test_domestic_security_lane_count_matches_wide_config_reference_capacity():
@@ -225,9 +237,10 @@ def test_domestic_security_lane_count_matches_wide_config_reference_capacity():
         "WIDE2", flights, _config_with_domestic_lanes("WIDE2", 10), _demand(),
     )
     dom = _at_hour(predictions, PROCESS_SECURITY_DOMESTIC, 7)
-    assert dom.expected_passengers == 180
-    # rho = (180/60) / (10*1) = 3/10 = 0.3
-    assert dom.utilization == 0.3
+    # Show-up: 180 * 0.6 = 108 (bkz. dosya docstring'i).
+    assert dom.expected_passengers == 108.0
+    # rho = (108/60) / (10*1) = 1.8/10 = 0.18
+    assert dom.utilization == 0.18
     assert dom.risk == "LOW"
 
 
@@ -261,12 +274,13 @@ def test_airport_isolation_domestic_lane_config_never_leaks_between_airports():
     assert {p.airport_iata for p in predictions_a} == {"A"}
     assert {p.airport_iata for p in predictions_b} == {"B"}
 
-    # AYNI talep (4 x 180 = 720 pax), FARKLI lane sayısı -> FARKLI sonuç.
-    assert dom_a.expected_passengers == dom_b.expected_passengers == 720
+    # AYNI talep - show-up: 4*180*0.6 = 432 (bkz. dosya docstring'i),
+    # FARKLI lane sayısı -> FARKLI sonuç.
+    assert dom_a.expected_passengers == dom_b.expected_passengers == 432.0
     assert dom_a.utilization != dom_b.utilization
-    # rho_A = (720/60)/6 = 2.0 ; rho_B = (720/60)/3 = 4.0
-    assert dom_a.utilization == 2.0
-    assert dom_b.utilization == 4.0
+    # rho_A = (432/60)/6 = 1.2 ; rho_B = (432/60)/3 = 2.4
+    assert dom_a.utilization == 1.2
+    assert dom_b.utilization == 2.4
 
     # B'nin (dar) config'i A'yı (geniş) hiç etkilemedi - A hâlâ kendi
     # (daha düşük) utilization değerini koruyor.
@@ -300,8 +314,8 @@ def test_airport_isolation_via_db_configs_does_not_mix_rows():
     dom_ist = _at_hour(predictions_ist, PROCESS_SECURITY_DOMESTIC, 7)
     dom_saw = _at_hour(predictions_saw, PROCESS_SECURITY_DOMESTIC, 7)
 
-    assert dom_ist.utilization == 2.0   # (720/60)/6
-    assert dom_saw.utilization == 4.0   # (720/60)/3
+    assert dom_ist.utilization == 1.2   # (432/60)/6 - show-up: 4*180*0.6=432
+    assert dom_saw.utilization == 2.4   # (432/60)/3
     session.close()
 
 
@@ -329,6 +343,7 @@ def test_combined_security_process_still_uses_legacy_security_lane_count():
 
     predictions = predict_airport("X", flights, narrow_domestic_config, _demand())
     combined = _at_hour(predictions, PROCESS_SECURITY, 7)
-    # rho_combined = (720/60) / 8 = 1.5 - domestic_security_lane_count=3
-    # DEĞİL, hâlâ security_lane_count=8 kullanılıyor.
-    assert combined.utilization == 1.5
+    # rho_combined = (432/60) / 8 = 0.9 - show-up: 4*180*0.6=432 -
+    # domestic_security_lane_count=3 DEĞİL, hâlâ security_lane_count=8
+    # kullanılıyor.
+    assert combined.utilization == 0.9

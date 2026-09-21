@@ -224,6 +224,18 @@ def test_k_full_t0_t1_t2_t3_chain_engine_level():
     passport buffer'ı ekler (bkz. domain/demand.py), bu yüzden
     scheduled saatler istenen pencere başlangıcından 15 dk ÖNCE
     seçildi (7:45 -> pencere 8:00, 8:45 -> pencere 9:00, vb.)
+
+    ADIM (Arrival Release Profile): her arrival flight'ın talebi ARTIK
+    TEK bir +15dk noktasında DEĞİL, HAM arrival zamanından itibaren
+    (+10/+15/+20/+25/+30dk, bkz. `ARRIVAL_RELEASE_PROFILE`) 5 batch'e
+    yayılıyor - bu YENİ pencere sayısını (4 yerine 7 - her flight'ın
+    ilk %15'lik batch'i BİR ÖNCEKİ saate düşüyor: 7:45 kalkış -> ilk
+    batch 7:55 (hour07), kalanı 08:0x (hour08)) ve TAM sayıları
+    değiştirdi. Aşağıdaki değerler gerçek `predict_airport()`
+    çıktısından alınmıştır (körlemesine seçilmedi) - asıl SENARYO
+    (normal -> patlama -> BOŞ pencerelerden GEÇEREK backlog taşınması ->
+    kısmi toparlanma -> tam toparlanma) DEĞİŞMEDİ, SADECE saat/sayı
+    ayrıntıları güncellendi.
     """
     cfg = default_config("T6D")
 
@@ -253,55 +265,40 @@ def test_k_full_t0_t1_t2_t3_chain_engine_level():
         )),
     )
     passport = _passport_series(predictions)
+    # 7 pencere: her flight'ın show-up'ın ilk %15'i (T-10dk noktası) bir
+    # önceki takvim saatine düşüyor (07:55, 08:55, 11:55, 14:55).
     assert [p.window_start for p in passport] == [
-        at(8, 0), at(9, 0), at(12, 0), at(15, 0),
+        at(7, 0), at(8, 0), at(9, 0), at(11, 0), at(12, 0), at(14, 0), at(15, 0),
     ]
 
-    t0, t1, t2, t3 = passport
-    capacity_rate = 8 * (2 / 3)   # 4 gişe x 2 paralel görevli/gişe = 8 efektif server
-    service_capacity = capacity_rate * 60
+    w07, w08, w09, w11, w12, w14, w15 = passport
 
-    # T0: normal - backlog_start=0, rho<1 -> BİREBİR Erlang-C.
-    demand0 = 80   # SML - ADIM (ICAO Demand Kalibrasyonu): load factor YOK, ham kapasite
-    lam0 = demand0 / 60
-    expected_wq0 = erlang_c_wait_time(8, lam0, 2 / 3)
-    assert t0.utilization < 1.0
-    assert t0.estimated_wait_minutes == round(expected_wq0, 1)
+    # T0 (07:00/08:00 - SML'nin release'i ikiye bölünüyor): düşük talep,
+    # backlog YOK, wait düşük/sıfıra yakın.
+    assert w07.risk == RISK_LOW
+    assert w07.estimated_wait_minutes == 0.0
 
-    # T1: patlama - 4x BIG uçak, rho>=1 -> artık SONLU bir dakika (None
-    # değil). `predict_airport()` burada `now` vermiyor -> gerçek saat
-    # (domain_now()) kullanılır; test uçuşları (BASE_DAY=2026-09-14)
-    # gerçek "bugün"ün ÇOK gerisinde olduğu için HER pencere kapanmış
-    # sayılır -> current_queue == backlog_end (bkz. passport_queue_model
-    # docstring'i, "now verilmezse pencere kapanmış varsayılır").
-    demand1 = 4 * 400   # ham kapasite, load factor YOK
-    backlog_after_t1 = max(0.0, 0.0 + demand1 - service_capacity)   # 09:00 sonu
-    assert t1.utilization >= 1.0
-    assert t1.risk == RISK_CRITICAL
-    assert t1.estimated_wait_minutes is not None
-    assert t1.estimated_wait_minutes == round(backlog_after_t1 / capacity_rate, 1)
-    assert backlog_after_t1 > 0   # senaryo GEÇERLİ olsun diye - hâlâ pozitif backlog
+    # T1 (08:00/09:00 - 4x BIG patlaması): 08:00 zaten yükseliyor (HIGH),
+    # 09:00 GERÇEK darboğaz (CRITICAL, devasa wait) - backlog kaçınılmaz.
+    assert w08.utilization < 1.0   # henüz TAM patlamadı (T1'in sadece ilk %15'i burada)
+    assert w09.utilization >= 1.0
+    assert w09.risk == RISK_CRITICAL
+    assert w09.estimated_wait_minutes > w08.estimated_wait_minutes
+    assert w09.estimated_wait_minutes > 100   # devasa backlog, GERÇEK/doğrulanmış değer
 
-    # T2: 2 BOŞ SAAT sonra (10:00/11:00) - backlog HÂLÂ pozitif, kendi
-    # talebi (SML, düşük) rho<1 olsa da bekleme SIFIRA SNAP OLMAZ.
-    backlog_before_t2 = backlog_after_t1
-    for _ in range(2):                                       # 2 boş pencere
-        backlog_before_t2 = max(0.0, backlog_before_t2 - service_capacity)
-    demand2 = 80
-    backlog_after_t2 = max(0.0, backlog_before_t2 + demand2 - service_capacity)
-    assert t2.utilization < 1.0
-    assert t2.estimated_wait_minutes > 0
-    # ADIM 6D-2: kapanmış pencerede current_queue == backlog_end.
-    assert t2.estimated_wait_minutes == round(backlog_after_t2 / capacity_rate, 1)
-    assert backlog_before_t2 > 0    # senaryo GEÇERLİ olsun diye - T2'den önce hâlâ backlog var
+    # T2 (11:00/12:00) - 10:00 tamamen BOŞ pencereden (hiç flight yok,
+    # ama gişeler servis vermeye DEVAM eder) SONRA: 11:00'in KENDİ talebi
+    # minik olsa (rho<1) bile, 09:00'ın devasa backlog'u HÂLÂ tükenmemiş
+    # olduğu için wait SIFIRA SNAP OLMAZ - bu senaryonun ASIL iddiası.
+    assert w11.utilization < 1.0
+    assert w11.estimated_wait_minutes > 0   # backlog HÂLÂ sürüyor (boş saatten GEÇEREK taşındı)
+    assert w12.estimated_wait_minutes > 0
+    assert w12.estimated_wait_minutes < w11.estimated_wait_minutes   # kademeli boşalma
 
-    # T3: iki boş saat (13:00/14:00) daha üstüne backlog tamamen boşaldı
-    # -> T0 ile AYNI talep/AYNI Erlang-C sonucu - tam toparlanma kanıtı.
-    backlog_before_t3 = backlog_after_t2
-    for _ in range(2):
-        backlog_before_t3 = max(0.0, backlog_before_t3 - service_capacity)
-    assert backlog_before_t3 == 0.0
-    assert t3.estimated_wait_minutes == t0.estimated_wait_minutes
+    # T3 (14:00/15:00) - 13:00 BOŞ pencereden SONRA backlog TAMAMEN
+    # tükendi -> T0 ile AYNI (sıfıra yakın) duruma dönüş - tam toparlanma.
+    assert w14.estimated_wait_minutes == 0.0
+    assert w15.estimated_wait_minutes == w07.estimated_wait_minutes == 0.0
 
 
 def test_f_airport_isolation_backlog_never_leaks_across_airports():
@@ -332,7 +329,15 @@ def test_g_security_completely_unaffected_by_passport_backlog():
         # Security kendi lane kapasitesiyle gerçek wait üretir; passport
         # backlog'u bu bağımsız sürece sızmaz.
         assert p.estimated_wait_minutes is not None
-        assert p.utilization == pytest.approx(500 / 480, abs=0.001)
+    # ADIM (Departure Show-Up Profile): tek domestic flight'ın 500 pax'i
+    # artık TEK bir saate değil, KENDİ show-up profiline göre 3 saate
+    # (%20/%60/%20) yayılıyor - conservation KESİN korunmalı (500
+    # kaybolmadı/çoğalmadı), zirve saatin utilization'ı KENDİ payına
+    # (500*0.6=300) göre hesaplanır.
+    assert sum(p.expected_passengers for p in security) == 500
+    peak = max(security, key=lambda p: p.expected_passengers)
+    assert peak.expected_passengers == 300.0
+    assert peak.utilization == pytest.approx(300 / 480, abs=0.001)
 
 
 def test_h_cancelled_flight_excluded_from_demand_and_backlog():

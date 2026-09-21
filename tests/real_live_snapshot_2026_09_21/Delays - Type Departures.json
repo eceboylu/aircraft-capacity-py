@@ -1,0 +1,10 @@
+{
+  "request": {
+    "method": "delays",
+    "params": {
+      "type": "departures"
+    }
+  },
+  "response": [],
+  "terms": "real-user-provided-snapshot-2026-09-21"
+}

@@ -307,15 +307,22 @@ def test_c_domestic_surge_raises_domestic_security_risk(domestic_surge_session):
     """
     ADIM (Visible Risk = Gerçek Queue Pressure) ile GÜNCELLENDİ: risk
     artık sadece o saatin KENDİ gelen talebine değil, GERÇEK, event-
-    türevli backlog'a da bakıyor. 07:00'ın 9-uçuşluk dalgası (900 pax,
-    8-lane kapasite 480/saat) 08:00'a (KENDİ arrival'ı baseline'a eşit,
-    3 uçuş) devasa bir backlog bırakıyor - gerçek `estimated_wait_
-    minutes` bunu ZATEN gösteriyordu (bu ADIM'dan ÖNCE bile ~70dk),
-    risk artık bu GERÇEĞİ doğru yansıtıyor: 08:00 de CRITICAL olmalı,
-    eski model gibi yapay biçimde LOW'a düşmemeli.
+    türevli backlog'a da bakıyor. 07:00'ın 9-uçuşluk dalgası 08:00'a
+    devasa bir backlog bırakıyor - gerçek `estimated_wait_minutes` bunu
+    ZATEN gösteriyordu, risk artık bu GERÇEĞİ doğru yansıtıyor: 08:00 de
+    CRITICAL olmalı, eski model gibi yapay biçimde LOW'a düşmemeli.
+
+    ADIM (Departure Show-Up Profile): her flight artık KENDİ departure
+    saatinden ÖNCEKİ 3 saate show-up ile yayılıyor (bkz. `domain/
+    demand.py:departure_show_up_events()`) - 06:00'ın grubu (3 flight,
+    dep~08:05) BİLE artık show-up'ın %60'ını 06:00'a, kalanını 05:00/
+    07:00'e taşıyor; 07:00 grubu (9 flight, dep~09:05) 06:00'a da
+    %20 taşıyor - bu yüzden 06:00'ın KENDİ talebi artık MEDIUM eşiğine
+    (rho>=0.7) çıkıyor (eskiden LOW'du) - gerçek, doğrulanmış (bu turda
+    `predict_airport()` ile üretilmiş) bir sonuç, körlemesine seçilmedi.
     """
     result = airport_predictions(domestic_surge_session, "IST", now=datetime(2026, 9, 15, 23, 0))
-    assert risk_of(result["domestic_security"], hour_start(6)) == RISK_LOW
+    assert risk_of(result["domestic_security"], hour_start(6)) == RISK_MEDIUM
     assert risk_of(result["domestic_security"], hour_start(7)) == RISK_CRITICAL
     assert risk_of(result["domestic_security"], hour_start(8)) == RISK_CRITICAL
 
@@ -426,11 +433,15 @@ def test_d_passport_is_genuinely_affected_because_international_departures_feed_
     assert t0["risk"] == RISK_LOW
     assert t1["risk"] == RISK_CRITICAL
     assert t1["utilization"] > 1.0
-    # T2: rho tekrar düşük ama backlog artık kuyrukta - bekleme T1'den
-    # DÜŞÜK ama sıfıra ZORLANMIYOR (bkz. G - kademeli recovery).
+    # T2: rho tekrar düşük VE (ADIM Departure Show-Up Profile ile,
+    # gerçek `predict_airport()` çıktısıyla doğrulandı) backlog bu
+    # senaryoda T2'ye gelmeden TAMAMEN boşalıyor (show-up'ın kendisi
+    # T1'in yükünü zaten 3 saate yaydığı için tek-saatlik eski modele
+    # göre daha AZ art arda birikim kalıyor) - wait sıfıra döner, ama
+    # HÂLÂ T1'den KESİN olarak düşük/eşit (asla YAPAY olarak T1'i AŞMAZ).
     assert t2["risk"] == RISK_LOW
-    assert t2["estimated_wait_minutes"] < t1["estimated_wait_minutes"]
-    assert t2["estimated_wait_minutes"] > 0
+    assert t2["estimated_wait_minutes"] <= t1["estimated_wait_minutes"]
+    assert t2["estimated_wait_minutes"] == 0.0
 
 
 def test_d_overall_matches_max_of_the_three_real_series(intl_security_surge_session):
@@ -768,8 +779,12 @@ def test_j_server_predictions_endpoint_never_recomputes_engine():
     ):
         assert forbidden not in source
     # `do_GET`'in predictions dalı SADECE `airport_predictions()` çağırıyor -
-    # başka hiçbir hesaplama fonksiyonu YOK.
-    assert "self._send_json(airport_predictions(session, iata))" in source
+    # başka hiçbir hesaplama fonksiyonu YOK. `now=self._test_now_override()`
+    # (ADIM Local Test-DB Viewing) SADECE mevcut `now=` enjeksiyon
+    # noktasını (production varsayılanı - parametre yoksa gerçek duvar
+    # saati - DEĞİŞMEDİ) opsiyonel bir query param'a bağlar, YENİ bir
+    # hesaplama fonksiyonu DEĞİL.
+    assert "self._send_json(airport_predictions(session, iata, now=self._test_now_override()))" in source
 
 
 # ==================================================================

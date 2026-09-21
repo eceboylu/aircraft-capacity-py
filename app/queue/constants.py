@@ -34,6 +34,69 @@ PASSPORT_RELEASE_BUFFER_MINUTES = 15
 # `effective_time()`'ın departure dalından artık ÇAĞRILMIYOR.
 DEPARTURE_PASSENGER_ARRIVAL_OFFSET_MINUTES = 120
 
+# ADIM (Departure Show-Up Profile) - departure yolcularının kuyruğa TEK
+# bir -120dk spike'ı yerine flight öncesi zamana YAYILMIŞ, deterministic
+# (RANDOM YOK) "show-up" batch'leri halinde gelmesini tanımlar - bkz.
+# `domain/demand.py:departure_show_up_events()`. `DEPARTURE_PASSENGER_
+# ARRIVAL_OFFSET_MINUTES` (120) SİLİNMEDİ/DEĞİŞMEDİ - `effective_time()`
+# hâlâ bu sabiti kullanır (flight-seviyesinde legacy/reference bir zaman
+# damgası üretmeye devam eder, bkz. o fonksiyonun docstring'i); SADECE
+# gerçek departure queue event ÜRETİMİ artık bu profili kullanır.
+#
+# Her satır: (departure'dan ÖNCE dakika-aralığı-başlangıcı, dakika-
+# aralığı-bitişi, o 15 dakikalık dilime düşen TOPLAM yolcu oranı).
+# Kullanıcının verdiği 30 dakikalık 6 segment (%5/%15/%30/%30/%15/%5),
+# HER biri deterministic olarak (RANDOM YOK) İKİ EŞİT 15 dakikalık
+# alt-batch'e bölünmüştür (her alt-batch kendi 30dk ebeveyninin YARISINI
+# taşır) - bkz. Bölüm 4: "iki adet 15 dakikalık batch'e deterministic
+# şekilde dağıt". Toplam = tam 1.0 (%100) - `test_departure_show_up_
+# profile.py` bunu doğrular.
+DEPARTURE_SHOW_UP_PROFILE: tuple[tuple[int, int, float], ...] = (
+    (180, 165, 0.025),
+    (165, 150, 0.025),
+    (150, 135, 0.075),
+    (135, 120, 0.075),
+    (120, 105, 0.15),
+    (105, 90, 0.15),
+    (90, 75, 0.15),
+    (75, 60, 0.15),
+    (60, 45, 0.075),
+    (45, 30, 0.075),
+    (30, 15, 0.025),
+    (15, 0, 0.025),
+)
+
+# ADIM (Arrival Release Profile) - international arrival yolcularının
+# Arrival Passport kuyruğuna TEK bir +15dk spike'ı yerine iniş sonrası
+# (deboarding/walking) zamana YAYILMIŞ, deterministic (RANDOM YOK) kısa
+# bir "release" profiliyle gelmesini tanımlar - bkz. `domain/demand.py:
+# arrival_passenger_release_events()`. `PASSPORT_RELEASE_BUFFER_MINUTES`
+# (15) SİLİNMEDİ/DEĞİŞMEDİ - `effective_time()` hâlâ bu sabiti kullanır
+# (flight-seviyesinde legacy/reference bir zaman damgası üretmeye devam
+# eder - flight_count/reasons bucket'lama, `FlightEvent` dedup, vb.);
+# SADECE gerçek Arrival Passport queue event ÜRETİMİ artık bu profili
+# kullanır - ve bunu `effective_time()`'IN ÜZERİNE değil, flight'ın HAM
+# arrival referansı (actual>estimated>scheduled) ÜZERİNE uygular (bkz.
+# `_arrival_release_base()` - `effective_time()`'ın zaten içerdiği +15dk
+# ile ÇİFT OFFSET yapılmaz, bkz. `test_arrival_release_no_double_offset`).
+#
+# BU PROFİL GERÇEK, HAVALİMANINA-ÖZGÜ BİR ÖLÇÜM DEĞİLDİR - türetilmiş/
+# varsayılan bir operasyonel yaklaşıklıktır (kullanıcı tarafından
+# başlangıç değeri olarak verildi, gerçek deboarding/yürüme telemetri
+# verisi YOK). `DEPARTURE_SHOW_UP_PROFILE`'dan (30dk'lık aralıklar,
+# 3 saatlik pencere) YAPISAL OLARAK FARKLI: burada her satır TEK bir
+# dakika NOKTASI (aralık DEĞİL) - uçaktan inen yolcuların passport
+# kuyruğuna varış anını doğrudan modeller, 5 dakika aralıklarla.
+# Her satır: (varıştan SONRA dakika, o ana düşen TOPLAM yolcu oranı).
+# Toplam = tam 1.0 (%100) - `test_arrival_release_profile.py` doğrular.
+ARRIVAL_RELEASE_PROFILE: tuple[tuple[int, float], ...] = (
+    (10, 0.15),
+    (15, 0.35),
+    (20, 0.30),
+    (25, 0.15),
+    (30, 0.05),
+)
+
 # --- Yön / lokasyon / süreç sözlüğü ------------------------------------
 DIRECTION_DEPARTURE = "departure"
 DIRECTION_ARRIVAL = "arrival"

@@ -658,7 +658,11 @@ def test_aircraft_change_e2e_ist(session):
         airport_iata=IST, flights=flights, config=roomy_config(),
         demand=DemandCalculator(resolver), aircraft_changes=changes,
     )
-    passport = next(p for p in predictions if p.process == PROCESS_PASSPORT)
+    # ADIM (Departure Show-Up Profile): PROCESS_PASSPORT artık show-up
+    # ile BİRDEN FAZLA saatlik satır üretebiliyor - `aircraft_change`
+    # nedeni flight_count/reasons bucket'lamasının (effective_time()
+    # tek noktası, DEĞİŞMEDİ) kullandığı 08:00 satırında kalıyor.
+    passport = next(p for p in predictions if p.process == PROCESS_PASSPORT and p.window_start.hour == 8)
     change_reasons = [r for r in passport.reasons if r.code == "aircraft_change"]
 
     assert len(change_reasons) == 2
@@ -670,7 +674,7 @@ def test_aircraft_change_e2e_ist(session):
         airport_iata=IST, flights=flights, config=roomy_config(),
         demand=DemandCalculator(resolver), aircraft_changes=None,
     )
-    passport_no_events = next(p for p in without_events if p.process == PROCESS_PASSPORT)
+    passport_no_events = next(p for p in without_events if p.process == PROCESS_PASSPORT and p.window_start.hour == 8)
     assert passport.risk == passport_no_events.risk
     assert passport.expected_passengers == passport_no_events.expected_passengers
 
@@ -700,15 +704,24 @@ def test_baseline_e2e_repeated_refresh_of_closed_window_is_idempotent(session):
     for _ in range(5):
         run_predictions(session, resolver, now=now)
 
+    # ADIM (Departure Show-Up Profile): 10:00 kalkışın talebi artık
+    # show-up ile 3 saate (07:00/08:00/09:00) yayılıyor - `now=12:00`
+    # saatinde ÜÇÜ DE kapanmış, bu yüzden 3 ayrı HistoricalFlightCount
+    # bucket'ı (1 DEĞİL) - her biri KENDİ İÇİNDE hâlâ idempotent (5 kez
+    # çağrılsa da sample_size=1). `flight_count` HÂLÂ tek effective_
+    # time() noktasında (08:00 - dep 10:00-120dk) toplanıyor (DEĞİŞMEDİ) -
+    # SADECE o saatin baseline'ı 1.0, diğer iki saat (show-up'ın
+    # DEĞİL flight-bucket'ının GÖRMEDİĞİ saatler) flight_count=0/baseline=0.0.
     hist = session.execute(select(HistoricalFlightCount)).scalars().all()
     security_bucket = [h for h in hist if h.process == PROCESS_SECURITY]
-    assert len(security_bucket) == 1
-    assert security_bucket[0].sample_size == 1
-
+    assert len(security_bucket) == 3
+    for bucket in security_bucket:
+        assert bucket.sample_size == 1
+    real_bucket = next(b for b in security_bucket if b.hour_of_day == 8)
     baseline = get_baseline(
         session, IST, PROCESS_SECURITY,
-        hour_of_day=security_bucket[0].hour_of_day,
-        day_of_week=security_bucket[0].day_of_week,
+        hour_of_day=real_bucket.hour_of_day,
+        day_of_week=real_bucket.day_of_week,
     )
     assert baseline == 1.0
 
@@ -729,10 +742,10 @@ def test_baseline_e2e_open_window_never_recorded(session):
     }
     refresh_flights(session, [row])
     resolver = MockCapacityResolver()
-    # ADIM (Airport Queue Model V2 - sabit -120dk offset): dep_scheduled
-    # 10:00 -> effective_time=08:00 -> pencere [08:00-09:00). `now` bu
-    # pencerenin İÇİNDE (henüz kapanmamış) seçildi.
-    still_open = datetime(2026, 9, 15, 8, 30)   # pencere henüz kapanmadı
+    # ADIM (Departure Show-Up Profile): dep_scheduled 10:00 -> show-up
+    # 3 saate (07:00/08:00/09:00) yayılıyor - HİÇBİRİNİN kapanmadığından
+    # emin olmak için `now` artık EN ERKEN saatin (07:00) İÇİNDE.
+    still_open = datetime(2026, 9, 15, 7, 30)   # hiçbir pencere henüz kapanmadı
 
     run_predictions(session, resolver, now=still_open)
 

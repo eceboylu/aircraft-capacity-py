@@ -31,6 +31,7 @@ açmaz.
 import logging
 import os
 import time
+from datetime import datetime, timedelta
 
 from ..db import get_session, init_db
 from ..models import AircraftCapacity
@@ -44,6 +45,7 @@ from .ingestion.airports_import import (
     import_airports,
 )
 from .ingestion.refresh import refresh_flights
+from .domain.retention_time import USAGE_HORIZON_HOURS
 from .ingestion.sources import (
     aircraft_match_rate,
     build_aircraft_index,
@@ -192,6 +194,7 @@ def load_flight_rows(
     data_dir: str = DATA_DIR,
     source_a=None,
     source_b=None,
+    now: datetime | None = None,
 ) -> list[dict]:
     """
     Kaynak A + Kaynak B birleşimi (AŞAMA 0).
@@ -204,10 +207,23 @@ def load_flight_rows(
     Kaynak B okunamazsa enrichment'sız devam edilir: aircraft_icao
     None kalır, Madde 1 bunu unknown_default ile karşılar, confidence
     düşer - sistem ÇÖKMEZ.
+
+    now : ADIM (Re-Ingest Loop Prevention) - Bölüm 15. Verilirse,
+          `now - USAGE_HORIZON_HOURS` (48 saat, `domain/retention_
+          time.py` - `engine.py:flights_of_airport()`'un usage-horizon
+          filtresiyle AYNI sabit) cutoff'undan ESKİ canonical operasyonel
+          zamanlı kayıtlar `parse_source_a()` tarafından HİÇ üretilmez -
+          retention cleanup'ın sildiği eski bir flight'ı upstream hâlâ
+          döndürüyorsa sonsuz silme/yeniden-ekleme döngüsü önlenir.
+          Verilmezse (None, varsayılan) HİÇ filtre uygulanmaz - eski
+          davranış birebir korunur.
     """
     countries = country_lookup(session)
     source_a = source_a or file_source_a(data_dir)
     source_b = source_b or file_source_b(data_dir)
+    min_operational_time = (
+        now - timedelta(hours=USAGE_HORIZON_HOURS) if now is not None else None
+    )
 
     try:
         source_b_records = source_b()
@@ -239,7 +255,10 @@ def load_flight_rows(
         source_a_total += len(records)
         logger.info("Kaynak A (%s): %d kayıt alındı", direction, len(records))
         rows.extend(
-            parse_source_a(records, direction, countries, aircraft_index)
+            parse_source_a(
+                records, direction, countries, aircraft_index,
+                min_operational_time=min_operational_time,
+            )
         )
 
     logger.info(
@@ -255,6 +274,7 @@ def run(
     source_a=None,
     source_b=None,
     now=None,
+    apply_usage_horizon: bool = False,
 ) -> dict:
     """
     Tüm akışı çalıştırır ve özet döndürür.
@@ -272,10 +292,22 @@ def run(
 
     now : ADIM (Operational-Day Scope) - Bölüm 59: "Testlerde 'now'
           inject edilebilir/deterministik olmalıdır". `run_predictions()`'a
-          AYNEN geçilir (açık/kapalı pencere kararı VE artık operational-
-          day filtresi için de kullanılır). Verilmezse (None) eski
-          davranış birebir korunur - `run_predictions()` kendi
-          `domain_now()` (gerçek saat) varsayılanını kullanır.
+          VE `load_flight_rows()`'a (ADIM Re-Ingest Loop Prevention -
+          Bölüm 15: 48 saatlik ingestion-horizon reddi) AYNEN geçilir.
+          Verilmezse (None) davranış BİREBİR eskisiyle AYNI kalır:
+          `load_flight_rows(now=None)` hiçbir ingestion-horizon filtresi
+          UYGULAMAZ (mevcut, geriye dönük uyumlu varsayılan - bkz. o
+          fonksiyonun docstring'i), `run_predictions()` kendi
+          `domain_now()` varsayılanını kullanır (DEĞİŞMEDİ). Gerçek
+          production periyodik döngüsü (`worker.py:run_forever()`)
+          Bölüm 15'in re-ingest-loop korumasını AKTİFLEŞTİRMEK için
+          `now=domain_now()`'ı AÇIKÇA geçer - bu fonksiyonun kendi
+          varsayılanı DEĞİŞMEDİ, sadece TEK bir çağıran artık `now`'ı
+          açıkça veriyor.
+    apply_usage_horizon : ADIM (48h Usage Horizon) - `run_predictions()`'a
+          AYNEN geçilir (bkz. o fonksiyonun docstring'i). Varsayılan
+          `False` - mevcut davranış korunur. SADECE `worker.py`'nin
+          gerçek production çağrısı `True` geçer.
     """
     start = time.monotonic()
     logger.info("pipeline run started")
@@ -286,7 +318,7 @@ def run(
         airports_loaded = ensure_airports(session, data_dir)
         scales_imported = ensure_airport_scales(session, data_dir)
         capacity_seeded = ensure_capacity_reference(session)
-        rows = load_flight_rows(session, data_dir, source_a, source_b)
+        rows = load_flight_rows(session, data_dir, source_a, source_b, now=now)
         match_rate = aircraft_match_rate(rows)
         refreshed = refresh_flights(session, rows)
         logger.info(
@@ -301,6 +333,7 @@ def run(
             resolver=AircraftCapacityService(session),
             update_baseline=update_baseline,
             now=now,
+            apply_usage_horizon=apply_usage_horizon,
         )
         logger.info(
             "prediction completed: predictions=%d pruned=%d airports_ok=%d airports_failed=%d",

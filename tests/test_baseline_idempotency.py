@@ -315,12 +315,20 @@ def store(db, mock_flights):
 
 
 def test_run_predictions_skips_baseline_for_open_window(session):
+    """
+    ADIM (Departure Show-Up Profile): 18:00 kalkışın talebi artık show-up
+    ile 3 saate (15:00/16:00/17:00) yayılıyor - `now` bu ÜÇ saatten
+    HERHANGİ birini "kapalı" (window_end<=now) yaparsa o saat için
+    gözlem KAYDEDİLİR (BEKLENEN, doğru davranış - o penceredeki talep
+    GERÇEKTEN sonlandı). Bu testin ASIL iddiasını (HİÇBİR pencere
+    kapanmamışsa HİÇ gözlem kaydedilmez) korumak için `now` artık en
+    ERKEN show-up saatinin (15:00) içine alınıyor - böylece 15:00 saat
+    içinde "açık", 16:00/17:00 henüz "gelecek" - HİÇBİRİ kapanmadı.
+    """
     store(session, [departure(18, 0, key="D1", number="1", aircraft="A320")])
     resolver = MockCapacityResolver()
 
-    # DEPARTURE_PASSENGER_ARRIVAL_OFFSET_MINUTES=120 (sabit) ->
-    # effective_time=16:00, saatlik pencere [16:00-17:00).
-    result = run_predictions(session, resolver, now=at(16, 30))
+    result = run_predictions(session, resolver, now=at(15, 30))
 
     assert result["predictions"] >= 1
     assert observation_count(session) == 0
@@ -346,9 +354,14 @@ def test_run_predictions_five_refreshes_of_closed_window_yield_one_observation(s
     ADIM (Security Domestic/International Split): domestic departure
     artık İKİ security sürecini besliyor (birleşik `security` +
     `security_dom`) - her biri KENDİ BaselineObservation defterine
-    yazıyor, bu yüzden idempotent 1 gözlem/süreç x 2 süreç = 2 (1
-    DEĞİL). Her sürecin KENDİ İÇİNDE hâlâ idempotent olduğu (5 kez
-    çağrılsa da süreç başına TEK gözlem) asıl doğrulanan şey.
+    yazıyor.
+
+    ADIM (Departure Show-Up Profile): 18:00 kalkışın talebi artık
+    show-up ile 3 saate (15:00/16:00/17:00) yayılıyor - `now=19:00`
+    saatinde ÜÇÜ DE kapanmış, bu yüzden idempotent 1 gözlem/süreç/saat
+    x 2 süreç x 3 saat = 6 (2 DEĞİL). Her (süreç, saat) çiftinin KENDİ
+    İÇİNDE hâlâ idempotent olduğu (5 kez çağrılsa da TEK gözlem) asıl
+    doğrulanan şey.
     """
     store(session, [departure(18, 0, key="D1", number="1", aircraft="A320")])
     resolver = MockCapacityResolver()
@@ -357,7 +370,7 @@ def test_run_predictions_five_refreshes_of_closed_window_yield_one_observation(s
     for _ in range(5):
         run_predictions(session, resolver, now=now)
 
-    assert observation_count(session) == 2
+    assert observation_count(session) == 6
 
 
 def test_run_predictions_default_now_uses_real_clock(session):

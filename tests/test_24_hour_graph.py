@@ -100,8 +100,19 @@ def test_all_five_visible_graphs_have_exactly_24_hours(ist_incoming_api, graph_p
 
 
 def test_zero_demand_hour_has_real_numeric_zero_not_missing(ist_incoming_api):
+    """
+    ADIM (Departure Show-Up Profile): `flight_count==0` ARTIK "bu saatte
+    hiç talep yok" ANLAMINA GELMİYOR (DEĞİŞTİ) - departure show-up
+    profili komşu bir saatin flight'ından bu saate GERÇEK bir talep payı
+    taşıyabilir (flight_count HÂLÂ tek effective_time() noktasında
+    toplanıyor, expected_passengers ARTIK show-up'a göre). Bu testin
+    ASIL iddiası ("gerçek sıfır-talep saat null DEĞİL, gerçek sayısal
+    sıfır taşır") DEĞİŞMEDİ - SADECE filtre `expected_passengers==0`
+    (GERÇEKTEN sıfır-talep) üzerinden yapılıyor, `flight_count==0`
+    (artık zayıf bir proxy) DEĞİL.
+    """
     windows = ist_incoming_api["domestic_security"]["windows"]
-    zero_hours = [w for w in windows if w["flight_count"] == 0]
+    zero_hours = [w for w in windows if w["expected_passengers"] == 0]
     assert zero_hours   # IST günün her saatinde gerçek talep taşımıyor - en az 1 sıfır-saat var
     for w in zero_hours:
         assert w["estimated_wait_minutes"] == 0.0   # null DEĞİL - gerçek sayısal sıfır
@@ -160,10 +171,16 @@ def test_unresolvable_timezone_airport_is_not_padded_stays_raw(session):
 def test_cross_midnight_departure_queue_event_stays_on_its_real_hour_not_shifted(session):
     """
     19 Eylül 00:45 departure -> effective_time (-120dk) = 18 Eylül
-    22:45. Bu satır GERÇEKTEN 18 Eylül'ün 22:00 bucket'ına düşer -
-    19 Eylül'ün padding'i bu satırı SİLMEMELİ/kaydırmamalı, sadece
-    KENDİ (19 Eylül) 24 saatini ek olarak sağlamalı (additive - bkz.
-    api.py `_pad_series_to_24_hours` docstring'i).
+    22:45. Bu satır GERÇEKTEN 18 Eylül'ün 22:00 bucket'ına düşer.
+
+    ADIM (Exact 24-Bucket Visible Graph) - Bölüm 3.3: CALCULATION STATE
+    != VISIBLE GRAPH RANGE. Bu satır ham veritabanında (`calculation
+    state`) HİÇ KAYBOLMAZ/kaydırılmaz - hâlâ KENDİ doğru saatinde
+    (18 Eylül 22:00) durur. Ama 19 Eylül'ün GÖRÜNÜR grafiği artık KESİN
+    `[day_start, day_end)` ile sınırlı (önceki turdaki ±120dk marj bu
+    turda kaldırıldı: "24 + legitimate overflow KABUL EDİLMEZ") - bu
+    yüzden bu satır `windows` listesine (19 Eylül'ün görünür penceresi)
+    ARTIK GİRMEZ, SADECE ham DB sorgusunda görünür.
     """
     session.add(Airport(iata_code="YYY", airport_name="Test Cross Midnight", timezone="UTC"))
     session.add(QueuePrediction(
@@ -174,17 +191,24 @@ def test_cross_midnight_departure_queue_event_stays_on_its_real_hour_not_shifted
     ))
     session.commit()
 
+    # Ham DB'de (calculation state) satır hâlâ KENDİ doğru saatinde durur.
+    raw = session.query(QueuePrediction).filter_by(
+        airport_iata="YYY", window_start=datetime(2026, 9, 18, 22, 0),
+    ).one()
+    assert raw.flight_count == 1
+    assert raw.expected_passengers == 150
+
     # "now" 19 Eylül içinde - bu havalimanının 24 saatlik padded görünümü BUGÜN (19 Eylül).
     api = airport_predictions(session, "YYY", now=datetime(2026, 9, 19, 10, 0))
     windows = api["domestic_security"]["windows"]
     hours = _hours(windows)
 
-    # 19 Eylül'ün 24 saati (bu havalimanı UTC olduğu için takvim günüyle
-    # hizalı) TAMAMEN var.
+    # 19 Eylül'ün TAM 24 saati (bu havalimanı UTC olduğu için takvim
+    # günüyle hizalı) var - NE FAZLA NE EKSİK.
     expected_utc_day_hours = {f"2026-09-19T{h:02d}:00:00" for h in range(24)}
-    assert expected_utc_day_hours <= hours
-    # 18 Eylül 22:00'daki GERÇEK event KAYBOLMADI - hâlâ listede, KENDİ
-    # doğru (kaydırılmamış) saatinde.
-    real = next(w for w in windows if w["window_start"] == "2026-09-18T22:00:00")
-    assert real["flight_count"] == 1
-    assert real["expected_passengers"] == 150
+    assert hours == expected_utc_day_hours
+    assert len(windows) == 24
+
+    # 18 Eylül 22:00'daki spillover satırı GÖRÜNÜR grafikte YOK -
+    # exact-boundary contract'a göre dışlandı.
+    assert not any(w["window_start"] == "2026-09-18T22:00:00" for w in windows)

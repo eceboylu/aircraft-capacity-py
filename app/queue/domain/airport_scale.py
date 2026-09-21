@@ -43,23 +43,37 @@ SCALES = (SCALE_LARGE, SCALE_MEDIUM, SCALE_SMALL)
 # passenger/lane (bu modülde SAKLANMAZ - core/scoring.py'nin config'ten
 # okuduğu, ZATEN var olan alanlardır; burada SADECE server/lane SAYILARI
 # tutulur).
+#
+# ADIM (Generic Scale Resource Update) - gerçek dünya kanıtına dayanarak
+# (bkz. rapor: IST 68 departure passport gişesi, SIN ~130 otomatik
+# immigration lane) güncellendi. Alan adları/mapping DEĞİŞMEDİ - SADECE
+# "large/medium/small" tier'larının SAYISAL değerleri:
+#   "domestic_security_lanes"    = Domestic/Landside Security
+#   "international_security_lanes" = International/Airside/Transfer Security
+# (mevcut terminoloji AYNEN korundu, yeni paralel bir alan/isim
+# İCAT EDİLMEDİ). Havalimanı-özel gerçek değerler (ör. IST/SIN'in
+# gerçek gişe sayıları) bu GENERIC tier sabitlerine YAZILMADI -
+# `AirportOperationalConfig` üzerinden airport-specific override
+# mekanizması (config.py öncelik zinciri, bu tablonun ÜSTÜNDE) buna
+# ayrılmıştır; bu sözlük SADECE "hiç override'ı olmayan" havalimanları
+# için generic varsayımdır.
 SCALE_RESOURCES: dict[str, dict[str, int]] = {
     SCALE_LARGE: {
-        "departure_passport_servers": 20,
-        "arrival_passport_servers": 30,
-        "domestic_security_lanes": 22,
-        "international_security_lanes": 22,
+        "departure_passport_servers": 30,
+        "arrival_passport_servers": 45,
+        "domestic_security_lanes": 28,
+        "international_security_lanes": 18,
     },
     SCALE_MEDIUM: {
-        "departure_passport_servers": 6,
-        "arrival_passport_servers": 8,
-        "domestic_security_lanes": 7,
-        "international_security_lanes": 7,
+        "departure_passport_servers": 10,
+        "arrival_passport_servers": 15,
+        "domestic_security_lanes": 12,
+        "international_security_lanes": 6,
     },
     SCALE_SMALL: {
-        "departure_passport_servers": 4,
+        "departure_passport_servers": 3,
         "arrival_passport_servers": 4,
-        "domestic_security_lanes": 2,
+        "domestic_security_lanes": 4,
         "international_security_lanes": 2,
     },
 }

@@ -30,11 +30,20 @@ import logging
 import time
 from typing import Callable
 
-from .queue import pipeline
+from .queue import pipeline, retention
+from .queue.engine import domain_now
 
 logger = logging.getLogger(__name__)
 
 REFRESH_INTERVAL_SECONDS = 5 * 60
+
+# ADIM (Retention Cleanup Schedule) - Bölüm 9: 5 dakikalık refresh'ten
+# TAMAMEN BAĞIMSIZ, AYRI bir cadence (48 saat). Bu sabit SADECE
+# `run_forever()`'ın kendi retention-tetikleme zamanlayıcısı için -
+# `app/queue/retention.py`'nin FLIGHT_RETENTION_DAYS/vb. config'iyle
+# KARIŞTIRILMAZ (biri "ne sıklıkla temizleme dene", diğeri "hangi
+# satırlar silinmeye uygun" - bkz. genel-proje.md Bölüm 8).
+RETENTION_INTERVAL_SECONDS = 48 * 60 * 60
 
 
 def run_forever(
@@ -42,22 +51,49 @@ def run_forever(
     run_fn: Callable[[], dict] | None = None,
     sleep_fn: Callable[[float], None] | None = None,
     max_iterations: int | None = None,
+    retention_interval_seconds: float = RETENTION_INTERVAL_SECONDS,
+    retention_fn: Callable[[], dict] | None = None,
 ) -> int:
     """
     Sonsuz döngü - production'da `max_iterations=None` (varsayılan,
     HİÇBİR ZAMAN kendiliğinden durmaz). `run_fn`/`sleep_fn`/
-    `max_iterations` SADECE test edilebilirlik için enjekte edilebilir
-    (testler gerçek pipeline'ı/gerçek `time.sleep`'i çağırmadan, sınırlı
+    `max_iterations`/`retention_fn`/`retention_interval_seconds` SADECE
+    test edilebilirlik için enjekte edilebilir (testler gerçek
+    pipeline'ı/gerçek `time.sleep`'i/gerçek 48 saati çağırmadan, sınırlı
     sayıda döngüyü deterministik biçimde doğrulayabilir) - production
     çağrısı (`main()`) bunların HİÇBİRİNİ vermez, eski/gerçek davranış
     birebir korunur.
 
-    Döner: bu çalıştırmada kaç döngünün BAŞARIYLA (exception fırlatmadan)
-    tamamlandığı (test/gözlemlenebilirlik amaçlı; production'da
-    `max_iterations=None` olduğu için pratikte hiç dönmez).
+    `run_fn` verilmezse varsayılan `pipeline.run(now=domain_now(),
+    apply_usage_horizon=True)`'dır (ADIM Re-Ingest Loop Prevention -
+    Bölüm 15 + 48h Usage Horizon - Bölüm 8: gerçek "an" AÇIKÇA geçilir
+    ki `load_flight_rows()`'un 48h ingestion-horizon reddi VE
+    `flights_of_airport()`'un 48h usage-horizon filtresi production'da
+    AKTİF olsun) - `run_forever()`'ın kendi döngü/sleep mantığı
+    DEĞİŞMEDİ, her turda hâlâ TEK bir sıfır-argümanlı `run()` çağrısı
+    yapılıyor (mevcut `run_fn` test-enjeksiyon sözleşmesi BOZULMADI).
+    Her İKİ koruma da varsayılan `False`/`None` (devre dışı) - SADECE
+    bu production çağrısı açıkça etkinleştirir, mevcut `pipeline.run()`/
+    `run_predictions()` çağıranlarının (testler dahil) davranışı
+    DEĞİŞMEDEN kalır.
+
+    Retention (Bölüm 6/9): `run_fn`'in try/except'inden TAMAMEN AYRI,
+    KENDİ try/except'i içinde çağrılır - retention hatası refresh
+    loop'unu/bir SONRAKİ refresh turunu ASLA etkilemez. `retention_fn`
+    verilmezse varsayılan `retention.run_cleanup_cycle` - bu fonksiyon
+    `RETENTION_ENABLED=false` (varsayılan) iken DB'ye hiç dokunmadan
+    hemen döner (bkz. `retention.py`). Cadence 5 dakikalık refresh
+    sleep/interval hesabını HİÇ DEĞİŞTİRMEZ - ayrı bir monotonic sayaçla
+    izlenir.
+
+    Döner: bu çalıştırmada kaç REFRESH döngüsünün BAŞARIYLA (exception
+    fırlatmadan) tamamlandığı (test/gözlemlenebilirlik amaçlı;
+    production'da `max_iterations=None` olduğu için pratikte hiç
+    dönmez). Retention çalıştırma sayısı bu sayaca dahil DEĞİLDİR.
     """
-    run = run_fn or pipeline.run
+    run = run_fn or (lambda: pipeline.run(now=domain_now(), apply_usage_horizon=True))
     sleep = sleep_fn or time.sleep
+    cleanup = retention_fn or retention.run_cleanup_cycle
 
     logger.info(
         "auto-refresh worker started (interval=%.0fs) - web server'dan AYRI process",
@@ -66,6 +102,7 @@ def run_forever(
 
     completed = 0
     iteration = 0
+    last_cleanup_monotonic = time.monotonic()
     while max_iterations is None or iteration < max_iterations:
         iteration += 1
         started = time.monotonic()
@@ -86,6 +123,23 @@ def run_forever(
                 "DB'de değişmeden kalıyor, %.0f sn sonra yeniden denenecek",
                 iteration, interval_seconds,
             )
+
+        # ADIM (Retention) - Bölüm 6/9: refresh'in başarılı/başarısız
+        # olmasından TAMAMEN BAĞIMSIZ, KENDİ try/except'i - retention
+        # hatası burada asla dışarı sızıp refresh loop'unu/`completed`
+        # sayacını etkilemez.
+        if time.monotonic() - last_cleanup_monotonic >= retention_interval_seconds:
+            try:
+                cleanup_summary = cleanup()
+                logger.info("retention cleanup #%d ok: %s", iteration, cleanup_summary)
+            except Exception:
+                logger.exception(
+                    "retention cleanup #%d BAŞARISIZ - refresh loop ETKİLENMEDİ, "
+                    "bir sonraki retention cycle'da tekrar denenecek",
+                    iteration,
+                )
+            finally:
+                last_cleanup_monotonic = time.monotonic()
 
         elapsed = time.monotonic() - started
         remaining = max_iterations - iteration if max_iterations is not None else None

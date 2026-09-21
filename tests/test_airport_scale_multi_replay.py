@@ -46,27 +46,28 @@ def scale_matrix_replay(tmp_path_factory):
 # Phase 3 - LARGE/MEDIUM/SMALL/UNKNOWN gerçek kaynak eşlemesi.
 # ========================================================================
 
-def test_large_cdg_resources_are_20_30_22(scale_matrix_replay):
+def test_large_cdg_resources_are_30_45_28_18(scale_matrix_replay):
+    """ADIM (Generic Scale Resource Update) - değerler güncellendi (bkz. rapor)."""
     assert scale_matrix_replay["scale_by_airport"]["CDG"] == "large"
     assert SCALE_RESOURCES["large"] == {
-        "departure_passport_servers": 20, "arrival_passport_servers": 30,
-        "domestic_security_lanes": 22, "international_security_lanes": 22,
+        "departure_passport_servers": 30, "arrival_passport_servers": 45,
+        "domestic_security_lanes": 28, "international_security_lanes": 18,
     }
 
 
-def test_medium_cbr_resources_are_6_8_7(scale_matrix_replay):
+def test_medium_cbr_resources_are_10_15_12_6(scale_matrix_replay):
     assert scale_matrix_replay["scale_by_airport"]["CBR"] == "medium"
     assert SCALE_RESOURCES["medium"] == {
-        "departure_passport_servers": 6, "arrival_passport_servers": 8,
-        "domestic_security_lanes": 7, "international_security_lanes": 7,
+        "departure_passport_servers": 10, "arrival_passport_servers": 15,
+        "domestic_security_lanes": 12, "international_security_lanes": 6,
     }
 
 
-def test_small_mfg_resources_are_4_4_2(scale_matrix_replay):
+def test_small_mfg_resources_are_3_4_4_2(scale_matrix_replay):
     assert scale_matrix_replay["scale_by_airport"]["MFG"] == "small"
     assert SCALE_RESOURCES["small"] == {
-        "departure_passport_servers": 4, "arrival_passport_servers": 4,
-        "domestic_security_lanes": 2, "international_security_lanes": 2,
+        "departure_passport_servers": 3, "arrival_passport_servers": 4,
+        "domestic_security_lanes": 4, "international_security_lanes": 2,
     }
 
 

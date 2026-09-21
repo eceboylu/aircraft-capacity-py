@@ -141,13 +141,21 @@ def test_baseline_accumulates_only_after_observation(session):
     resolver = MockCapacityResolver()
 
     # İlk çalıştırmada geçmiş oran yok; queue riski fiziksel kapasiteden gelir.
+    # ADIM (Departure Show-Up Profile): 3 flight'ın talebi artık show-up
+    # ile 06:00/07:00/08:00'e yayılıyor - flight_count/reasons HÂLÂ tek
+    # effective_time() noktasında (07:00) toplanıyor (DEĞİŞMEDİ), bu
+    # yüzden `.first()` yerine AÇIKÇA 07:00 satırı seçiliyor. Zirve saatin
+    # (07:00, %60 pay) talebi artık ham talebin TAMAMI DEĞİL - kapasitenin
+    # (480/saat) altında kalıyor (util=0.675<0.7 MEDIUM eşiği) - risk
+    # artık LOW (CRITICAL DEĞİL, GERÇEK/doğrulanmış bir sonuç).
     run_predictions(session, resolver, update_baseline=True)
-    first = session.execute(
+    rows = session.execute(
         select(QueuePrediction).where(
             QueuePrediction.process == PROCESS_SECURITY
         )
-    ).scalars().first()
-    assert first.risk == "CRITICAL"
+    ).scalars().all()
+    first = next(r for r in rows if r.window_start.hour == 7)
+    assert first.risk == "LOW"
     assert first.baseline_ratio is None
 
     # ADIM (Airport Queue Model V2 - sabit -120dk offset): departure(9,m)
@@ -157,11 +165,12 @@ def test_baseline_accumulates_only_after_observation(session):
     assert get_baseline(session, "AAA", PROCESS_SECURITY, 7, 0) is not None
 
     run_predictions(session, resolver, update_baseline=False)
-    second = session.execute(
+    rows2 = session.execute(
         select(QueuePrediction).where(
             QueuePrediction.process == PROCESS_SECURITY
         )
-    ).scalars().first()
+    ).scalars().all()
+    second = next(r for r in rows2 if r.window_start.hour == 7)
     assert second.baseline_ratio is not None
     assert second.risk != RISK_UNKNOWN
 

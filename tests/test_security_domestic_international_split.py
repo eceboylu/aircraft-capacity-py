@@ -15,6 +15,21 @@ birbirinden bağımsızdır (üç farklı process string'i = üç farklı satır
 
 Passport modeli, 390 pax/h kapasite modeli, ICAO full-capacity demand
 modeli, 60dk window, current-wait/backlog - HİÇBİRİNE dokunulmadı.
+
+ADIM (Departure Show-Up Profile): departure yolcuları artık TEK bir
+`effective_time()` saatine YIĞILMIYOR, KENDİ show-up profiline göre
+3 saate (T-180..T0) yayılıyor (bkz. `domain/demand.py:departure_show_up_
+events()`). Bu dosyadaki sayısal beklentiler BU YÜZDEN güncellendi -
+gerçek `predict_airport()` ile üretilip conservation/monotonluk
+invariant'larına göre DOĞRULANDI (körlemesine "geçsin diye" seçilmedi).
+ÖNEMLİ AYRIM: `flight_count` HÂLÂ eski tek-noktalı `effective_time()`
+(-120dk) saatine göre sayılıyor (bkz. `engine.py:_bucket_flights_by_
+window` - BİLİNÇLİ OLARAK DEĞİŞTİRİLMEDİ, flight-seviyesinde bir
+referans kalmaya devam ediyor), `expected_passengers` ise ARTIK gerçek
+show-up/event-arrival saatine göre (farklı saatlere ayrılabilir) - bu
+ikisinin AYNI saatte aynı anda dolu olması ARTIK garanti DEĞİL (bkz.
+`engine.py`'nin `starts = set(buckets) | set(coupled_demand)` birleşimi,
+zaten önceden bu ayrımı öngörüyordu).
 """
 
 from datetime import datetime, timedelta
@@ -110,20 +125,21 @@ def test_domestic_surge_only_raises_domestic_security_not_international():
 
     dom = _by_process(predictions, PROCESS_SECURITY_DOMESTIC)
     intl = _by_process(predictions, PROCESS_SECURITY_INTL)
-    assert len(dom) == 1
-    # ADIM (4x2 efektif server modeli): tek uluslararası uçuşun talebi
-    # (180 pax, A320) passport'un saatlik kapasitesinin (320) ALTINDA -
-    # passport bunu TEK saatte tam serbest bırakır, security_intl'e
-    # SONRAKİ saate hiçbir kalıntı sızmaz (tek pencere).
-    assert len(intl) == 1
+    # Show-up profili 3 saate yayılıyor (06:00/07:00/08:00) - flight_count
+    # HÂLÂ tek `effective_time()` noktasında (07:00) toplanıyor (DEĞİŞMEDİ).
+    dom_07 = next(r for r in dom if r.window_start.hour == 7)
+    intl_07 = next(r for r in intl if r.window_start.hour == 7)
 
     # domestic_security: 8 uçuş / baseline 1.0 -> çok yüksek oran -> CRITICAL.
-    assert dom[0].flight_count == 8
-    assert dom[0].risk == RISK_CRITICAL
+    assert dom_07.flight_count == 8
+    assert dom_07.risk == RISK_CRITICAL
 
     # international_security: 1 uçuş / baseline 1.0 -> düşük oran -> CRITICAL DEĞİL.
-    assert intl[0].flight_count == 1
-    assert intl[0].risk != RISK_CRITICAL
+    assert intl_07.flight_count == 1
+    assert intl_07.risk != RISK_CRITICAL
+    # Passport'un saatlik kapasitesinin (320) ALTINDA kalan bir tek
+    # uçuşun (180 pax) HİÇBİR saatte 320'yi geçmediğini doğrula.
+    assert all(r.expected_passengers <= 320.0 for r in intl)
 
 
 # ========================================================================
@@ -147,34 +163,32 @@ def test_international_surge_only_raises_international_security_not_domestic():
 
     dom = _by_process(predictions, PROCESS_SECURITY_DOMESTIC)
     intl = _by_process(predictions, PROCESS_SECURITY_INTL)
-    assert len(dom) == 1
-    # 1440 pax ham talep, passport 320 pax/saat ile 5 saatte boşalır
-    # (320*4+160=1440) - backlog "kaybolmadan" TÜM saatlere yayılır
-    # (bkz. tests/test_passport_security_coupling.py conservation testleri).
-    assert len(intl) == 5
+    dom_08 = next(r for r in dom if r.window_start.hour == 8)   # 10:00 kalkış -> effective_time 08:00
+    intl_08 = next(r for r in intl if r.window_start.hour == 8)
+
+    # 1440 pax ham talep (8x180), passport 320 pax/saat ile BİRDEN FAZLA
+    # saate yayılarak boşalır - backlog "kaybolmadan" TÜM saatlere
+    # yayılır (bkz. tests/test_passport_security_coupling.py conservation
+    # testleri) - toplam KESİN olarak 1440'a eşit kalmalı.
     assert sum(r.expected_passengers for r in intl) == 1440
 
-    assert intl[0].flight_count == 8
-    # ADIM (Passport->Security zaman-kuplajı, 4x2 efektif server modeli):
-    # international_security'nin talebi artık passport'un o saat
-    # GERÇEKTEN serbest bırakabildiği miktarla sınırlı (passport
-    # kapasitesi = 320 pax/saat, security kapasitesinin - 480 pax/saat -
-    # rho eşiğinin (0.7) altında kalan bir payı: 320/480=0.667<0.7).
-    # 8 uçuşluk sürgü (1440 pax ham talep) passport'u fena tıkar (bu
-    # KENDİ grafiğinde görünür) ama security_intl'e passport'un
-    # tavanından FAZLASI HİÇ sızamaz - bu yüzden security_intl yapısal
-    # olarak ASLA MEDIUM/CRITICAL'e ulaşamaz, HER ZAMAN LOW kalır (bkz.
-    # tests/test_operational_4_graph_e2e.py
-    # test_d_international_security_surge_t0_t1_t2, AYNI bulgu).
-    assert intl[0].expected_passengers <= 320.0
+    assert intl_08.flight_count == 8
+    # ADIM (Passport->Security zaman-kuplajı): international_security'nin
+    # talebi HİÇBİR saatte passport'un o saat GERÇEKTEN serbest
+    # bırakabildiği tavanı (320 pax/saat) AŞMAZ - 8 uçuşluk sürgü (1440
+    # pax ham talep) passport'u fena tıkar (bu KENDİ grafiğinde görünür)
+    # ama security_intl'e passport'un tavanından FAZLASI HİÇ sızamaz -
+    # bu yüzden security_intl yapısal olarak ASLA MEDIUM/CRITICAL'e
+    # ulaşamaz, HER ZAMAN LOW kalır.
+    assert all(r.expected_passengers <= 320.0 for r in intl)
+    assert all(r.risk == RISK_LOW for r in intl)
     # Passport'un tavanına ÇARPTIĞINI (surge'ün gerçekten var olduğunu,
     # sadece security'de görünmediğini) kanıtla: 8 uçuşun ham talebi
     # (çarpılmamış) kapasiteyi kat kat aşıyor.
     raw_intl_demand = sum(_demand().passenger_demand(f) for f in intl_surge)
     assert raw_intl_demand > 320.0
-    assert intl[0].risk == RISK_LOW
-    assert dom[0].flight_count == 1
-    assert dom[0].risk != RISK_CRITICAL
+    assert dom_08.flight_count == 1
+    assert dom_08.risk != RISK_CRITICAL
 
 
 # ========================================================================
@@ -258,13 +272,11 @@ def test_both_split_processes_use_real_hourly_window():
     predictions = predict_airport("AAA", flights, default_config("AAA"), _demand())
     dom = _by_process(predictions, PROCESS_SECURITY_DOMESTIC)
     intl = _by_process(predictions, PROCESS_SECURITY_INTL)
-    assert len(dom) == 1
-    # Tek uluslararası uçuşun talebi (A320=180) passport'un saatlik
-    # kapasitesini (160) aştığı için 2 saate yayılır (bkz. yukarıdaki
-    # ADIM notları) - ama HER İKİSİ de hâlâ gerçek 60dk pencere.
+    # Show-up profili nedeniyle ikisi de BİRDEN FAZLA saate yayılabilir
+    # (DEĞİŞTİ) - ama HER İKİSİ de hâlâ gerçek 60dk pencere (DEĞİŞMEDİ).
+    assert len(dom) >= 1
     assert len(intl) >= 1
-    assert dom[0].window_end - dom[0].window_start == timedelta(minutes=60)
-    for row in intl:
+    for row in dom + intl:
         assert row.window_end - row.window_start == timedelta(minutes=60)
 
 
@@ -284,18 +296,29 @@ def test_split_processes_produce_identical_result_to_direct_scoring_call():
         "AAA", flights, default_config("AAA"), demand,
         baseline_fn=lambda process, start: 2.0,
     )
-    dom = _by_process(predictions, PROCESS_SECURITY_DOMESTIC)[0]
+    # ADIM (Departure Show-Up Profile): `predict_airport()` artık HER
+    # saat için `security_queue_model()`'i `demand_override=` (o saate
+    # show-up ile düşen GERÇEK pay) ile çağırıyor - `window_flights`'ın
+    # KENDİ ham talep toplamı (1080, TÜMÜ) İLE AYNI DEĞİL (bkz. dosya
+    # docstring'i). Bu test "predict_airport() AYNI, DEĞİŞMEMİŞ
+    # security_queue_model() formülünü kullanıyor, yeni bir formül İCAT
+    # ETMEDİ" iddiasını doğruluyor - bu yüzden doğrudan çağrıya da AYNI
+    # `demand_override`'ı vermek gerekir (production'ın KENDİ çağrı
+    # şekli - `engine.py`'nin `demand_override=coupled_demand.get(...)`
+    # satırıyla BİREBİR AYNI desen).
+    dom_07 = next(r for r in _by_process(predictions, PROCESS_SECURITY_DOMESTIC) if r.window_start.hour == 7)
 
     from app.queue.core.scoring import security_queue_model
     subset = security_domestic_flights(flights)
     direct = security_queue_model(
         subset, default_config("AAA"), demand.passenger_demand,
+        demand_override=dom_07.expected_passengers,
     )
     density = security_density_score(subset, 2.0, demand.passenger_demand)
-    assert dom.flight_count == direct["flight_count"]
-    assert dom.expected_passengers == direct["expected_passengers"]
-    assert dom.risk == direct["risk"]
-    assert dom.baseline_ratio == density["baseline_ratio"]
+    assert dom_07.flight_count == direct["flight_count"]
+    assert dom_07.expected_passengers == direct["expected_passengers"]
+    assert dom_07.risk == direct["risk"]
+    assert dom_07.baseline_ratio == density["baseline_ratio"]
 
 
 # ========================================================================
@@ -308,9 +331,13 @@ def test_passport_result_unaffected_by_security_split():
     ]
     predictions = predict_airport("AAA", flights, default_config("AAA"), _demand())
     passport = _by_process(predictions, PROCESS_PASSPORT)
-    assert len(passport) == 1
-    # passport hâlâ tek satır, security split'ten habersiz.
-    assert passport[0].process == PROCESS_PASSPORT
+    # Show-up profili nedeniyle passport BİRDEN FAZLA saate yayılabilir
+    # (DEĞİŞTİ) - ama security split'ten TAMAMEN habersiz olmaya devam
+    # eder (DEĞİŞMEDİ): conservation tam, HİÇBİR satır security
+    # alanlarından etkilenmez.
+    assert len(passport) >= 1
+    assert all(r.process == PROCESS_PASSPORT for r in passport)
+    assert sum(r.expected_passengers for r in passport) == 180
 
 
 # ========================================================================
@@ -327,11 +354,12 @@ def test_combined_security_still_produced_and_unchanged():
         baseline_fn=lambda process, start: 2.0,
     )
     combined = _by_process(predictions, PROCESS_SECURITY)
-    # Uluslararası uçuşun (A320=180) passport tavanını (160) aşması
-    # yüzünden birleşik security de 2 saate yayılıyor (bkz. yukarıdaki
-    # ADIM notları) - ama İLK pencere hâlâ HER İKİ kalkışı da içeriyor.
+    # Show-up profili nedeniyle birleşik security de BİRDEN FAZLA saate
+    # yayılıyor - ama flight_count HÂLÂ tek effective_time() noktasında
+    # (07:00) toplanıyor (DEĞİŞMEDİ) ve HER İKİ kalkışı da içeriyor.
     assert len(combined) >= 1
-    assert combined[0].flight_count == 2   # TÜM kalkışlar - domestic split'ten ETKİLENMEDİ
+    combined_07 = next(r for r in combined if r.window_start.hour == 7)
+    assert combined_07.flight_count == 2   # TÜM kalkışlar - domestic split'ten ETKİLENMEDİ
 
 
 # ========================================================================
@@ -384,8 +412,8 @@ def test_airports_do_not_mix_across_split_processes():
         "BBB", flights_b, default_config("BBB"), _demand(),
         baseline_fn=lambda process, start: 1.0,
     )
-    dom_a = _by_process(preds_a, PROCESS_SECURITY_DOMESTIC)[0]
-    dom_b = _by_process(preds_b, PROCESS_SECURITY_DOMESTIC)[0]
+    dom_a = next(r for r in _by_process(preds_a, PROCESS_SECURITY_DOMESTIC) if r.window_start.hour == 7)
+    dom_b = next(r for r in _by_process(preds_b, PROCESS_SECURITY_DOMESTIC) if r.window_start.hour == 7)
 
     assert dom_a.airport_iata == "AAA" and dom_a.flight_count == 1
     assert dom_b.airport_iata == "BBB" and dom_b.flight_count == 6

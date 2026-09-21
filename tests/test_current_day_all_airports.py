@@ -106,12 +106,30 @@ def _audit_one_airport(session, code, now):
         node = getter(api)
         windows = node["windows"]
         local_dates = sorted({w["window_start_local"][:10] for w in windows if w.get("window_start_local")})
-        # (date, hour) cifti ile sayilir - AYNI gundeki bir saatin
+        # (date, saat:dakika) cifti ile sayilir - AYNI gundeki bir saatin
         # TEKRARI (gercek DST anomalisi) ile FARKLI gunlerin (mesru,
         # backlog-driven forward spillover) AYNI saat ETIKETINI
         # tasimasi birbirine KARISTIRILMAZ (ikincisi bug DEGIL).
+        #
+        # ADIM (Realistic 9-Airport Dataset) - Bolum 44 dogrulamasi
+        # sirasinda bulundu: SADECE saat (HH) ile anahtarlamak, YARIM-
+        # SAAT UTC offsetli havalimanlarinda (ör. Australia/Darwin
+        # +9:30 - ASP) YANLIS pozitif uretiyordu. Gercek event-turevli
+        # pencereler UTC saat sinirinda (`floor_to_window`, :00 UTC)
+        # olusuyor - +9:30 offset'te bu HER ZAMAN yerel :30 dakikaya
+        # denk geliyor; 24-saat padding ("_pad_series_to_24_hours")
+        # ise yerel GUN baslangicindan itibaren tam saatlik adimlarla
+        # ilerliyor - +9:30 offset'te bu HER ZAMAN yerel :00 dakikaya
+        # denk geliyor. Yani "04:00 (padded)" ve "04:30 (gercek)" ayni
+        # HH ("04") altinda ama FARKLI, GERCEKTEN AYRI zaman anlari -
+        # eskiden [11:13] (SADECE HH) bunlari YANLISLIKLA AYNI saydigi
+        # icin sahte "repeated hour" alarmi veriyordu. [11:16] (HH:MM)
+        # bu iki GERCEKTEN farkli anı ayirt eder; GERCEK bir duplikasyon
+        # (ayni HH:MM ayni günde iki kez) hala tam olarak yakalanir -
+        # DST tespiti (asagida, gün-seviyesinde offset karsilastirmasi)
+        # bundan ETKILENMEZ.
         local_hours = [
-            (w["window_start_local"][:10], w["window_start_local"][11:13])
+            (w["window_start_local"][:10], w["window_start_local"][11:16])
             for w in windows if w.get("window_start_local")
         ]
         hour_counts: dict[tuple[str, str], int] = {}

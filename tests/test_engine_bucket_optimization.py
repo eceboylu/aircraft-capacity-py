@@ -240,6 +240,31 @@ def _as_comparable(predictions):
     ]
 
 
+def _as_comparable_bucket_identity(predictions):
+    """
+    ADIM (Departure Show-Up Profile): departure yolcularının talebi
+    artık `effective_time()`'ın TEK noktası yerine `departure_show_up_
+    events()`'ın 3 saate yaydığı batch'lerden geliyor - `_old_path_
+    predictions()` (bu dosyanın bağımsız "eski yol"u, `predict_window()`
+    üzerinden, show-up'tan TAMAMEN HABERSİZ) bu yüzden ARTIK hiçbir
+    departure-dokunan süreç için `expected_passengers`/`utilization`/
+    `risk` bakımından `predict_airport()` (yeni yol) ile AYNI DEĞİL -
+    bu BEKLENEN, doğru bir ayrışma (show-up modelinin doğruluğu bu
+    dosyanın konusu DEĞİL - bkz. `tests/test_passport_security_
+    coupling.py`, `tests/test_event_driven_wait_reporting.py`).
+
+    Bu fonksiyon SADECE bu dosyanın GERÇEK konusunu - `_bucket_flights_
+    by_window()`'un ürettiği pencere KÜMESİ/flight_count'un, eski O(N×W)
+    `flights_in_window()` taramasıyla BİREBİR AYNI olduğunu -
+    karşılaştırır (demand-türevli alanlar HARİÇ).
+    """
+    ordered = sorted(predictions, key=lambda p: (p.process, p.window_start))
+    return [
+        (p.airport_iata, p.process, p.window_start, p.window_end, p.flight_count)
+        for p in ordered
+    ]
+
+
 # ========================================================================
 # 1) GOLDEN/REFERENCE KARŞILAŞTIRMA - eski yol vs yeni yol, BİREBİR aynı
 # ========================================================================
@@ -282,12 +307,25 @@ def test_bucket_based_predict_airport_matches_old_window_scan_algorithm():
     # SECURITY_DOMESTIC) doğrulanıyor; PROCESS_SECURITY/SECURITY_INTL'in
     # KENDİ doğruluğu `tests/test_production_shape_hourly_replay.py` ve
     # `tests/test_passport_security_coupling.py`'de AYRICA kanıtlanıyor.
+    #
+    # ADIM (Departure Show-Up Profile): PASSPORT/SECURITY_DOMESTIC artık
+    # `expected_passengers`/`risk`/`utilization` bakımından da "eski yol"
+    # (show-up'tan habersiz) ile AYNI DEĞİL (bkz. `_as_comparable_bucket_
+    # identity()` docstring'i) - bu yüzden SADECE bucket/flight_count
+    # kimliği (bu dosyanın GERÇEK konusu) karşılaştırılıyor, VE SADECE
+    # eski yolun da ÜRETTİĞİ pencerelerde (show-up'ın YENİ eklediği,
+    # eski yolda hiç var olmayan saatler hariç - bkz. `predict_airport()`
+    # `starts = set(buckets) | set(coupled_demand)` birleşimi).
     unaffected = {PROCESS_PASSPORT, PROCESS_SECURITY_DOMESTIC}
     old_unaffected = [p for p in old_results if p.process in unaffected]
-    new_unaffected = [p for p in new_results if p.process in unaffected]
+    old_keys = {(p.process, p.window_start) for p in old_unaffected}
+    new_unaffected = [
+        p for p in new_results
+        if p.process in unaffected and (p.process, p.window_start) in old_keys
+    ]
     assert len(old_unaffected) > 0
     assert len(old_unaffected) == len(new_unaffected)
-    assert _as_comparable(old_unaffected) == _as_comparable(new_unaffected)
+    assert _as_comparable_bucket_identity(old_unaffected) == _as_comparable_bucket_identity(new_unaffected)
 
 
 def test_bucket_based_matches_old_algorithm_with_no_baseline_at_all():
@@ -323,12 +361,19 @@ def test_bucket_based_matches_old_algorithm_with_no_baseline_at_all():
         baseline_fn=None, passenger_baseline_fn=None,
     )
 
+    # ADIM (Departure Show-Up Profile): bkz. yukarıdaki testin AYNI notu -
+    # SADECE bucket/flight_count kimliği, SADECE eski yolun da ürettiği
+    # pencerelerde karşılaştırılıyor.
     unaffected = {PROCESS_PASSPORT, PROCESS_SECURITY_DOMESTIC}
     old_unaffected = [p for p in old_results if p.process in unaffected]
-    new_unaffected = [p for p in new_results if p.process in unaffected]
+    old_keys = {(p.process, p.window_start) for p in old_unaffected}
+    new_unaffected = [
+        p for p in new_results
+        if p.process in unaffected and (p.process, p.window_start) in old_keys
+    ]
     assert len(old_unaffected) > 0
     assert len(old_unaffected) == len(new_unaffected)
-    assert _as_comparable(old_unaffected) == _as_comparable(new_unaffected)
+    assert _as_comparable_bucket_identity(old_unaffected) == _as_comparable_bucket_identity(new_unaffected)
 
 
 # ========================================================================
@@ -394,16 +439,15 @@ def test_effective_time_called_bounded_times_per_flight(monkeypatch):
     # effective_time() çağırır, sadece None-moment'ları eler).
     main_loop_calls = n_security + n_security_dom + n_security_intl + n_passport
 
-    # EVENT-DRIVEN SİMÜLASYON - `_event_driven_queue_demand()`'ın KENDİ
-    # `_arrivals()` taraması: passport'a giren uçuşlar (departure/arrival
-    # predikatları BİRBİRİNİ DIŞLAR - her flight SADECE BİRİNE uyar, bu
-    # yüzden ikisi TOPLAMDA passport_flights'ı bir kez tarar, iki kez
-    # DEĞİL) + domestic kalkışlar - HER İKİSİ DE sadece talebe giren
-    # (iptal/diverted HARİÇ) uçuşlar için effective_time() çağırır.
-    event_driven_calls = (
-        included(passport_flights(flights))
-        + included(security_domestic_flights(flights))
-    )
+    # EVENT-DRIVEN SİMÜLASYON - ADIM (Departure Show-Up Profile +
+    # Arrival Release Profile) ile DEĞİŞTİ: `_departure_show_up_
+    # arrivals()` (departure_arrivals VE domestic_arrivals için) VE
+    # `_arrival_release_arrivals()` (arrival_arrivals için) ARTIK
+    # `effective_time()` HİÇ ÇAĞIRMAZ - ikisi de flight'ın KENDİ HAM
+    # dep_*/arr_* alanlarını DOĞRUDAN okur (bkz. `_departure_show_up_
+    # base()`/`_arrival_release_base()`). Event-driven simülasyonun
+    # `effective_time()` çağrı payı bu yüzden SIFIR.
+    event_driven_calls = 0
 
     # ADIM (4-Graph API Contract) - `_passport_cohort_breakdown()` KENDİ
     # İKİ AYRI `_bucket_flights_by_window()` geçişi yapıyor (departure-
@@ -564,6 +608,11 @@ def test_end_to_end_active_cancelled_diverted_same_window_matches_old_algorithm(
     Aynı pencerede active + cancelled + diverted karışık - flight_count/
     expected_passengers SADECE active'i saymalı, reasons hem cancellation
     hem diversion notunu içermeli - eski algoritma ile BİREBİR aynı.
+
+    ADIM (Departure Show-Up Profile): active flight'ın talebi artık
+    show-up ile 3 saate yayılıyor (bkz. dosya başındaki `_as_comparable_
+    bucket_identity()` notu) - bu yüzden karşılaştırma SADECE bucket/
+    flight_count kimliğine (eski yolun ürettiği pencerelerde) bakıyor.
     """
     active = _flight(DIRECTION_DEPARTURE, 9, 0, key="MIX_ACT", status="active", location=LOCATION_DOMESTIC, number="1")
     cancelled = _flight(DIRECTION_DEPARTURE, 9, 2, key="MIX_CXL", status=STATUS_CANCELLED, location=LOCATION_DOMESTIC, number="2")
@@ -580,9 +629,12 @@ def test_end_to_end_active_cancelled_diverted_same_window_matches_old_algorithm(
         baseline_fn=lambda p, s: 1.0, passenger_baseline_fn=lambda p, s: 50.0,
     )
 
-    assert _as_comparable(old_results) == _as_comparable(new_results)
+    old_keys = {(p.process, p.window_start) for p in old_results}
+    new_matching = [p for p in new_results if (p.process, p.window_start) in old_keys]
+    assert _as_comparable_bucket_identity(old_results) == _as_comparable_bucket_identity(new_matching)
 
-    security_pred = next(p for p in new_results if p.process == PROCESS_SECURITY)
+    # flight_count HÂLÂ tek effective_time() noktasında (07:00) toplanıyor (DEĞİŞMEDİ).
+    security_pred = next(p for p in new_results if p.process == PROCESS_SECURITY and p.window_start.hour == 7)
     assert security_pred.flight_count == 1   # sadece active
     codes = {r.code for r in security_pred.reasons}
     assert "cancellation" in codes

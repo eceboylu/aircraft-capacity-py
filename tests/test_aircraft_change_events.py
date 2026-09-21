@@ -497,7 +497,12 @@ def test_e2e_full_pipeline_multiple_aircraft_changes(session):
         aircraft_changes=aircraft_changes_for_airport(session, "AAA"),
     )
 
-    passport = next(p for p in predictions if p.process == PROCESS_PASSPORT)
+    # ADIM (Departure Show-Up Profile): PROCESS_PASSPORT artık show-up
+    # ile BİRDEN FAZLA saatlik satır üretebiliyor - `aircraft_change`
+    # nedeni flight_count/reasons bucket'lamasının (effective_time()
+    # tek noktası, DEĞİŞMEDİ) kullandığı 08:00 satırında kalıyor (dep
+    # 10:00 - 120dk).
+    passport = next(p for p in predictions if p.process == PROCESS_PASSPORT and p.window_start.hour == 8)
     change_reasons = [r for r in passport.reasons if r.code == "aircraft_change"]
 
     assert len(change_reasons) == 2
@@ -508,7 +513,9 @@ def test_e2e_full_pipeline_multiple_aircraft_changes(session):
     # Demand Kalibrasyonu, load factor YOK) - 3 değişiklik nedeniyle ne
     # tripled ne toplanmış.
     assert passport.flight_count == 1
-    assert passport.expected_passengers == 277
+    # ADIM (Departure Show-Up Profile): 08:00 zirve payı 277*0.6=166.2 ->
+    # kümülatif yuvarlama ile 167 (bkz. departure_show_up_events()).
+    assert passport.expected_passengers == 167
     assert passport.risk == "LOW"   # değişiklik risk'i doğrudan artırmadı
 
 

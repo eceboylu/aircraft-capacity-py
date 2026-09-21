@@ -31,6 +31,7 @@ from ...queue.constants import (
     LOCATION_DOMESTIC,
     LOCATION_INTERNATIONAL,
 )
+from ...queue.domain.retention_time import canonical_operational_time
 
 _NON_ALNUM = re.compile(r"[^A-Z0-9]")
 
@@ -292,6 +293,7 @@ def parse_source_a_record(
     direction: str,
     country_by_iata: dict[str, str],
     aircraft_index: dict[str, str] | None = None,
+    min_operational_time: datetime | None = None,
 ) -> dict | None:
     """
     Kaynak A kaydını Flight alanlarına eşler ve Kaynak B ile
@@ -304,6 +306,19 @@ def parse_source_a_record(
       1) Kaynak A'nın kendi alanı (doluysa)
       2) Kaynak B eşleşmesi
       3) None - uydurma değer ÜRETİLMEZ
+
+    min_operational_time : ADIM (Re-Ingest Loop Prevention) - Bölüm 15.
+        Verilirse, kaydın canonical operasyonel zamanı (`domain/
+        retention_time.py:canonical_operational_time()` - flight_key ile
+        AYNI departure/arrival seçimi) bu değerden KESİN OLARAK küçükse
+        (`<`, sınır dahil DEĞİL - Bölüm 7'deki `timestamp == cutoff ->
+        retained` kuralıyla TUTARLI) kayıt HİÇ üretilmez (None döner) -
+        retention tarafından silinmiş eski bir flight'ın upstream hâlâ
+        döndürdüğü için sonsuza kadar yeniden INSERT edilmesi
+        (re-ingest loop) böylece önlenir. Canonical zaman bilinmiyorsa
+        (None) kayıt YİNE DE üretilir - bilinmeyen bir zaman "eski"
+        sayılıp SESSİZCE atılmaz. Verilmezse (None, varsayılan) HİÇ
+        filtre uygulanmaz - eski davranış birebir korunur.
     """
     dep_iata = (field(record, "dep_iata", "depIata") or "").upper() or None
     arr_iata = (field(record, "arr_iata", "arrIata") or "").upper() or None
@@ -323,9 +338,16 @@ def parse_source_a_record(
     # dep_scheduled_utc, arrival için arr_scheduled_utc. Arrival
     # kaydında dep_scheduled boş olsa bile (arr_scheduled doluysa)
     # key artık UNKDATE'e düşmez.
-    operational_scheduled = (
-        dep_scheduled if direction == DIRECTION_DEPARTURE else arr_scheduled
+    operational_scheduled = canonical_operational_time(
+        direction, dep_scheduled, arr_scheduled
     )
+
+    if (
+        min_operational_time is not None
+        and operational_scheduled is not None
+        and operational_scheduled < min_operational_time
+    ):
+        return None
     airline_iata = (
         field(record, "airline_iata", "airlineIata", "airline") or ""
     ).upper() or None
@@ -399,12 +421,14 @@ def parse_source_a(
     direction: str,
     country_by_iata: dict[str, str],
     aircraft_index: dict[str, str] | None = None,
+    min_operational_time: datetime | None = None,
 ) -> list[dict]:
-    """Kaynak A kayıt listesini Flight sözlüklerine çevirir."""
+    """Kaynak A kayıt listesini Flight sözlüklerine çevirir. `min_operational_time`: bkz. `parse_source_a_record()`."""
     parsed = []
     for record in records:
         row = parse_source_a_record(
-            record, direction, country_by_iata, aircraft_index
+            record, direction, country_by_iata, aircraft_index,
+            min_operational_time=min_operational_time,
         )
         if row is not None:
             parsed.append(row)

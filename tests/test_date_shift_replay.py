@@ -339,11 +339,31 @@ def test_domestic_security_graph_shift_cbr(cbr_original, cbr_shifted):
     o, s = orig_real[0], shifted_real[0]
     assert datetime.fromisoformat(s["window_start"]) - datetime.fromisoformat(o["window_start"]) == SHIFT
     assert o["flight_count"] == s["flight_count"] == 5
-    assert o["expected_passengers"] == s["expected_passengers"] == 900
+    # ADIM (Departure Show-Up Profile): bu saatin ham talebi (900, 5
+    # flight'ın TOPLAMI) artık TEK bu saatte DEĞİL - her flight'ın show-up
+    # profili (bkz. domain/demand.py) talebini KENDİ departure saatinden
+    # önceki 3 saate yayıyor; bu saat SADECE kendi payını (475, komşu
+    # saatlere yayılanın GERİ KALANI) taşıyor - flight_count (bucket
+    # kimliği, DEĞİŞMEDİ) hâlâ 5. Asıl iddia (4 günlük kayma sonrası
+    # AYNI değer) korunuyor - SADECE mutlak sayı değişti.
+    assert o["expected_passengers"] == s["expected_passengers"] == 475
     assert o["risk"] == s["risk"]
     assert o["estimated_wait_minutes"] == s["estimated_wait_minutes"]
-    # Diğer 23 saat GERÇEKTEN sıfır-talep - uydurma bir değer YOK.
-    assert all(w["estimated_wait_minutes"] == 0.0 for w in orig if w["flight_count"] == 0)
+    # ADIM (Departure Show-Up Profile): komşu saatler (flight_count=0)
+    # ARTIK gerçekten sıfır-talep DEĞİL - show-up'ın bu saate düşen
+    # payını taşıyorlar (uydurma bir değer DEĞİL, GERÇEK dağılım). Asıl
+    # invariant DEĞİŞMEDİ: (a) 24 saatin TOPLAMI (900, hiçbir yolcu
+    # kaybolmadı/çoğalmadı) VE (b) TÜM serinin (sadece tek "gerçek" saat
+    # değil) +4 gün kaydırıldığında BİREBİR AYNI kalması.
+    assert sum(w["expected_passengers"] for w in orig) == 900
+    assert sum(w["expected_passengers"] for w in shifted) == 900
+    orig_by_offset = {datetime.fromisoformat(w["window_start"]): w for w in orig}
+    shifted_by_offset = {datetime.fromisoformat(w["window_start"]) - SHIFT: w for w in shifted}
+    assert set(orig_by_offset) == set(shifted_by_offset)
+    for start, w in orig_by_offset.items():
+        match = shifted_by_offset[start]
+        assert w["expected_passengers"] == match["expected_passengers"]
+        assert w["flight_count"] == match["flight_count"]
 
 
 # ========================================================================

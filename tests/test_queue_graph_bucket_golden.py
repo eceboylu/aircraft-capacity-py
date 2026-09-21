@@ -184,7 +184,8 @@ def test_domestic_security_shows_only_domestic_departure_demand_not_internationa
     }
     window_08 = dom_windows[DAY.replace(hour=8).isoformat()]
     assert window_08["flight_count"] == 1  # sadece DOM1
-    assert window_08["expected_passengers"] == 150  # A320
+    # ADIM (Departure Show-Up Profile): 08:00 zirve payı 150*0.6=90 (TAMAMI DEĞİL, DEĞİŞTİ).
+    assert window_08["expected_passengers"] == 90  # A320
 
 
 def test_backend_estimated_wait_minutes_field_is_numeric_or_null_never_a_formatted_string(api_result):

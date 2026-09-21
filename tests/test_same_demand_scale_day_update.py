@@ -240,11 +240,12 @@ def test_11_resource_resolver_produces_scale_appropriate_counts(ingested_db):
     configs = get_configs(s, AIRPORTS)
     s.close()
 
-    assert configs["IST"].passport_departure_server_count == 20
-    assert configs["IST"].international_security_lane_count == 22
-    assert configs["CBR"].passport_departure_server_count == 6
-    assert configs["CBR"].international_security_lane_count == 7
-    assert configs["MFG"].passport_departure_server_count == 4
+    # ADIM (Generic Scale Resource Update) - değerler güncellendi (bkz. rapor).
+    assert configs["IST"].passport_departure_server_count == 30
+    assert configs["IST"].international_security_lane_count == 18
+    assert configs["CBR"].passport_departure_server_count == 10
+    assert configs["CBR"].international_security_lane_count == 6
+    assert configs["MFG"].passport_departure_server_count == 3
     assert configs["MFG"].international_security_lane_count == 2
 
     # Buyukten kucuge kaynak azaliyor olmali (production resolver tutarliligi)

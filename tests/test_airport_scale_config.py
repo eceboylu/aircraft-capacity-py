@@ -30,13 +30,14 @@ def session():
 # ========================================================================
 
 def test_large_scale_no_row_config(session):
+    """ADIM (Generic Scale Resource Update) - değerler güncellendi (bkz. rapor)."""
     session.add(Airport(iata_code="IST", scale="large"))
     session.commit()
     c = get_config(session, "IST")
-    assert c.passport_departure_server_count == 20
-    assert c.passport_arrival_server_count == 30
-    assert c.domestic_security_lane_count == 22
-    assert c.international_security_lane_count == 22
+    assert c.passport_departure_server_count == 30
+    assert c.passport_arrival_server_count == 45
+    assert c.domestic_security_lane_count == 28
+    assert c.international_security_lane_count == 18
     assert c.is_default is True
 
 
@@ -44,19 +45,19 @@ def test_medium_scale_no_row_config(session):
     session.add(Airport(iata_code="CBR", scale="medium"))
     session.commit()
     c = get_config(session, "CBR")
-    assert c.passport_departure_server_count == 6
-    assert c.passport_arrival_server_count == 8
-    assert c.domestic_security_lane_count == 7
-    assert c.international_security_lane_count == 7
+    assert c.passport_departure_server_count == 10
+    assert c.passport_arrival_server_count == 15
+    assert c.domestic_security_lane_count == 12
+    assert c.international_security_lane_count == 6
 
 
 def test_small_scale_no_row_config(session):
     session.add(Airport(iata_code="AGJ", scale="small"))
     session.commit()
     c = get_config(session, "AGJ")
-    assert c.passport_departure_server_count == 4
+    assert c.passport_departure_server_count == 3
     assert c.passport_arrival_server_count == 4
-    assert c.domestic_security_lane_count == 2
+    assert c.domestic_security_lane_count == 4
     assert c.international_security_lane_count == 2
 
 
@@ -98,12 +99,12 @@ def test_explicit_departure_override_does_not_lose_scale_derived_arrival(session
     session.add(Airport(iata_code="IST", scale="large"))
     session.add(AirportOperationalConfig(
         airport_iata="IST", passport_departure_server_count=16,
-        # arrival KASITLI olarak verilmedi -> NULL -> scale-derived (30) KALIR.
+        # arrival KASITLI olarak verilmedi -> NULL -> scale-derived (45) KALIR.
     ))
     session.commit()
     c = get_config(session, "IST")
     assert c.passport_departure_server_count == 16  # override
-    assert c.passport_arrival_server_count == 30    # scale-derived, KAYBOLMADI
+    assert c.passport_arrival_server_count == 45    # scale-derived, KAYBOLMADI
     assert c.is_default is False
 
 
@@ -114,7 +115,7 @@ def test_explicit_arrival_override_does_not_lose_scale_derived_departure(session
     ))
     session.commit()
     c = get_config(session, "CBR")
-    assert c.passport_departure_server_count == 6   # scale-derived, KAYBOLMADI
+    assert c.passport_departure_server_count == 10  # scale-derived, KAYBOLMADI
     assert c.passport_arrival_server_count == 99     # override
 
 
@@ -152,13 +153,13 @@ def test_get_configs_resolves_each_airport_independently(session):
     session.commit()
 
     configs = get_configs(session, ["IST", "CBR", "AGJ", "NOTEXIST"])
-    assert configs["IST"].passport_departure_server_count == 20
-    assert configs["IST"].passport_arrival_server_count == 30
-    assert configs["CBR"].passport_departure_server_count == 6
-    assert configs["CBR"].passport_arrival_server_count == 8
-    assert configs["AGJ"].passport_departure_server_count == 4
+    assert configs["IST"].passport_departure_server_count == 30
+    assert configs["IST"].passport_arrival_server_count == 45
+    assert configs["CBR"].passport_departure_server_count == 10
+    assert configs["CBR"].passport_arrival_server_count == 15
+    assert configs["AGJ"].passport_departure_server_count == 3
     assert configs["AGJ"].passport_arrival_server_count == 4
     assert configs["NOTEXIST"].passport_departure_server_count == 8
     # bir havalimanının değeri diğerini ETKİLEMEDİ.
-    assert configs["IST"].domestic_security_lane_count == 22
-    assert configs["CBR"].domestic_security_lane_count == 7
+    assert configs["IST"].domestic_security_lane_count == 28
+    assert configs["CBR"].domestic_security_lane_count == 12

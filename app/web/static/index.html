@@ -441,6 +441,22 @@
     });
   }
 
+  // ADIM (Local Test-DB Viewing) - sayfa kendisi `?now=...` ile açıldıysa
+  // (ör. eski tarihli bir test DB'sini görüntülemek için), bu SADECE
+  // prediction endpoint'lerine iletilir - production varsayılan davranışı
+  // (parametre yoksa gerçek duvar saati) DEĞİŞMEDİ. `window.location`
+  // olmayan ortamlarda (ör. Node tabanlı frontend test harness'leri,
+  // `tests/frontend_harness/*.js` - sadece `window`/`document` stub'lar,
+  // `location` stub'lamaz) sessizce None'a düşer, hiçbir exception atmaz.
+  var TEST_NOW = (typeof window !== "undefined" && window.location && window.location.search)
+    ? new URLSearchParams(window.location.search).get("now")
+    : null;
+
+  function predictionsUrl(iata) {
+    var url = "/api/airports/" + iata + "/predictions";
+    return TEST_NOW ? url + "?now=" + encodeURIComponent(TEST_NOW) : url;
+  }
+
   function loadAll() {
     return fetchJSON("/api/airports/directory").then(function (directory) {
       state.directory = directory;
@@ -452,7 +468,7 @@
         setError(false);
         return null;
       }
-      return fetchJSON("/api/airports/" + state.selected + "/predictions").then(function (data) {
+      return fetchJSON(predictionsUrl(state.selected)).then(function (data) {
         state.predictionsByIata[state.selected] = data;
         renderContent();
         setError(false);
@@ -502,7 +518,7 @@
     if (!state.predictionsByIata[iata]) {
       renderContent(); // yükleniyor durumu göster
     }
-    fetchJSON("/api/airports/" + iata + "/predictions").then(function (data) {
+    fetchJSON(predictionsUrl(iata)).then(function (data) {
       state.predictionsByIata[iata] = data;
       if (state.selected === iata) renderContent();
     }).catch(function () {

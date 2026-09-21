@@ -1,0 +1,229 @@
+{
+  "IST": {
+    "airport": "IST",
+    "source_file": "ıst.txt",
+    "source_rows": 631,
+    "converted_rows": 631,
+    "parse_failures": 0,
+    "status_counts": {
+      "landed": 12,
+      "active": 81,
+      "canceled": 6,
+      "scheduled": 532
+    },
+    "excluded_cancelled": 6,
+    "hour_table": {
+      "10": {
+        "total": 3,
+        "international": 3
+      },
+      "11": {
+        "total": 39,
+        "domestic": 11,
+        "international": 28,
+        "cancelled": 1
+      },
+      "12": {
+        "total": 62,
+        "international": 49,
+        "domestic": 13,
+        "cancelled": 2
+      },
+      "13": {
+        "total": 57,
+        "domestic": 14,
+        "international": 43,
+        "cancelled": 1
+      },
+      "14": {
+        "total": 60,
+        "domestic": 12,
+        "international": 48,
+        "cancelled": 1
+      },
+      "15": {
+        "total": 68,
+        "international": 59,
+        "domestic": 9
+      },
+      "16": {
+        "total": 57,
+        "international": 39,
+        "domestic": 18
+      },
+      "17": {
+        "total": 48,
+        "international": 28,
+        "domestic": 20
+      },
+      "18": {
+        "total": 75,
+        "domestic": 29,
+        "international": 46
+      },
+      "19": {
+        "total": 49,
+        "domestic": 23,
+        "international": 26
+      },
+      "20": {
+        "total": 64,
+        "domestic": 22,
+        "international": 42,
+        "cancelled": 1
+      },
+      "21": {
+        "total": 28,
+        "international": 15,
+        "domestic": 13
+      },
+      "22": {
+        "total": 21,
+        "international": 17,
+        "domestic": 4
+      }
+    },
+    "domestic_count": 188,
+    "international_count": 443,
+    "first_scheduled_local": "10:15",
+    "last_scheduled_local": "22:55"
+  },
+  "SIN": {
+    "airport": "SIN",
+    "source_file": "sın.txt",
+    "source_rows": 177,
+    "converted_rows": 177,
+    "parse_failures": 0,
+    "status_counts": {
+      "landed": 4,
+      "active": 35,
+      "scheduled": 137,
+      "canceled": 1
+    },
+    "excluded_cancelled": 1,
+    "hour_table": {
+      "8": {
+        "total": 1,
+        "international": 1
+      },
+      "13": {
+        "total": 1,
+        "international": 1
+      },
+      "16": {
+        "total": 24,
+        "international": 24
+      },
+      "17": {
+        "total": 21,
+        "international": 21
+      },
+      "18": {
+        "total": 21,
+        "international": 21
+      },
+      "19": {
+        "total": 20,
+        "international": 20
+      },
+      "20": {
+        "total": 28,
+        "international": 28
+      },
+      "21": {
+        "total": 24,
+        "international": 24
+      },
+      "22": {
+        "total": 14,
+        "international": 14,
+        "cancelled": 1
+      },
+      "23": {
+        "total": 23,
+        "international": 23
+      }
+    },
+    "domestic_count": 0,
+    "international_count": 177,
+    "first_scheduled_local": "08:05",
+    "last_scheduled_local": "23:55"
+  },
+  "JFK": {
+    "airport": "JFK",
+    "source_file": "jfk.txt",
+    "source_rows": 279,
+    "converted_rows": 279,
+    "parse_failures": 0,
+    "status_counts": {
+      "active": 11,
+      "scheduled": 268
+    },
+    "excluded_cancelled": 0,
+    "hour_table": {
+      "4": {
+        "total": 1,
+        "international": 1
+      },
+      "5": {
+        "total": 5,
+        "international": 3,
+        "domestic": 2
+      },
+      "6": {
+        "total": 24,
+        "domestic": 16,
+        "international": 8
+      },
+      "7": {
+        "total": 37,
+        "international": 9,
+        "domestic": 28
+      },
+      "8": {
+        "total": 41,
+        "domestic": 29,
+        "international": 12
+      },
+      "9": {
+        "total": 41,
+        "domestic": 26,
+        "international": 15
+      },
+      "10": {
+        "total": 23,
+        "international": 9,
+        "domestic": 14
+      },
+      "11": {
+        "total": 28,
+        "domestic": 20,
+        "international": 8
+      },
+      "12": {
+        "total": 18,
+        "domestic": 14,
+        "international": 4
+      },
+      "13": {
+        "total": 26,
+        "domestic": 18,
+        "international": 8
+      },
+      "14": {
+        "total": 21,
+        "domestic": 19,
+        "international": 2
+      },
+      "15": {
+        "total": 14,
+        "international": 2,
+        "domestic": 12
+      }
+    },
+    "domestic_count": 198,
+    "international_count": 81,
+    "first_scheduled_local": "04:10",
+    "last_scheduled_local": "15:30"
+  }
+}

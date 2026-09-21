@@ -211,30 +211,47 @@ def test_ten_hour_production_shape_replay(tmp_path):
         f"{hour:02d}:00" for hour in range(6, 16)
     ]
 
-    # Resolver full-demand proof: verified dataset has CRJ9=90, A320=150.
+    # ADIM (Departure Show-Up Profile): passport talebi artık her
+    # flight'ın KENDİ departure saatinden ÖNCEKİ 3 saate (show-up ile)
+    # yayılıyor - bu yüzden 06:00-15:00 penceresindeki her saat ARTIK
+    # SADECE o saatin KENDİ flight'ının değil, komşu saatlerin flight'
+    # larının da (show-up ile taşan) PAYINI taşıyor - eski "tek saat =
+    # tek flight'ın TAM talebi" model DEĞİŞTİ. Aşağıdaki değerler gerçek
+    # `predict_airport()` çıktısından alınmıştır (körlemesine seçilmedi) -
+    # bkz. rapor.
     assert [row["passport_demand"] for row in report["table"]] == [
-        90, 180, 90, 450, 90, 90, 90, 90, 300, 90,
+        90, 144, 180, 306, 162, 90, 90, 132, 216, 114,
     ]
     # ADIM (Event-Driven Engine Entegrasyonu): security artık uluslararası
     # kalkış talebini KENDİ effective_time'ında değil, passport'un GERÇEK
     # discrete-event simülasyonundan (core/event_queue.py) çıkan completion
     # timestamp'leriyle görüyor (bkz. engine.py:_event_driven_queue_demand).
-    # 09:00'daki passport surge'ü (450 talep, passport kapasitesi 320/saat
-    # ile 130 backlog kalıyor) bu yüzden security'ye 09:00'da GERÇEK dalga
-    # simülasyonunun o saate sığdırdığı kadar (288 - 8 server x 1.5dk/dalga
-    # ile saat içine TAM sığan dalga sayısı, önceki saatlerden gelen faz
-    # kaymasıyla), kalanı sonraki saatlere yayılarak ulaşıyor - saat sınırı
-    # aktarımının kanıtı, artık yaklaşık DEĞİL gerçek event zamanlı.
-    # Toplam (2160 = 1560 passport-released + 600 domestic-direct) HER
-    # ZAMAN korunuyor (conservation, ayrıca aşağıda AYRICA doğrulanıyor).
+    # ADIM (Departure Show-Up Profile) ile passport'un GİRDİSİ de artık
+    # show-up ile yayılmış olduğu için security'nin bu penceredeki
+    # toplamı da değişti - saat sınırı aktarımının kanıtı (Bölüm 9D)
+    # aynen geçerli, SADECE mutlak sayılar değişti.
     assert [row["security_demand"] for row in report["table"]] == [
-        90, 180, 90, 288, 252, 690, 90, 90, 288, 102,
+        90, 144, 177, 282, 309, 450, 210, 132, 211, 119,
     ]
-    assert sum(row["security_demand"] for row in report["table"]) == 2160
+    # ADIM (Departure Show-Up Profile): bu tablo SADECE 06:00-15:00
+    # penceresini kapsıyor - flight'ların show-up'ı bu pencerenin
+    # SINIRLARININ dışına (05:xx'ten önce/16:00'dan sonra) da taşabilir;
+    # bu yüzden bu PARTIAL pencerenin toplamı artık ORİJİNAL 2160'IN
+    # TAMAMI DEĞİL (hiçbir yolcu kaybolmadı - sadece bu 10 saatlik
+    # tabloya YAKALANMAYAN bir kısmı var, tablo dışı saatlerde).
+    assert sum(row["security_demand"] for row in report["table"]) == 2124
     assert all(row["security_wait"] is not None for row in report["table"])
     assert all(row["passport_wait"] is not None for row in report["table"])
-    assert report["table"][3]["passport_backlog_end"] == 130.0
-    assert report["table"][5]["security_backlog_end"] == 210.0
+    # ADIM (Departure Show-Up Profile): show-up'ın demand'i daha yumuşak
+    # dağıtması nedeniyle bu SPESİFİK senaryoda artık hiçbir saat
+    # kapasiteyi aşıp bir SONRAKİ saate backlog BIRAKMIYOR (eski
+    # senaryonun "130/210 backlog" bulgusu bu smoothing'in DOĞRUDAN
+    # sonucu) - backlog formülünün KENDİSİ değişmedi (bkz. test_passport_
+    # security_coupling.py'nin AYRI, KASITLI-overload senaryoları hâlâ
+    # backlog üretiyor), SADECE bu senaryonun girdi profili artık
+    # kapasiteyi aşmıyor.
+    assert report["table"][3]["passport_backlog_end"] == 0.0
+    assert report["table"][5]["security_backlog_end"] == 0.0
 
     for section in ("domestic_security", "international_security"):
         assert all(

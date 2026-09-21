@@ -32,7 +32,11 @@ from app.queue.core.scoring import (
     passport_effective_service_rate,
     passport_queue_model,
 )
-from app.queue.domain.demand import DemandCalculator, effective_time
+from app.queue.domain.demand import (
+    DemandCalculator,
+    arrival_passenger_release_events,
+    effective_time,
+)
 from app.queue.engine import floor_to_window, predict_airport
 
 from .factories import MockCapacityResolver, arrival, at
@@ -102,34 +106,38 @@ AIRPORT = "T6D2"
 
 def _scenario():
     """
-    Pencere 10:00-10:15 (arrival + sabit 15dk passport buffer ile).
-    - ARRIVED : arr_scheduled=09:47 -> effective_time=10:02 (pencereye
-      girer, now=10:07'den ÖNCE - "gelmiş" sayılır).
-    - FUTURE  : arr_scheduled=09:57 -> effective_time=10:12 (AYNI
-      pencereye girer, now=10:07'den SONRA - "henüz gelmemiş").
+    Pencere 10:00-11:00 (arrival release event'leriyle).
+    - ARRIVED : arr_scheduled=09:47 -> +10/+15/+20 batch'leri
+      09:57/10:02/10:07; now=10:07'ye kadar gerçekten release olmuş
+      batch'leri vardır.
+    - FUTURE  : arr_scheduled=10:00 -> ilk release 10:10; AYNI saatlik
+      pencereye girer ama now=10:07'de henüz hiçbir batch'i release
+      olmamıştır.
     İkisi de BIG (500 kapasite) - backlog_start=0 olsa bile rho>=1
     (overload dalı) garanti edilsin diye.
     """
     arrived = arrival(9, 47, airport=AIRPORT, aircraft="BIG",
                        duration_minutes=90, key="ARRIVED")
-    future = arrival(9, 57, airport=AIRPORT, aircraft="BIG",
+    future = arrival(10, 0, airport=AIRPORT, aircraft="BIG",
                       duration_minutes=90, key="FUTURE")
     now = at(10, 7)
     window_start = at(10, 0)
 
     assert floor_to_window(effective_time(arrived)) == window_start
     assert floor_to_window(effective_time(future)) == window_start
-    assert effective_time(arrived) <= now
-    assert effective_time(future) > now
+    arrived_events = arrival_passenger_release_events(arrived, 500)
+    future_events = arrival_passenger_release_events(future, 500)
+    assert any(moment <= now for moment, _ in arrived_events)
+    assert all(moment > now for moment, _ in future_events)
 
     return arrived, future, now, window_start
 
 
 def test_r3_future_flight_excluded_from_current_wait():
     """
-    R.3: effective_time(f) > now olan FUTURE, current wait'i AYNI
+    R.3: release event'i > now olan FUTURE batch'leri current wait'i
     ARRIVED-tek-başına senaryosuyla birebir aynı bırakmalı (yani
-    current wait FUTURE'ı hiç görmüyor) - ama backlog_end (R.6)
+    current wait FUTURE'ı henüz görmüyor) - ama backlog_end (R.6)
     FUTURE'ı da (tam pencere talebi üzerinden) İÇERİR.
     """
     arrived, future, now, window_start = _scenario()
@@ -270,4 +278,9 @@ def test_r9_security_wait_is_finite_and_independent_of_passport_queue():
     assert security
     for p in security:
         assert p.estimated_wait_minutes is not None
-        assert p.utilization == pytest.approx(500 / 480, abs=0.001)
+    # ADIM (Departure Show-Up Profile): 500 pax'lik tek domestic flight
+    # artık 3 saate (%20/%60/%20) yayılıyor - conservation korunur,
+    # zirve saat KENDİ payına (300) göre değerlendirilir.
+    assert sum(p.expected_passengers for p in security) == 500
+    peak = max(security, key=lambda p: p.expected_passengers)
+    assert peak.utilization == pytest.approx(300 / 480, abs=0.001)

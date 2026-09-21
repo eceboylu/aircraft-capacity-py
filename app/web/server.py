@@ -29,8 +29,9 @@ import json
 import os
 import re
 import sys
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from ..db import get_session
 from ..queue.api import airport_directory, airport_predictions, tracked_airports
@@ -88,6 +89,26 @@ class QueueMonitorHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _test_now_override(self) -> "datetime | None":
+        """
+        ADIM (Local Test-DB Viewing) - SADECE görsel/lokal test rahatlığı
+        için: `?now=YYYY-MM-DDTHH:MM(:SS)` query param'ı VERİLİRSE naive
+        UTC datetime'a çevrilip döner - production "current day" mantığını
+        DEĞİŞTİRMEZ, sadece `app/queue/api.py:airport_predictions(now=...)`'ın
+        ZATEN var olan enjeksiyon noktasını buradan da erişilebilir kılar
+        (pipeline/testler bunu dosyadan zaten kullanıyor - Bölüm 59).
+        Param yoksa/parse edilemezse None - çağıran taraf gerçek duvar
+        saatine (varsayılan, DEĞİŞMEDİ) düşer.
+        """
+        query = parse_qs(urlparse(self.path).query)
+        raw = query.get("now", [None])[0]
+        if not raw:
+            return None
+        try:
+            return datetime.fromisoformat(raw)
+        except ValueError:
+            return None
+
     def do_GET(self) -> None:  # noqa: N802 (BaseHTTPRequestHandler sözleşmesi)
         path = urlparse(self.path).path
 
@@ -112,7 +133,7 @@ class QueueMonitorHandler(BaseHTTPRequestHandler):
             iata = match.group(1).upper()
             session = get_session()
             try:
-                self._send_json(airport_predictions(session, iata))
+                self._send_json(airport_predictions(session, iata, now=self._test_now_override()))
             finally:
                 session.close()
             return

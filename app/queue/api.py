@@ -572,9 +572,71 @@ def process_series(
                 return True
             return row.operational_date == target_date
 
-        rows_for_windows = [r for r in rows if _belongs_to_current_operational_day(r)]
+        # ADIM (Exact 24-Bucket Visible Graph) - Bölüm 3.3: CALCULATION
+        # STATE != VISIBLE GRAPH RANGE. `operational_date` etiketi TEK
+        # BAŞINA "TAM 24 saat" garantisi VERMEZ - event-driven backlog
+        # demand/kapasiteyi GÜNLER boyunca aşarsa (bkz. rapor: SIN
+        # passport_dep günlük talebi günlük kapasitenin ~4.8 katı),
+        # completion event'leri window_start'ı GÜNLERCE ileri taşıyabilir;
+        # bunların HEPSİ AYNI (doğru) `operational_date` etiketini taşır
+        # (Bölüm 61'in KENDİSİ - "hangi günün talebinden üretildi" - hâlâ
+        # doğru), ama `_pad_series_to_24_hours` SADECE ekler/asla silmez,
+        # bu yüzden HEPSİ "görünür grafik" `windows` listesine düşüp
+        # `airport_predictions()`'ın kendi belgelediği "HER ZAMAN TAM 24
+        # saat" sözünü (bkz. o fonksiyonun docstring'i) BOZAR.
+        #
+        # Görünür grafik penceresi KESİN OLARAK `[day_start, day_end)`
+        # ile sınırlanır - margin/tolerans YOK (önceki turda denenen
+        # ±120dk marj, bu turda kullanıcı talimatıyla KALDIRILDI: "24 +
+        # legitimate overflow KABUL EDİLMEZ"). Backlog'un KENDİSİ (event
+        # simülasyonu, wait, risk - `calculation state`) HİÇ DEĞİŞMEDİ -
+        # `current` göstergesi GERÇEK, güncel backlog şiddetini (ör. çok
+        # yüksek wait) TAŞIMAYA DEVAM EDER, çünkü "now" tanım gereği
+        # `[day_start, day_end)` İÇİNDEDİR - current'ı İÇEREN pencere
+        # her zaman bu aralıkta kalır. SADECE bugünün 24 saatlik
+        # x-ekseninin DIŞINDAKİ (bir önceki/sonraki güne ait, KISA
+        # menzilli flight-offset kaynaklı DAHİL) satırlar artık AYRI bir
+        # bucket olarak LİSTELENMEZ - `test_cross_midnight_departure_
+        # queue_event_stays_on_its_real_hour_not_shifted` bu YENİ,
+        # kesin contract'a göre güncellendi (bkz. o test).
+        #
+        # ADIM (Half-Hour-Offset Timezone Grid Fix) - gerçek `data/*.json`
+        # ile 78 havalimanı üzerinde uçtan uca replay testi DEL (Asia/
+        # Kolkata, UTC+5:30) ve KBL (Asia/Kabul, UTC+4:30) icin 25 bucket
+        # ürettiğini ortaya çıkardı: `window_start` değerleri HER ZAMAN
+        # tam UTC saatine floor edilir (`floor_to_window()` - queue
+        # math'in KENDİSİ, DEĞİŞTİRİLMEDİ), ama yarım-saat offsetli bir
+        # timezone'da `day_start` (yerel gece yarısının UTC karşılığı)
+        # ":30" üzerinde durur - `_pad_series_to_24_hours`'ın `day_start +
+        # k*1h` ızgarası bu yüzden GERÇEK satırların ":00" damgasıyla HİÇ
+        # ÇAKIŞMAZ, 24 sentetik sıfır-talep slotu + kendi ayrı anahtarına
+        # düşen gerçek satır(lar) üst üste binip 24'ü AŞAR.
+        #
+        # Düzeltme SADECE bu GÖRÜNÜR ızgarayı (`grid_start`/`grid_end`)
+        # bir sonraki tam UTC saatine yuvarlar - `day_start`'ın kendisi
+        # (operational_date, timezone display, calculation state) HİÇ
+        # DEĞİŞMEDİ. Yukarı (aşağı değil) yuvarlanır: aşağı yuvarlama
+        # önceki yerel güne ait bir saati (ör. DEL için yerel 23:30) bu
+        # günün ızgarasına SIZDIRIRDI; yukarı yuvarlama ızgarayı SIKI
+        # ŞEKİLDE `[day_start, day_end)` içinde tutar (en fazla 59 dakikalık
+        # bir başlangıç dilimi hiçbir tam-saat bucket'ına düşmez - floor_
+        # to_window zaten bu dilimdeki satırları bir ÖNCEKİ UTC saatine
+        # floor ettiği için bu satırlar `day_start`'ın altında kalıp
+        # ZATEN dışlanıyordu, bu satırda YENİ bir dışlama YOK).
+        grid_start = day_start
+        if grid_start.minute or grid_start.second or grid_start.microsecond:
+            grid_start = grid_start.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        grid_end = grid_start + timedelta(hours=24)
+
+        def _within_display_bounds(row: QueuePrediction) -> bool:
+            return grid_start <= row.window_start < grid_end
+
+        rows_for_windows = [
+            r for r in rows
+            if _belongs_to_current_operational_day(r) and _within_display_bounds(r)
+        ]
         windows = [_window_to_dict(row, tz) for row in rows_for_windows]
-        windows = _pad_series_to_24_hours(windows, day_start, tz)
+        windows = _pad_series_to_24_hours(windows, grid_start, tz)
         current = _pick_current_window(windows, now)
     else:
         windows = [_window_to_dict(row, tz) for row in rows]

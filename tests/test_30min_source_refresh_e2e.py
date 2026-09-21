@@ -339,7 +339,12 @@ def test_all_four_graphs_reflect_r1_in_the_api(r0_r1):
             assert key in result
 
         overall_14 = _window(result["overall"], hour_start(14))
-        assert overall_14["risk"] == RISK_CRITICAL
+        # ADIM (Generic Scale Resource Update) - large arrival passport
+        # server sayısı 30->45 olunca (bkz. rapor) bu saatteki GERÇEK
+        # event-driven talep artık aşırı yüklü değil - risk CRITICAL'dan
+        # MEDIUM'a düştü. Bu risk formülünün/queue math'in DEĞİŞMESİ
+        # DEĞİL, artan kapasitenin DOĞRU, beklenen sonucu.
+        assert overall_14["risk"] == "MEDIUM"
 
         # ADIM (Overall Graph Legacy Passport Bug Fix): Overall artık
         # `domestic_security` + `international_security` + `passport_
@@ -495,7 +500,7 @@ def test_server_predictions_endpoint_only_reads_the_api_layer():
         "pipeline.run", "AircraftCapacityService(",
     ):
         assert forbidden not in source
-    assert "self._send_json(airport_predictions(session, iata))" in source
+    assert "self._send_json(airport_predictions(session, iata, now=self._test_now_override()))" in source
 
 
 def test_frontend_polling_only_refetches_the_same_predictions_endpoint():
@@ -514,9 +519,14 @@ def test_frontend_polling_only_refetches_the_same_predictions_endpoint():
     assert "setInterval(loadAll, POLL_MS)" in html
     # loadAll SADECE mevcut REST uçlarını (directory + predictions)
     # çağırıyor - başka bir kaynağa (AirLabs vb.) hiç istek yok.
+    # `predictionsUrl()` (ADIM Local Test-DB Viewing) predictions URL'ini
+    # KENDİSİ kurar - loadAll SADECE onu çağırır, URL string'i artık
+    # inline değil ama hedef ENDPOINT aynı (bkz. `predictionsUrl()`'ün
+    # kendi tanımı: "/api/airports/" + iata + "/predictions").
     load_all = html.split("function loadAll() {", 1)[1].split("\n  }", 1)[0]
     assert "/api/airports/directory" in load_all
-    assert "/predictions" in load_all
+    assert "predictionsUrl(" in load_all
+    assert '"/api/airports/" + iata + "/predictions"' in html
     assert "airlabs" not in load_all.lower()
 
 

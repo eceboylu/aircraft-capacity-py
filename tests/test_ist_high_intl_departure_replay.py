@@ -73,10 +73,10 @@ def test_ist_scale_and_resources_unchanged(session):
     airport = session.get(Airport, "IST")
     assert airport.scale == "large"
     config = get_configs(session, ["IST"])["IST"]
-    assert config.passport_departure_server_count == SCALE_RESOURCES["large"]["departure_passport_servers"] == 20
-    assert config.passport_arrival_server_count == SCALE_RESOURCES["large"]["arrival_passport_servers"] == 30
-    assert config.domestic_security_lane_count == SCALE_RESOURCES["large"]["domestic_security_lanes"] == 22
-    assert config.international_security_lane_count == SCALE_RESOURCES["large"]["international_security_lanes"] == 22
+    assert config.passport_departure_server_count == SCALE_RESOURCES["large"]["departure_passport_servers"] == 30
+    assert config.passport_arrival_server_count == SCALE_RESOURCES["large"]["arrival_passport_servers"] == 45
+    assert config.domestic_security_lane_count == SCALE_RESOURCES["large"]["domestic_security_lanes"] == 28
+    assert config.international_security_lane_count == SCALE_RESOURCES["large"]["international_security_lanes"] == 18
 
 
 # ------------------------------------------------------------------

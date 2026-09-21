@@ -135,19 +135,26 @@ def test_canonical_utc_window_start_field_unchanged_shape(session):
 def test_cross_midnight_event_gets_correct_local_label_not_shifted_to_wrong_day(session):
     """
     19 Sep 00:45 local IST departure -> effective_time (-120dk) UTC'de
-    18 Sep 19:45'e düşer (yerelde hâlâ 18 Sep 22:45). Bu satırın LOCAL
-    label'ı "22:00" (18 Sep) OLMALI, "19 Sep"e YANLIŞLIKLA taşınmamalı.
+    18 Sep 19:45'e düşer (yerelde hâlâ 18 Sep 22:45).
+
+    ADIM (Exact 24-Bucket Visible Graph) - Bölüm 3.3: CALCULATION STATE
+    != VISIBLE GRAPH RANGE. Bu satır ham DB'de (calculation state) HİÇ
+    KAYBOLMAZ - kendi doğru local label'ını ("22:00", 18 Sep) taşımaya
+    devam eder. Ama 19 Sep'in GÖRÜNÜR grafiği artık KESİN `[day_start,
+    day_end)` ile sınırlı - bu satır `windows` listesine ARTIK GİRMEZ.
     """
     # UTC 18 Sep 19:00 -> Istanbul yerel 18 Sep 22:00.
     window_start = datetime(2026, 9, 18, 19, 0)
     _add_row(session, "IST", "Europe/Istanbul", window_start, expected_passengers=150, flight_count=1)
 
+    raw = session.query(QueuePrediction).filter_by(
+        airport_iata="IST", process="security_dom", window_start=window_start,
+    ).one()
+    assert raw.flight_count == 1   # gerçek satır KAYBOLMADI/silinmedi (calculation state)
+
     api = airport_predictions(session, "IST", now=datetime(2026, 9, 19, 10, 0))
     windows = api["domestic_security"]["windows"]
-    row = next(w for w in windows if w["window_start"] == window_start.isoformat())
-
-    assert row["window_start_local"].startswith("2026-09-18T22:00:00")
-    assert row["flight_count"] == 1   # gerçek satır KAYBOLMADI/silinmedi
+    assert not any(w["window_start"] == window_start.isoformat() for w in windows)
 
 
 # ------------------------------------------------------------------

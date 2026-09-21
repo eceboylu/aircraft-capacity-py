@@ -53,6 +53,7 @@ from .domain.operational_day import (
     operational_date,
     resolve_airport_timezone,
 )
+from .domain.retention_time import USAGE_HORIZON_HOURS, canonical_flight_time
 from .core.scoring import (
     confidence_score,
     domestic_security_capacity_rate,
@@ -68,7 +69,13 @@ from .core.scoring import (
     security_density_score,
     security_queue_model,
 )
-from .domain.demand import DemandCalculator, effective_time, flights_in_window
+from .domain.demand import (
+    DemandCalculator,
+    arrival_passenger_release_events,
+    departure_show_up_events,
+    effective_time,
+    flights_in_window,
+)
 from .domain.flows import (
     passport_arrival_flights,
     passport_departure_flights,
@@ -774,22 +781,60 @@ def _event_driven_queue_demand(
 
     _now = now if now is not None else domain_now()
 
-    def _arrivals(flight_list, predicate=None) -> list[tuple[datetime, float]]:
+    def _arrival_release_arrivals(flight_list, predicate=None) -> list[tuple[datetime, float]]:
+        """
+        ADIM (Arrival Release Profile) - international arrival
+        yolcularını artık TEK bir `effective_time()` (+15dk) noktası
+        DEĞİL, her flight'ın KENDİ `arrival_passenger_release_events()`
+        çıktısı (5 adet deterministic timestamp, HAM arrival zamanından
+        - `effective_time()`'IN +15dk'sı ÜZERİNE İKİNCİ KEZ UYGULANMAZ,
+        bkz. o fonksiyonun docstring'i) besler. SADECE `arrival_arrivals`
+        için kullanılır - `departure_arrivals`/`domestic_arrivals`
+        (`_departure_show_up_arrivals()`, aşağıda) bu fonksiyonu HİÇ
+        ÇAĞIRMAZ - iki closure TAMAMEN BAĞIMSIZ (Bölüm 5/8: departure
+        show-up implementasyonuna dokunulmadı).
+        """
         result = []
         for f in flight_list:
             if f.status in EXCLUDED_STATUSES:
                 continue
             if predicate is not None and not predicate(f):
                 continue
-            moment = effective_time(f)
-            if moment is None:
-                continue
-            result.append((moment, demand.passenger_demand(f)))
+            total = demand.passenger_demand(f)
+            result.extend(arrival_passenger_release_events(f, total))
         return result
 
-    departure_arrivals = _arrivals(passport_flights(flights), is_international_departure)
-    arrival_arrivals = _arrivals(passport_flights(flights), is_international_arrival)
-    domestic_arrivals = _arrivals(security_domestic_flights(flights))
+    def _departure_show_up_arrivals(flight_list, predicate=None) -> list[tuple[datetime, float]]:
+        """
+        ADIM (Departure Show-Up Profile) - Bölüm 1/3/7: departure
+        yolcularını (international VEYA domestic - hangisi olduğu
+        ÇAĞIRANIN verdiği `flight_list`/`predicate`'e bağlı) artık TEK
+        bir `effective_time()` noktası DEĞİL, her flight'ın KENDİ
+        `departure_show_up_events()` çıktısı (12 adet deterministic
+        15dk batch) besler. SADECE `departure_arrivals`/`domestic_
+        arrivals` için kullanılır - `arrival_arrivals` bu fonksiyonu HİÇ
+        ÇAĞIRMAZ (yukarıdaki `_arrivals()` ile üretilmeye devam eder).
+
+        Her flight'ın batch'leri KENDİ departure zamanına göre
+        üretildiği için farklı flight'ların batch'leri zaman ekseninde
+        DOĞAL olarak üst üste biner - bu fonksiyon/`departure_show_up_
+        events()` bunu KOORDİNE ETMEZ, sadece düz bir liste döner;
+        kronolojik birleştirme/FIFO sıralaması `simulate_fifo_queue()`'nun
+        (core/event_queue.py, DEĞİŞMEDİ) kendi işi.
+        """
+        result = []
+        for f in flight_list:
+            if f.status in EXCLUDED_STATUSES:
+                continue
+            if predicate is not None and not predicate(f):
+                continue
+            total = demand.passenger_demand(f)
+            result.extend(departure_show_up_events(f, total))
+        return result
+
+    departure_arrivals = _departure_show_up_arrivals(passport_flights(flights), is_international_departure)
+    arrival_arrivals = _arrival_release_arrivals(passport_flights(flights), is_international_arrival)
+    domestic_arrivals = _departure_show_up_arrivals(security_domestic_flights(flights))
 
     # ADIM (Airport-Scale Queue Capacity) - departure/arrival passport
     # ARTIK AYRI fiziksel havuz, kendi server sayısıyla (bkz.
@@ -1124,11 +1169,47 @@ def airport_codes(session) -> list[str]:
     return [code for code in rows if code]
 
 
-def flights_of_airport(session, airport_iata: str) -> list[Flight]:
-    """Sadece bu havalimanının uçuşları - başka havalimanı karışmaz."""
-    return list(session.execute(
+def flights_of_airport(
+    session, airport_iata: str, now: datetime | None = None,
+    horizon_hours: int = USAGE_HORIZON_HOURS,
+) -> list[Flight]:
+    """
+    Sadece bu havalimanının uçuşları - başka havalimanı karışmaz.
+
+    ADIM (48h Usage Horizon) - Bölüm 8: `now` verilirse (production
+    `run_predictions()` ZATEN `resolved_now`'ı geçiyor), canonical
+    operasyonel zamanı (`domain/retention_time.py` - flight_key ile AYNI
+    departure/arrival seçim kuralı) `now - horizon_hours` cutoff'undan
+    ESKİ olan satırlar dönüşe DAHİL EDİLMEZ. Bu, timezone'u çözülemeyen
+    havalimanları için var olan "tüm geçmiş flight kullanılıyor"
+    fallback'ini (bkz. `run_predictions`) sınırsız yerine 48 saatle
+    sınırlar - bugünkü operasyonel-gün filtresi (timezone çözülebilen
+    havalimanlar için) ZATEN bundan çok daha dar olduğu için (en erken
+    pencere başlangıcı `now`'dan en fazla 24 saat geride olabilir,
+    bkz. `operational_day_window()`), bu güvenlik ağı O YOLU HİÇ
+    ETKİLEMEZ - sadece "tüm geçmiş" fallback'ini sınırlar.
+
+    Canonical zaman None ise (scheduled bilinmiyor) satır KORUNUR -
+    bilinmeyen bir zaman "eski" sayılıp sessizce atılmaz.
+
+    `now=None` (varsayılan - mevcut/eski çağıranlar) ise HİÇBİR filtre
+    uygulanmaz, ESKİ davranış (TÜM satırlar) birebir korunur - geriye
+    dönük tam uyumlu.
+    """
+    rows = list(session.execute(
         select(Flight).where(Flight.airport_iata == airport_iata)
     ).scalars().all())
+
+    if now is None:
+        return rows
+
+    cutoff = now - timedelta(hours=horizon_hours)
+    result = []
+    for flight in rows:
+        canonical = canonical_flight_time(flight)
+        if canonical is None or canonical >= cutoff:
+            result.append(flight)
+    return result
 
 
 def _airport_timezones(session, airport_codes) -> dict[str, str | None]:
@@ -1340,6 +1421,7 @@ def run_predictions(
     window_minutes: int = DEMAND_WINDOW_MINUTES,
     update_baseline: bool = True,
     now: datetime | None = None,
+    apply_usage_horizon: bool = False,
 ) -> dict:
     """
     Sistemdeki HER havalimanı için tahminleri üretir ve kaydeder.
@@ -1349,6 +1431,20 @@ def run_predictions(
     now      : MADDE 3 - açık/kapalı pencere kontrolü için "şu an".
                Test edilebilirlik için enjekte edilebilir; verilmezse
                domain_now() (gerçek saat) kullanılır.
+    apply_usage_horizon : ADIM (48h Usage Horizon) - Bölüm 8. Varsayılan
+               `False` - MEVCUT davranış (TÜM Flight geçmişi, sadece
+               operational-day filtresiyle daraltılır) birebir korunur;
+               bu, sabit/geçmiş tarihli fixture'larla (gerçek `now`
+               verilmeden) çalışan MEVCUT testlerin bozulmaması için
+               BİLİNÇLİ bir tercih (48h filtresi `resolved_now`'ı HER
+               ZAMAN gerçek/kararlı bir "şu an" sayardı - ama `now=None`
+               olduğunda `resolved_now` gerçek duvar saatidir ve eski
+               fixture verisiyle UYUŞMAZ). `True` verilirse (SADECE
+               `app/worker.py`'nin gerçek production çağrısı bunu yapar)
+               `flights_of_airport()`'un 48h usage-horizon filtresi
+               AKTİFLEŞİR - timezone'u çözülemeyen havalimanları için
+               var olan "tüm geçmiş kullanılıyor" fallback'ini sınırsız
+               yerine 48 saatle sınırlar (bkz. rapor).
 
     Hata izolasyonu (production hardening): her havalimanı KENDİ
     try/except bloğunda hesaplanır. Bir havalimanının tahmini
@@ -1383,7 +1479,9 @@ def run_predictions(
 
     for code in codes:
         try:
-            all_flights = flights_of_airport(session, code)
+            all_flights = flights_of_airport(
+                session, code, now=resolved_now if apply_usage_horizon else None,
+            )
             if not all_flights:
                 per_airport[code] = 0
                 continue

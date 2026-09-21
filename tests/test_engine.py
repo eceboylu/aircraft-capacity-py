@@ -150,6 +150,13 @@ def test_empty_hours_produce_no_prediction_rows():
     BESLEMEZ - bu uçuş domestic değil), VE passport_dep (Bölüm 17
     cohort raporlama ayrımı - bu uçuşun arrival-kökeni yok, bu yüzden
     passport_arr için satır HİÇ üretilmez).
+
+    ADIM (Departure Show-Up Profile): tek flight'ın talebi artık show-up
+    ile KENDİ departure saatinden önceki 3 saate yayılıyor (DEĞİŞTİ,
+    bkz. rapor) - bu yüzden DÖRT sürecin HER BİRİ (roomy_config'te
+    backlog olmadığı için TAM) 3'er satır üretir (4x3=12) - ama HÂLÂ
+    SADECE bu dört süreç, başka HİÇBİRİ (boş saatlere satır yazılmaz
+    contract'ı DEĞİŞMEDİ).
     """
     from app.queue.constants import PROCESS_PASSPORT_DEPARTURE
 
@@ -159,7 +166,7 @@ def test_empty_hours_produce_no_prediction_rows():
         config=roomy_config(),
         demand=make_demand(),
     )
-    assert len(predictions) == 4
+    assert len(predictions) == 12
     assert {p.process for p in predictions} == {
         PROCESS_SECURITY, PROCESS_PASSPORT, PROCESS_SECURITY_INTL,
         PROCESS_PASSPORT_DEPARTURE,
@@ -465,8 +472,11 @@ def test_scenario_11_two_airports_are_computed_independently():
         demand=make_demand(),
     )
 
-    ist_passport = next(p for p in ist if p.process == PROCESS_PASSPORT)
-    saw_passport = next(p for p in saw if p.process == PROCESS_PASSPORT)
+    # ADIM (Departure Show-Up Profile): flight_count HÂLÂ tek effective_
+    # time() noktasında (5 flight, hepsi 09:0x -> 07:00) toplanıyor
+    # (DEĞİŞMEDİ) - bu yüzden 07:00 satırı seçiliyor.
+    ist_passport = next(p for p in ist if p.process == PROCESS_PASSPORT and p.window_start.hour == 7)
+    saw_passport = next(p for p in saw if p.process == PROCESS_PASSPORT and p.window_start.hour == 7)
 
     assert {p.airport_iata for p in ist} == {"IST"}
     assert {p.airport_iata for p in saw} == {"SAW"}
@@ -597,6 +607,10 @@ def test_domestic_departure_feeds_security_only():
     süreci besliyor - birleşik `security` (TÜM kalkışlar, geriye dönük
     uyumluluk) VE `security_dom` (sadece domestic) - `security_intl`'i
     BESLEMİYOR.
+
+    ADIM (Departure Show-Up Profile): her süreç artık BİRDEN FAZLA
+    saatlik satır üretebiliyor (DEĞİŞTİ) - bu yüzden SÜREÇ KÜMESİ
+    (set, DEĞİŞMEDİ) karşılaştırılıyor, ham liste DEĞİL.
     """
     flights = [
         departure(9, 0, location=LOCATION_DOMESTIC, key="DD1", number="1")
@@ -607,9 +621,9 @@ def test_domestic_departure_feeds_security_only():
         config=roomy_config(),
         demand=make_demand(),
     )
-    assert sorted(p.process for p in predictions) == sorted([
+    assert {p.process for p in predictions} == {
         PROCESS_SECURITY, PROCESS_SECURITY_DOMESTIC,
-    ])
+    }
 
 
 def test_international_departure_feeds_security_passport_and_security_intl():
@@ -620,6 +634,10 @@ def test_international_departure_feeds_security_passport_and_security_intl():
     ayrımı) `passport_dep` (`security_dom`'u ve `passport_arr`'ı
     BESLEMEZ - bu flight'ın arrival-kökenli hiçbir demand'i yok, bu
     yüzden `passport_arr` için satır hiç ÜRETİLMEZ).
+
+    ADIM (Departure Show-Up Profile): her süreç artık BİRDEN FAZLA
+    saatlik satır üretebiliyor (DEĞİŞTİ) - bu yüzden SÜREÇ KÜMESİ (set,
+    DEĞİŞMEDİ) karşılaştırılıyor, ham liste DEĞİL.
     """
     from app.queue.constants import PROCESS_PASSPORT_DEPARTURE
 
@@ -630,10 +648,10 @@ def test_international_departure_feeds_security_passport_and_security_intl():
         config=roomy_config(),
         demand=make_demand(),
     )
-    assert sorted(p.process for p in predictions) == sorted([
+    assert {p.process for p in predictions} == {
         PROCESS_PASSPORT, PROCESS_SECURITY, PROCESS_SECURITY_INTL,
         PROCESS_PASSPORT_DEPARTURE,
-    ])
+    }
 
 
 def test_general_aviation_flight_adds_no_passengers():

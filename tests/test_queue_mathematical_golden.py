@@ -345,9 +345,11 @@ def test_domestic_departure_feeds_only_domestic_security():
     assert PROCESS_PASSPORT not in processes
     assert PROCESS_SECURITY_INTL not in processes
 
-    dom = next(p for p in predictions if p.process == PROCESS_SECURITY_DOMESTIC)
+    # ADIM (Departure Show-Up Profile): flight_count HÂLÂ tek effective_
+    # time() noktasında (07:00 - dep 09:00-120dk) toplanıyor (DEĞİŞMEDİ).
+    dom = next(p for p in predictions if p.process == PROCESS_SECURITY_DOMESTIC and p.window_start.hour == 7)
     assert dom.flight_count == 1
-    assert dom.expected_passengers == 180  # MockCapacityResolver A320=180
+    assert dom.expected_passengers == 108  # A320=180, show-up zirvesi 180*0.6
 
 
 def test_domestic_arrival_feeds_no_queue_graph_at_all():
@@ -511,8 +513,10 @@ def test_airport_isolation_no_shared_state_between_predict_airport_calls():
 
     assert saw_alone == saw_after_ist
     assert all(p.airport_iata == "SAW" for p in saw_after_ist)
-    dom = next(p for p in saw_after_ist if p.process == PROCESS_SECURITY_DOMESTIC)
-    assert dom.expected_passengers == 180  # IST'nin 500'lük A388'i SIZMADI
+    # ADIM (Departure Show-Up Profile): dep 13:00 -> show-up zirvesi (%60)
+    # 11:00'e düşer (T-120..T-105 saat aralığı) - 180*0.6=108 (TAMAMI DEĞİL).
+    dom = next(p for p in saw_after_ist if p.process == PROCESS_SECURITY_DOMESTIC and p.window_start.hour == 11)
+    assert dom.expected_passengers == 108  # IST'nin 500'lük A388'i SIZMADI
 
 
 # ========================================================================

@@ -83,9 +83,10 @@ def add_prediction(
 # ========================================================================
 
 def test_large_airport_passport_departure_and_arrival_server_counts_are_scale_derived():
+    """ADIM (Generic Scale Resource Update) - large değerleri 20/30 -> 30/45 oldu (bkz. rapor)."""
     config = default_config("IST", scale="large")
-    assert passport_departure_server_count(config) == 20
-    assert passport_arrival_server_count(config) == 30
+    assert passport_departure_server_count(config) == 30
+    assert passport_arrival_server_count(config) == 45
     # Legacy (8-server) formül HÂLÂ VAR ama scale'den HABERSİZ - overall
     # artık bunu KULLANMIYOR (aşağıdaki testler kanıtlıyor).
     assert passport_effective_server_count(config) == 8
@@ -134,7 +135,7 @@ def test_large_airport_engine_replay_overall_does_not_use_legacy_8_server_passpo
 
     legacy_row = next(p for p in predictions if p.process == PROCESS_PASSPORT)
     dep_row = next(p for p in predictions if p.process == PROCESS_PASSPORT_DEPARTURE)
-    assert legacy_row.utilization != dep_row.utilization  # 8-server != 20-server referansı
+    assert legacy_row.utilization != dep_row.utilization  # 8-server != 30-server referansı
 
     # overall'ın PENCERESİ passport_departure/arrival'ın penceresiyle
     # AYNI saatte olmalı ve worst-of mantığı departure/arrival'ın KENDİ

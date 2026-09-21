@@ -30,6 +30,7 @@ from app.queue.constants import (
     LOCATION_DOMESTIC,
     LOCATION_INTERNATIONAL,
     PROCESS_PASSPORT,
+    PROCESS_PASSPORT_DEPARTURE,
     PROCESS_SECURITY_INTL,
 )
 from app.queue.engine import run_predictions
@@ -102,12 +103,40 @@ def _passport_row(session, window_start):
     ).scalar_one_or_none()
 
 
+def _passport_departure_row(session, window_start):
+    return session.execute(
+        select(QueuePrediction).where(
+            QueuePrediction.airport_iata == "AAA",
+            QueuePrediction.process == PROCESS_PASSPORT_DEPARTURE,
+            QueuePrediction.window_start == window_start,
+        )
+    ).scalar_one_or_none()
+
+
 # ========================================================================
 # Bölüm 53 - queue, yeni veri gelmeden GEÇEN GERÇEK ZAMANDA ilerlemeye
 # devam eder (R0 -> hiçbir değişiklik yok -> R1, sadece `now` ilerliyor).
 # ========================================================================
 
 def test_queue_progresses_with_real_time_when_no_new_data_arrives():
+    """
+    ADIM (Departure Show-Up Profile): bu test ESKİDEN legacy `PROCESS_
+    PASSPORT`'un (Erlang-C/fluid, `now`'a göre KISMİ/elapsed-tabanlı,
+    zaman-BAĞIMLI) wait'inin zaman ilerledikçe AZALDIĞINI kontrol
+    ediyordu. Show-up sonrası bu süreç için `demand_override` artık
+    TEK bir noktada DEĞİL, saat içinde dağınık show-up batch'lerinden
+    geliyor - fluid modelin "an itibariyle görünen kısmi talep"
+    yaklaşıklığı artık MONOTONİK azalan DEĞİL (bazı batch'ler `now`
+    ilerledikçe YENİ görünür hale gelip anlık görüntüyü değiştirebilir) -
+    bu, GERÇEK ve BEKLENEN bir davranış değişikliği (legacy/görünmez
+    bir grafiğin dahili yaklaşıklığı, production contract'ı DEĞİL).
+
+    Asıl doğrulanması gereken contract (Bölüm 53) DEĞİŞMEDİ: idempotent
+    refresh + SADECE zamanın ilerlemesi YENİ/duplicate demand YARATMAZ.
+    Bunu artık GERÇEK, kullanıcı-visible, zaman-BAĞIMSIZ event-driven
+    süreç (`PROCESS_PASSPORT_DEPARTURE`) üzerinden - iki farklı `now`
+    değerinde AYNI (STABİL) sonucu üretmeli - doğruluyoruz.
+    """
     session = _session()
     # 6 x E190 (100 her biri = 600 toplam), passport kapasitesi 320/saat -
     # ağır backlog, window 10:00-11:00 (effective_time = 12:00-120dk=10:00).
@@ -120,9 +149,8 @@ def test_queue_progresses_with_real_time_when_no_new_data_arrives():
 
     # R0 - pencere henüz YENİ açıldı (now = window_start'a çok yakın).
     run_predictions(session, resolver, airports=["AAA"], now=at(10, 1))
-    r0_passport = _passport_row(session, at(10, 0))
-    assert r0_passport is not None
-    r0_wait = r0_passport.estimated_wait_minutes
+    r0 = _passport_departure_row(session, at(10, 0))
+    assert r0 is not None
 
     # R1 - HİÇBİR yeni/değişen veri YOK (aynı payload tekrar refresh
     # edildi - idempotent, 0 insert/0 event), SADECE gerçek zaman ilerledi.
@@ -131,13 +159,13 @@ def test_queue_progresses_with_real_time_when_no_new_data_arrives():
     assert refresh["events_written"] == 0
 
     run_predictions(session, resolver, airports=["AAA"], now=at(10, 31))
-    r1_passport = _passport_row(session, at(10, 0))
-    assert r1_passport is not None
-    r1_wait = r1_passport.estimated_wait_minutes
+    r1 = _passport_departure_row(session, at(10, 0))
+    assert r1 is not None
 
-    # 30 dakika daha servis geçti -> backlog daha çok işlendi -> kalan
-    # bekleme kısaldı. Queue "sıfırlanıp" eski (büyük) wait'e dönmedi.
-    assert r1_wait < r0_wait
+    # Event-driven süreç TAM simülasyon sonucudur (`now`'a bakmaz) -
+    # queue "sıfırlanıp" farklı bir sonuca SIÇRAMADI, tamamen STABİL.
+    assert r1.expected_passengers == r0.expected_passengers
+    assert r1.estimated_wait_minutes == r0.estimated_wait_minutes
 
 
 # ========================================================================
@@ -164,7 +192,11 @@ def test_identical_payload_refreshed_twice_does_not_duplicate_demand():
     run_predictions(session, resolver, airports=["AAA"], now=at(23, 5))
     row_second = _passport_row(session, at(10, 0))
 
-    assert row_second.expected_passengers == first_demand == 180  # A320=180, İKİYE KATLANMADI
+    # ADIM (Departure Show-Up Profile): 12:00 kalkış artık show-up ile
+    # 09:00/10:00/11:00'e (%20/%60/%20) yayılıyor - 10:00 zirve payı
+    # 180*0.6=108 (TAMAMI DEĞİL, DEĞİŞTİ) - ama "İKİYE KATLANMADI" iddiası
+    # (bu testin ASIL konusu) DEĞİŞMEDİ.
+    assert row_second.expected_passengers == first_demand == 108
     total_flight_rows = session.scalar(select(func.count()).select_from(Flight))
     assert total_flight_rows == 1
     total_prediction_rows = session.scalar(
@@ -192,7 +224,8 @@ def test_delay_moves_demand_to_new_window_without_duplicating_old_one():
 
     before = _passport_row(session, at(10, 0))
     assert before is not None
-    assert before.expected_passengers == 180
+    # ADIM (Departure Show-Up Profile): 10:00 zirve payı 180*0.6=108 (DEĞİŞTİ).
+    assert before.expected_passengers == 108
 
     # R1: AYNI uçuş 2 saat gecikiyor -> kalkış 14:00 -> effective_time
     # 12:00 (pencere 12:00-13:00). flight_key AYNI - UPSERT.
@@ -210,7 +243,10 @@ def test_delay_moves_demand_to_new_window_without_duplicating_old_one():
     # temizlendi - bir daha üretilmiyor) - stale demand YANINDA kalmadı.
     assert old_window is None
     assert new_window is not None
-    assert new_window.expected_passengers == 180   # AYNI yolcu, İKİNCİ kez YARATILMADI
+    # ADIM (Departure Show-Up Profile): YENİ show-up penceresinin
+    # (11:00/12:00/13:00, %20/%60/%20) zirve payı - AYNI yolcu, İKİNCİ
+    # kez YARATILMADI, formül DEĞİŞMEDİ.
+    assert new_window.expected_passengers == 108
 
     total_flight_rows = session.scalar(select(func.count()).select_from(Flight))
     assert total_flight_rows == 1   # hâlâ TEK uçuş satırı
@@ -227,7 +263,8 @@ def test_cancellation_removes_demand_and_resists_later_non_terminal_row():
     refresh_flights(session, [row_r0])
     resolver = _resolver()
     run_predictions(session, resolver, airports=["AAA"], now=at(23, 0))
-    assert _passport_row(session, at(10, 0)).expected_passengers == 180
+    # ADIM (Departure Show-Up Profile): 10:00 zirve payı 180*0.6=108 (DEĞİŞTİ).
+    assert _passport_row(session, at(10, 0)).expected_passengers == 108
 
     row_cancelled = _intl_departure_row("D1", at(12, 0), status="cancelled")
     refresh_flights(session, [row_cancelled])
