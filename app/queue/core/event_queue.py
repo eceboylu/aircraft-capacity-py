@@ -36,6 +36,7 @@ fifo_queue()` çağrısı (bkz. fonksiyonun kendi docstring'i).
 from __future__ import annotations
 
 import heapq
+import math
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -211,7 +212,9 @@ def simulate_passport(
     departure_server_count: int,
     arrival_server_count: int,
     service_time_minutes: float,
-) -> dict[str, list[ServiceEvent]]:
+    departure_dynamic: DynamicStaffingParams | None = None,
+    arrival_dynamic: DynamicStaffingParams | None = None,
+) -> dict[str, list[ServiceEvent] | list[tuple[datetime, int]] | None]:
     """
     ADIM (Airport-Scale Queue Capacity) - departure ve arrival passport
     ARTIK İKİ AYRI fiziksel havuz (AYRI `simulate_fifo_queue()` çağrısı,
@@ -249,20 +252,53 @@ def simulate_passport(
                     (iki BAĞIMSIZ heap - arrival'ın kuyruğu ne kadar
                     dolu olursa olsun departure'ın kendi serverları
                     ETKİLENMEZ, ve tam tersi).
+      "departure_schedule" / "arrival_schedule"
+                  : ADIM (Dynamic LARGE Passport Staffing) - SADECE
+                    `departure_dynamic`/`arrival_dynamic` verilmişse
+                    o havuzun `simulate_fifo_queue_dynamic()`'ten dönen
+                    (checkpoint_time, aktif_server_sayısı) programı;
+                    verilmemişse (sabit, ESKİ davranış) `None`.
+
+    departure_dynamic / arrival_dynamic
+                        : ADIM (Dynamic LARGE Passport Staffing) -
+                          `None` ise (varsayılan, geriye dönük uyumlu)
+                          o havuz AYNEN eski `simulate_fifo_queue()`
+                          (sabit `*_server_count`) yolunu kullanır -
+                          davranış BİREBİR korunur. Verilirse (SADECE
+                          LARGE + override'sız çağıranlar) o havuz
+                          `simulate_fifo_queue_dynamic()`'e gider - İKİ
+                          havuz TAMAMEN BAĞIMSIZ (Bölüm 3): departure
+                          dynamic olabilirken arrival sabit kalabilir,
+                          ve tam tersi.
     """
     departure_tagged = [(t, "departure", count) for t, count in departure_arrivals]
     arrival_tagged = [(t, "arrival", count) for t, count in arrival_arrivals]
 
-    departure_events = simulate_fifo_queue(
-        departure_tagged, departure_server_count, service_time_minutes
-    )
-    arrival_events = simulate_fifo_queue(
-        arrival_tagged, arrival_server_count, service_time_minutes
-    )
+    if departure_dynamic is not None:
+        departure_events, departure_schedule = simulate_fifo_queue_dynamic(
+            departure_tagged, departure_dynamic, service_time_minutes
+        )
+    else:
+        departure_events = simulate_fifo_queue(
+            departure_tagged, departure_server_count, service_time_minutes
+        )
+        departure_schedule = None
+
+    if arrival_dynamic is not None:
+        arrival_events, arrival_schedule = simulate_fifo_queue_dynamic(
+            arrival_tagged, arrival_dynamic, service_time_minutes
+        )
+    else:
+        arrival_events = simulate_fifo_queue(
+            arrival_tagged, arrival_server_count, service_time_minutes
+        )
+        arrival_schedule = None
 
     return {
         "departure": departure_events,
         "arrival": arrival_events,
+        "departure_schedule": departure_schedule,
+        "arrival_schedule": arrival_schedule,
     }
 
 
@@ -341,3 +377,178 @@ def simulate_international_departure_journey(
 def total_count(events: Sequence[ServiceEvent]) -> float:
     """Conservation testlerinde kullanılan küçük yardımcı: toplam kişi."""
     return sum(e.count for e in events)
+
+
+# ========================================================================
+# ADIM (Dynamic LARGE Passport Staffing) - `simulate_fifo_queue()` (yukarıda,
+# SABİT server sayılı) HİÇ DEĞİŞTİRİLMEDİ - bu, SADECE LARGE ölçekli
+# passport havuzları (departure/arrival - AYRI AYRI, bkz. `simulate_
+# passport()`'un yeni opsiyonel parametreleri) için AYRI bir path'tir.
+# MEDIUM/SMALL/UNKNOWN ve explicit airport-override'lı LARGE alanları bu
+# fonksiyonu HİÇ ÇAĞIRMAZ, eski `simulate_fifo_queue()` yoluna gider.
+# ========================================================================
+
+@dataclass(frozen=True)
+class DynamicStaffingParams:
+    """
+    Deterministic (RANDOM YOK) dynamic staffing kontrol parametreleri.
+
+    `default_server_count` : havuzun ASLA ALTINA DÜŞMEYECEĞİ taban -
+                              ramp bu değerin altına inemez.
+    `max_server_count`     : ramp bu değerin üstüne çıkamaz.
+    `control_interval_minutes` / `look_ahead_minutes` / `target_
+    utilization` / `ramp_step` : Bölüm 2'nin sabit kontrol parametreleri.
+    """
+
+    default_server_count: int
+    max_server_count: int
+    control_interval_minutes: int = 10
+    look_ahead_minutes: int = 10
+    target_utilization: float = 0.85
+    ramp_step: int = 5
+
+
+def simulate_fifo_queue_dynamic(
+    arrivals: Sequence[tuple[datetime, str, float]],
+    params: DynamicStaffingParams,
+    service_time_minutes: float,
+) -> tuple[list[ServiceEvent], list[tuple[datetime, int]]]:
+    """
+    `simulate_fifo_queue()` ile AYNI work-conserving FIFO çekirdek
+    mantığı (arrival önceliği, sunucu-availability heap'i, `_merge_
+    adjacent_events`) - TEK fark: sunucu sayısı sabit DEĞİL, deterministic
+    kontrol noktalarında (`control_interval_minutes` aralıklarla, ilk
+    arrival'dan başlayarak) backlog + look-ahead talebe göre [default,
+    max] aralığında ±`ramp_step` adımlarla ayarlanır (Bölüm 4/5).
+
+    SCALE-UP (Bölüm 4): yeni server slotları TAM OLARAK kontrol
+    checkpoint zamanından itibaren müsait (`free_time = checkpoint_time`)
+    - önceki hiçbir işi ETKİLEMEZ, backlog/passenger KAYBOLMAZ.
+
+    SCALE-DOWN (Bölüm 5): GRACEFUL - `pending_retirements` sayacı
+    "kaldırılması gereken ama HENÜZ boşta olmayan" server sayısını
+    tutar; bir server ANCAK kendi o anki işini bitirip heap'e "boşta"
+    olarak geri döndüğü anda (yani bu fonksiyonun onu YENİ bir işe
+    ATAMAK üzere pop ettiği anda) retire edilir - aktif servis alan
+    hiçbir passenger'ın servisi YARIDA KESİLMEZ. Bir sonraki checkpoint
+    talebi tekrar artırırsa, henüz gerçekleşmemiş retirement'lar ÖNCE
+    iptal edilir (yeni sunucu YARATILMADAN önce).
+
+    Dönen `(events, schedule)`: `schedule`, her kontrol checkpoint'inde
+    o andan itibaren geçerli olan (checkpoint_time, hedef_aktif_server_
+    sayısı) çiftlerinin sıralı listesidir - `domain/dynamic_staffing.py:
+    effective_capacity_by_hour()`'un zaman-ağırlıklı kapasite hesabı
+    için girdisidir (Bölüm 9/10 - scoring'in KULLANDIĞI kapasite,
+    simülasyonun GERÇEKTEN çalıştırdığı server sayısıyla TUTARLI olsun).
+    """
+    if params.default_server_count <= 0:
+        raise ValueError(
+            f"default_server_count > 0 olmalı (alınan={params.default_server_count})"
+        )
+    if params.max_server_count < params.default_server_count:
+        raise ValueError(
+            "max_server_count >= default_server_count olmalı "
+            f"(alınan max={params.max_server_count}, default={params.default_server_count})"
+        )
+    if service_time_minutes <= 0:
+        raise ValueError(
+            f"service_time_minutes > 0 olmalı (alınan={service_time_minutes})"
+        )
+
+    sorted_arrivals = sorted(arrivals, key=lambda item: item[0])
+    if not sorted_arrivals:
+        return [], []
+
+    service_delta = timedelta(minutes=service_time_minutes)
+    control_delta = timedelta(minutes=params.control_interval_minutes)
+    look_ahead_delta = timedelta(minutes=params.look_ahead_minutes)
+    per_server_rate = 1.0 / service_time_minutes  # kişi/dk/server
+
+    first_arrival = sorted_arrivals[0][0]
+    active_count = params.default_server_count
+    free_heap: list[datetime] = [first_arrival] * active_count
+    heapq.heapify(free_heap)
+
+    queue: deque[list] = deque(
+        [t, origin, count] for t, origin, count in sorted_arrivals if count > 0
+    )
+
+    schedule: list[tuple[datetime, int]] = [(first_arrival, active_count)]
+    next_checkpoint = first_arrival + control_delta
+    pending_retirements = 0
+
+    def _apply_checkpoint(checkpoint_time: datetime) -> None:
+        nonlocal active_count, pending_retirements
+        backlog = sum(seg[2] for seg in queue if seg[0] <= checkpoint_time)
+        lookahead_end = checkpoint_time + look_ahead_delta
+        lookahead_demand = sum(
+            seg[2] for seg in queue
+            if checkpoint_time < seg[0] <= lookahead_end
+        )
+        total_relevant = backlog + lookahead_demand
+        if total_relevant <= 0 or per_server_rate <= 0 or params.target_utilization <= 0:
+            needed_servers = 0
+        else:
+            required_rate = total_relevant / params.look_ahead_minutes
+            needed_servers = math.ceil(
+                required_rate / (per_server_rate * params.target_utilization)
+            )
+
+        ramp = max(-params.ramp_step, min(params.ramp_step, needed_servers - active_count))
+        target = max(
+            params.default_server_count,
+            min(params.max_server_count, active_count + ramp),
+        )
+        delta = target - active_count
+        if delta > 0:
+            cancel = min(delta, pending_retirements)
+            pending_retirements -= cancel
+            to_add = delta - cancel
+            for _ in range(to_add):
+                heapq.heappush(free_heap, checkpoint_time)
+        elif delta < 0:
+            pending_retirements += -delta
+        active_count = target
+
+    events: list[ServiceEvent] = []
+
+    while queue:
+        segment = queue[0]
+        heap_min = free_heap[0]
+        imminent_time = max(heap_min, segment[0])
+        while next_checkpoint <= imminent_time:
+            _apply_checkpoint(next_checkpoint)
+            schedule.append((next_checkpoint, active_count))
+            next_checkpoint += control_delta
+            heap_min = free_heap[0]
+            imminent_time = max(heap_min, segment[0])
+
+        free_time = heapq.heappop(free_heap)
+
+        if pending_retirements > 0:
+            # GRACEFUL SCALE-DOWN: bu server TAM OLARAK şimdi (kendi
+            # önceki işini bitirip) boşta kaldı - yeni bir işe ATANMADAN
+            # retire edilir (Bölüm 5 - hiçbir aktif servis kesilmedi,
+            # bu server zaten boştaydı).
+            pending_retirements -= 1
+            continue
+
+        service_start = max(free_time, segment[0])
+        completion = service_start + service_delta
+
+        events.append(ServiceEvent(
+            origin=segment[1],
+            count=1.0,
+            arrival_time=segment[0],
+            service_start_time=service_start,
+            completion_time=completion,
+        ))
+
+        if segment[2] - 1 <= 0:
+            queue.popleft()
+        else:
+            segment[2] -= 1
+
+        heapq.heappush(free_heap, completion)
+
+    return _merge_adjacent_events(events), schedule

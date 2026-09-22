@@ -58,11 +58,28 @@ SCALES = (SCALE_LARGE, SCALE_MEDIUM, SCALE_SMALL)
 # ayrılmıştır; bu sözlük SADECE "hiç override'ı olmayan" havalimanları
 # için generic varsayımdır.
 SCALE_RESOURCES: dict[str, dict[str, int]] = {
+    # ADIM (Dynamic LARGE Passport Staffing) - `departure_passport_
+    # servers`/`arrival_passport_servers` LARGE için artık "sabit
+    # server sayısı" DEĞİL, dinamik staffing'in ASLA ALTINA
+    # DÜŞMEYECEĞİ default/taban değeridir (bkz. config.py/engine.py).
+    # `_max` anahtarları SADECE LARGE'da var - bir ölçek sözlüğünde bu
+    # anahtar YOKSA (MEDIUM/SMALL/UNKNOWN) o ölçek SABİT/statik kalır,
+    # dynamic staffing hiç devreye girmez (bkz. config.py
+    # `_resolve_passport_server_counts`). SECURITY lane değerleri
+    # (domestic=28/international=18) bu ADIM'da HİÇ DEĞİŞMEDİ - security
+    # dynamic YAPILMADI (bkz. rapor Bölüm 13).
+    # ADIM (Security Resource Update, LARGE Contract v2) - domestic
+    # 28->15, international 18->30. Security HÂLÂ sabit/statik
+    # (dynamic YAPILMADI - bkz. rapor Bölüm 16); SADECE bu iki SAYI
+    # değişti, security_service_time_minutes (1.0) VE security queue
+    # math'i (core/scoring.py/core/event_queue.py) HİÇ DOKUNULMADI.
     SCALE_LARGE: {
         "departure_passport_servers": 30,
+        "departure_passport_servers_max": 70,
         "arrival_passport_servers": 45,
-        "domestic_security_lanes": 28,
-        "international_security_lanes": 18,
+        "arrival_passport_servers_max": 75,
+        "domestic_security_lanes": 15,
+        "international_security_lanes": 30,
     },
     SCALE_MEDIUM: {
         "departure_passport_servers": 10,

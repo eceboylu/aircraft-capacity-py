@@ -34,7 +34,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import select
 
-from .domain.airport_scale import resource_view_for_scale
+from .domain.airport_scale import SCALE_LARGE, resource_view_for_scale
 from .models import Airport, AirportOperationalConfig
 
 # Varsayılanlar burada TEKRAR YAZILMAZ; tek doğruluk kaynağı
@@ -121,6 +121,22 @@ class AirportConfigView:
     # çağıranlar/testler bu iki alanı vermezse davranış DEĞİŞMEZ).
     passport_departure_server_count: int = 8
     passport_arrival_server_count: int = 8
+    # ADIM (Dynamic LARGE Passport Staffing) - `True` ise (SADECE scale
+    # "large" VE bu havuz için explicit `AirportOperationalConfig`
+    # alan-bazlı override YOKSA) `passport_departure_server_count`/
+    # `passport_arrival_server_count` yukarıdaki alan, dinamik
+    # staffing'in TABANI/DEFAULT'udur - `engine.py` bu bayrak True
+    # olduğunda `simulate_fifo_queue_dynamic()` yolunu kullanır.
+    # `False` (varsayılan, MEDIUM/SMALL/UNKNOWN VE her explicit override
+    # için hep False) ise ESKİ sabit `simulate_fifo_queue()` yolu
+    # AYNEN kullanılır - davranış BİREBİR korunur.
+    passport_departure_dynamic: bool = False
+    passport_arrival_dynamic: bool = False
+    # Dynamic staffing'in ramp edebileceği TAVAN - SADECE ilgili
+    # `passport_*_dynamic` True ise anlamlıdır; `False` olduğunda
+    # `engine.py` bu alanları HİÇ OKUMAZ (statik yol max'tan habersizdir).
+    passport_departure_server_count_max: int | None = None
+    passport_arrival_server_count_max: int | None = None
     # Traceability - hangi ölçekten türediği (debug/log amaçlı, API'ye
     # SERİLEŞTİRİLMEZ - `api.py` bu sınıfı hiç import etmiyor).
     scale: str | None = None
@@ -128,7 +144,7 @@ class AirportConfigView:
 
 def _resolve_passport_server_counts(
     row: AirportOperationalConfig | None, resources: dict | None,
-) -> tuple[int, int]:
+) -> tuple[int, int, bool, bool]:
     """
     ÖNCELİK: (1) row'un KENDİ alan-bazlı override'ı (NULL değilse) >
     (2) scale-derived > (3) eski sabit (unknown scale).
@@ -136,22 +152,25 @@ def _resolve_passport_server_counts(
     Bir alanın (ör. sadece departure) override edilmesi DİĞERİNİN
     (arrival) scale-derived değerini KAYBETTİRMEZ - ikisi BAĞIMSIZ
     çözülür.
+
+    Döner: (departure, arrival, departure_is_override, arrival_
+    is_override) - son ikisi ADIM (Dynamic LARGE Passport Staffing)
+    için: bir havuzun dynamic olup olamayacağı SADECE scale=large
+    olmasına değil, o havuzun explicit override TAŞIMAMASINA da bağlı
+    (bkz. `_build_config_view` - "explicit airport override = fixed
+    configuration" kuralı, process bazında AYRI değerlendirilir).
     """
     fallback = _legacy_unknown_server_count()
     scale_dep = resources["departure_passport_servers"] if resources else fallback
     scale_arr = resources["arrival_passport_servers"] if resources else fallback
 
-    if row is not None and row.passport_departure_server_count is not None:
-        departure = row.passport_departure_server_count
-    else:
-        departure = scale_dep
+    departure_is_override = row is not None and row.passport_departure_server_count is not None
+    arrival_is_override = row is not None and row.passport_arrival_server_count is not None
 
-    if row is not None and row.passport_arrival_server_count is not None:
-        arrival = row.passport_arrival_server_count
-    else:
-        arrival = scale_arr
+    departure = row.passport_departure_server_count if departure_is_override else scale_dep
+    arrival = row.passport_arrival_server_count if arrival_is_override else scale_arr
 
-    return departure, arrival
+    return departure, arrival, departure_is_override, arrival_is_override
 
 
 def _resolve_security_lane_counts(
@@ -178,8 +197,26 @@ def _build_config_view(
     airport_iata: str, row: AirportOperationalConfig | None, scale: str | None,
 ) -> AirportConfigView:
     resources = resource_view_for_scale(scale)
-    departure_servers, arrival_servers = _resolve_passport_server_counts(row, resources)
+    (
+        departure_servers, arrival_servers,
+        departure_is_override, arrival_is_override,
+    ) = _resolve_passport_server_counts(row, resources)
     domestic_lanes, international_lanes = _resolve_security_lane_counts(row, resources)
+
+    # ADIM (Dynamic LARGE Passport Staffing) - SADECE scale=="large" VE
+    # o havuz için explicit override YOKSA dynamic aktif. `resources`'ta
+    # `_max` anahtarı yoksa (MEDIUM/SMALL/UNKNOWN - SCALE_RESOURCES'ta
+    # bu ölçeklerin sözlüğünde `_max` hiç YOK) dynamic zaten anlamsız
+    # kalır (max=None -> engine.py bu bayrağı hiç okumaz ama güvenlik
+    # için burada da False'a düşürülür).
+    departure_max = resources.get("departure_passport_servers_max") if resources else None
+    arrival_max = resources.get("arrival_passport_servers_max") if resources else None
+    passport_departure_dynamic = (
+        scale == SCALE_LARGE and not departure_is_override and departure_max is not None
+    )
+    passport_arrival_dynamic = (
+        scale == SCALE_LARGE and not arrival_is_override and arrival_max is not None
+    )
 
     if row is not None:
         base_fields = {name: getattr(row, name) for name in _CONFIG_FIELDS}
@@ -198,6 +235,10 @@ def _build_config_view(
     return AirportConfigView(
         airport_iata=airport_iata,
         is_default=is_default,
+        passport_departure_dynamic=passport_departure_dynamic,
+        passport_arrival_dynamic=passport_arrival_dynamic,
+        passport_departure_server_count_max=departure_max if passport_departure_dynamic else None,
+        passport_arrival_server_count_max=arrival_max if passport_arrival_dynamic else None,
         passport_departure_server_count=departure_servers,
         passport_arrival_server_count=arrival_servers,
         scale=scale,

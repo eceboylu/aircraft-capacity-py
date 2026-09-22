@@ -47,7 +47,12 @@ from .constants import (
     SEVERITY_CRITICAL,
     SEVERITY_INFO,
 )
-from .core.event_queue import simulate_passport, simulate_security
+from .core.event_queue import (
+    DynamicStaffingParams,
+    simulate_passport,
+    simulate_security,
+)
+from .domain.dynamic_staffing import effective_capacity_by_hour
 from .domain.operational_day import (
     filter_flights_for_operational_day,
     operational_date,
@@ -65,6 +70,7 @@ from .core.scoring import (
     passport_departure_server_count,
     passport_effective_server_count,
     passport_queue_model,
+    risk_from_wait,
     security_capacity_rate,
     security_density_score,
     security_queue_model,
@@ -316,6 +322,7 @@ def _predict_window_core(
     lane_count_override: int | None = None,
     event_driven_wait_override: float | None = None,
     risk_backlog_start: float = 0.0,
+    server_count_override: float | None = None,
 ) -> WindowPrediction:
     """
     `predict_window()`'ın ASIL hesap gövdesi - ADIM 5E-2'de buradan
@@ -353,13 +360,18 @@ def _predict_window_core(
           minutes`'tan türetilmiş passenger-ağırlıklı ortalamayla
           DEĞİŞTİRİLİR (bkz. `predict_airport`'un `event_wait_by_hour`
           kullanımı - SADECE PROCESS_PASSPORT_DEPARTURE/ARRIVAL ve
-          PROCESS_SECURITY_DOMESTIC/INTL için doldurulur). `utilization`/
-          `risk` (ikisi de SADECE `rho`'dan türer, `wq`'dan DEĞİL) bu
-          override'dan ETKİLENMEZ - `queue_capacity_model()` hâlâ
-          normal şekilde çağrılır, SADECE dönen `estimated_wait_minutes`
-          alanı üzerine yazılır. Verilmezse (None, legacy PROCESS_
-          PASSPORT/PROCESS_SECURITY dahil diğer tüm süreçlerde hep None)
-          eski davranış (Erlang-C/fluid `wq`) birebir korunur.
+          PROCESS_SECURITY_DOMESTIC/INTL için doldurulur). `utilization`
+          (SADECE `rho`'dan türer) bu override'dan ETKİLENMEZ. ADIM
+          (Wait-Based Passenger Risk) SONRASI: `risk` bu override'dan
+          SONRA, NİHAİ `estimated_wait_minutes` üzerinden `risk_from_
+          wait()` ile YENİDEN hesaplanır (aşağıda) - `queue_capacity_
+          model()`'in kendi "ham" `wq`'sundan türettiği risk artık
+          override sonrası STALE olacağı için üzerine yazılır. Override
+          verilmezse (None, legacy PROCESS_PASSPORT/PROCESS_SECURITY
+          dahil diğer tüm süreçlerde hep None) `estimated_wait_minutes`
+          (Erlang-C/fluid `wq`) birebir korunur, risk yine de AYNI
+          `risk_from_wait()` çağrısıyla (artık bu sabit `wq`'dan)
+          tutarlı şekilde hesaplanır.
     risk_backlog_start
         : ADIM (Visible Risk = Gerçek Queue Pressure) - `queue_capacity_
           model()`'e AYNEN iletilir (bkz. o fonksiyonun docstring'i) -
@@ -369,6 +381,18 @@ def _predict_window_core(
           SECURITY VE doğrudan `predict_window()` çağıranları dahil
           diğer tüm yollarda hep 0.0) `queue_pressure == rho` olur -
           ESKİ risk davranışı birebir korunur.
+    server_count_override
+        : ADIM (Dynamic Capacity / Scoring Consistency) - verilirse
+          (None DEĞİLSE), `config`'ten çözülen `server_count` YERİNE
+          bu değer kullanılır - SADECE LARGE dynamic havuzlar için
+          `engine.py`'nin o pencere için hesapladığı GERÇEK, zaman-
+          ağırlıklı aktif server ortalamasını (`domain/dynamic_
+          staffing.py:effective_capacity_by_hour()`) taşımak amacıyla.
+          `queue_pressure`/risk eşikleri/formülü HİÇ DEĞİŞMEDİ - sadece
+          bu ÇAĞRIDA hangi kapasite SAYISININ kullanıldığı değişiyor.
+          Verilmezse (None, MEDIUM/SMALL/UNKNOWN, override'lı LARGE
+          alanları VE legacy PROCESS_PASSPORT dahil diğer TÜM yollarda
+          hep None) eski davranış (config-derived, statik) birebir korunur.
     """
     window_end = window_start + timedelta(minutes=window_minutes)
 
@@ -396,6 +420,7 @@ def _predict_window_core(
             demand_override=demand_override,
             pool=_PASSPORT_POOL_BY_PROCESS[process],
             risk_backlog_start=risk_backlog_start,
+            server_count_override=server_count_override,
         )
     else:
         score = security_queue_model(
@@ -432,6 +457,15 @@ def _predict_window_core(
     # değil rho'ya bağlıydı).
     if event_driven_wait_override is not None:
         score["estimated_wait_minutes"] = round(event_driven_wait_override, 1)
+
+    # ADIM (Wait-Based Passenger Risk) - `risk` her zaman NİHAİ (yukarıdaki
+    # override sonrası) `estimated_wait_minutes`'ten türemeli - EVENT-DRIVEN
+    # override varsa `queue_capacity_model()`'in KENDİ (henüz override
+    # uygulanmamış) `wq`'sundan hesapladığı "ham" risk artık STALE olur;
+    # bu satır risk'i GERÇEK, görünen wait ile YENİDEN hesaplayıp üzerine
+    # yazar (override yoksa da koşulsuz çalışır - zaten aynı sonucu verir,
+    # tek bir davranış yolu, iki ayrı risk mantığı YOK).
+    score["risk"] = risk_from_wait(score["estimated_wait_minutes"])
 
     # MADDE 8: her aircraft-change event'i, FLIGHT'ın şu anki konumuna
     # göre değil, KENDİ flight_effective_time'ına göre bu pencereye
@@ -709,6 +743,40 @@ def _event_derived_backlog_by_hour(events, starts) -> dict[datetime, float]:
     }
 
 
+def _dynamic_staffing_params_for(
+    config: AirportConfigView, pool: str,
+) -> DynamicStaffingParams | None:
+    """
+    ADIM (Dynamic LARGE Passport Staffing) - `pool` ("departure" veya
+    "arrival") için, config'in ÇÖZÜLMÜŞ `passport_*_dynamic` bayrağı
+    True ise `DynamicStaffingParams` (sabit kontrol parametreleriyle -
+    Bölüm 2, RANDOM YOK) döner; False ise (MEDIUM/SMALL/UNKNOWN VE
+    explicit override'lı LARGE alanları) `None` döner - çağıran taraf
+    (`simulate_passport`) `None`'ı "bu havuz sabit" olarak okur, eski
+    `simulate_fifo_queue()` yoluna gider.
+    """
+    if pool == "departure":
+        enabled = config.passport_departure_dynamic
+        default = config.passport_departure_server_count
+        maximum = config.passport_departure_server_count_max
+    else:
+        enabled = config.passport_arrival_dynamic
+        default = config.passport_arrival_server_count
+        maximum = config.passport_arrival_server_count_max
+
+    if not enabled or maximum is None:
+        return None
+
+    return DynamicStaffingParams(
+        default_server_count=default,
+        max_server_count=maximum,
+        control_interval_minutes=10,
+        look_ahead_minutes=10,
+        target_utilization=0.85,
+        ramp_step=5,
+    )
+
+
 def _event_driven_queue_demand(
     flights: list,
     config: AirportConfigView,
@@ -839,12 +907,25 @@ def _event_driven_queue_demand(
     # ADIM (Airport-Scale Queue Capacity) - departure/arrival passport
     # ARTIK AYRI fiziksel havuz, kendi server sayısıyla (bkz.
     # core/event_queue.py:simulate_passport docstring'i).
+    #
+    # ADIM (Dynamic LARGE Passport Staffing) - `config.passport_
+    # departure_dynamic`/`passport_arrival_dynamic` (config.py'nin
+    # öncelik zincirinden - SADECE LARGE ölçek VE airport-specific bir
+    # override YOKSA True) True ise, sabit `passport_departure_server_
+    # count(config)` SAYISI yerine `DynamicStaffingParams` inşa edilip
+    # `simulate_passport`'a geçirilir - o havuz artık backlog+lookahead
+    # demand'e göre 10dk'lık control noktalarında [default,max] arası
+    # ayarlanır (bkz. `_dynamic_staffing_params_for` docstring'i). MEDIUM/
+    # SMALL/UNKNOWN VE override'lı LARGE alanları BU DALA HİÇ GİRMEZ -
+    # `simulate_fifo_queue()`'nun ESKİ, sabit-server yoluna aynen gider.
     passport_result = simulate_passport(
         departure_arrivals,
         arrival_arrivals,
         passport_departure_server_count(config),
         passport_arrival_server_count(config),
         config.passport_service_time_minutes,
+        departure_dynamic=_dynamic_staffing_params_for(config, pool="departure"),
+        arrival_dynamic=_dynamic_staffing_params_for(config, pool="arrival"),
     )
 
     # AŞAMA 9 - passport'un GERÇEK completion timestamp'i security'nin
@@ -1003,6 +1084,17 @@ def _event_driven_queue_demand(
         # derived_backlog_by_hour()` çağırması için. Yeni bir simülasyon
         # DEĞİL, sadece ZATEN hesaplanmış event'lerin dışa aktarılması.
         "process_events": process_events,
+        # ADIM (Dynamic Capacity / Scoring Consistency) - `passport_
+        # result["departure_schedule"]`/`["arrival_schedule"]` (dynamic
+        # DEĞİLSE `None`) - `predict_airport()`'un `effective_capacity_
+        # by_hour()` çağırıp SADECE PROCESS_PASSPORT_DEPARTURE/ARRIVAL
+        # için `server_count_override` üretmesi için. Yeni bir simülasyon
+        # DEĞİL, `simulate_passport()`'un ZATEN döndürdüğü programın
+        # dışa aktarılması.
+        "passport_schedules": {
+            PROCESS_PASSPORT_DEPARTURE: passport_result.get("departure_schedule"),
+            PROCESS_PASSPORT_ARRIVAL: passport_result.get("arrival_schedule"),
+        },
     }
 
 
@@ -1106,6 +1198,22 @@ def predict_airport(
             if process in _EVENT_DRIVEN_WAIT_PROCESSES else {}
         )
 
+        # ADIM (Dynamic Capacity / Scoring Consistency) - SADECE
+        # PROCESS_PASSPORT_DEPARTURE/ARRIVAL için (VE SADECE o havuz
+        # gerçekten dynamic çalıştıysa - `passport_schedules[process]`
+        # None DEĞİLSE): `queue_capacity_model()`'in `server_count`'ını
+        # SABİT config değeri yerine, simülasyonun O SAAT için GERÇEKTEN
+        # çalıştırdığı zaman-ağırlıklı ortalama aktif server sayısıyla
+        # (`effective_capacity_by_hour()`) değiştir - simüle edilen
+        # kapasite ile raporlanan `utilization`/`queue_pressure` AYNI
+        # operasyonel gerçeği temsil etsin (Bölüm 9/10).
+        effective_servers_by_hour: dict = {}
+        schedule = coupling.get("passport_schedules", {}).get(process)
+        if schedule is not None:
+            effective_servers_by_hour = effective_capacity_by_hour(
+                schedule, starts, window_minutes
+            )
+
         for start in starts:
             window_all = buckets.get(start, [])
             window_flights = [
@@ -1139,6 +1247,7 @@ def predict_airport(
                     if process in _EVENT_DRIVEN_WAIT_PROCESSES else None
                 ),
                 risk_backlog_start=risk_backlog_by_hour.get(start, 0.0),
+                server_count_override=effective_servers_by_hour.get(start),
             ))
 
     return predictions

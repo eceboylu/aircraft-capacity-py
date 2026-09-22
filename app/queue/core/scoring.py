@@ -26,8 +26,6 @@ from ..constants import (
     DEMAND_WINDOW_MINUTES,
     NO_BASELINE_MESSAGE,
     PASSPORT_OVERLOAD_MESSAGE,
-    PASSPORT_RHO_LOW,
-    PASSPORT_RHO_MEDIUM,
     RISK_CRITICAL,
     RISK_HIGH,
     RISK_LOW,
@@ -38,7 +36,41 @@ from ..constants import (
     SECURITY_RATIO_HIGH,
     SECURITY_RATIO_LOW,
     SECURITY_RATIO_MEDIUM,
+    WAIT_RISK_HIGH_MINUTES,
+    WAIT_RISK_LOW_MINUTES,
+    WAIT_RISK_MEDIUM_MINUTES,
 )
+
+
+def risk_from_wait(wait_minutes: float | None) -> str:
+    """
+    ADIM (Wait-Based Passenger Risk) - TEK doğruluk kaynağı: risk artık
+    `queue_pressure`/`rho`'dan (operasyonel kapasite baskısı - AYRI,
+    bağımsız API alanları olarak KALMAYA DEVAM EDER) DEĞİL, doğrudan
+    yolcunun yaşayacağı GERÇEK bekleme süresinden türer:
+
+        wait_minutes is None -> RISK_UNKNOWN (ASLA sessizce LOW'a
+            düşürülmez - `RISK_ORDER`'da en düşük öncelik, "no-data
+            NORMAL/LOW ile karıştırılmaz" ilkesi)
+        wait_minutes < 5.0   -> RISK_LOW
+        wait_minutes < 15.0  -> RISK_MEDIUM
+        wait_minutes < 30.0  -> RISK_HIGH
+        else                 -> RISK_CRITICAL
+
+    Passport VE security (`queue_capacity_model()` HER İKİSİNİN de TEK
+    ortak çekirdeği) AYNI bu fonksiyonu kullanır - iki AYRI risk mantığı
+    YOK. Gerçek sıfır-demand pencerelerde `wait_minutes` doğal olarak
+    ~0 olur (`erlang_c_wait_time(c, lam=0, mu)` ≈ 0) -> LOW.
+    """
+    if wait_minutes is None:
+        return RISK_UNKNOWN
+    if wait_minutes < WAIT_RISK_LOW_MINUTES:
+        return RISK_LOW
+    if wait_minutes < WAIT_RISK_MEDIUM_MINUTES:
+        return RISK_MEDIUM
+    if wait_minutes < WAIT_RISK_HIGH_MINUTES:
+        return RISK_HIGH
+    return RISK_CRITICAL
 
 
 def combined_security_ratio(
@@ -364,24 +396,23 @@ def queue_capacity_model(
                        KAYNAĞI değişti. Verilmezse (None) eski davranış
                        birebir korunur.
 
-    risk_backlog_start : ADIM (Visible Risk = Gerçek Queue Pressure) -
-                       `backlog_start` (yukarıdaki, WAIT hesabını besleyen,
-                       fluid/analitik backlog) İLE KARIŞTIRILMAMALI: bu,
-                       SADECE `risk` sınıflandırması için kullanılan,
-                       GERÇEK/event-türevli ("T anında henüz servise
-                       başlamamış, önceki pencerelerden taşınan gerçek
-                       bekleyen yolcu sayısı" - bkz. `engine.py:
+    risk_backlog_start : `backlog_start` (yukarıdaki, WAIT hesabını
+                       besleyen, fluid/analitik backlog) İLE
+                       KARIŞTIRILMAMALI: bu, SADECE `queue_pressure`
+                       (operasyonel kapasite baskısı metriği) için
+                       kullanılan, GERÇEK/event-türevli ("T anında henüz
+                       servise başlamamış, önceki pencerelerden taşınan
+                       gerçek bekleyen yolcu sayısı" - bkz. `engine.py:
                        _event_derived_backlog_by_hour()`) backlog'dur.
+                       ADIM (Wait-Based Passenger Risk) SONRASI: `risk`
+                       (yolcu bekleme riski) ARTIK `queue_pressure`'dan
+                       türemez - SADECE `wq`'dan (aşağıda) türer, bu
+                       yüzden bu parametre `risk`'i HİÇ ETKİLEMEZ,
+                       SADECE dönen `queue_pressure` alanını besler.
                        `rho` (= incoming-only utilization, `utilization`
-                       API alanında GERİYE DÖNÜK UYUMLU olarak AYNEN
-                       kalır) BU parametreden HİÇ ETKİLENMEZ - SADECE
-                       yeni `queue_pressure` (risk'in TEK girdisi) bunu
-                       kullanır. Verilmezse (varsayılan 0.0) `queue_
-                       pressure == rho` olur - ESKİ risk davranışı
-                       BİREBİR korunur (legacy `PROCESS_PASSPORT`/
-                       `PROCESS_SECURITY` ve doğrudan `predict_window()`
-                       çağıranları dahil - hiçbiri bu parametreyi
-                       VERMEZ, dolayısıyla ETKİLENMEZ).
+                       API alanı) da bu parametreden HİÇ ETKİLENMEZ.
+                       Verilmezse (varsayılan 0.0) `queue_pressure ==
+                       rho` olur.
     """
     demand = (
         sum(demand_fn(f) for f in window_flights)
@@ -396,28 +427,22 @@ def queue_capacity_model(
     service_capacity = capacity_rate * window_minutes
     backlog_end = max(0.0, backlog_start + demand - service_capacity)
 
-    # ADIM (Visible Risk = Gerçek Queue Pressure) - risk ARTIK sadece bu
-    # pencerenin KENDİ gelen talebine (`rho`) değil, GERÇEK, event-türevli
-    # bekleyen backlog'a da bakar: "bu saat sunucuların temizlemesi
-    # gereken TOPLAM yük (eski bekleyen + yeni gelen) / toplam kapasite".
-    # Birim kontrolü: (kişi + kişi) / kişi = boyutsuz - AYNI `rho` ile
-    # AYNI ölçek/eşik bantlarını (0.7/0.9/1.0) kullanabilir. `rho`'nun
-    # KENDİSİ (incoming-only) `utilization` alanında DEĞİŞMEDEN kalır
-    # (Bölüm 6 - API geriye-uyumluluğu, diagnostic/internal değer).
+    # ADIM (Visible Risk = Gerçek Queue Pressure) - `queue_pressure`
+    # ("bu saat sunucuların temizlemesi gereken TOPLAM yük - eski
+    # bekleyen + yeni gelen - / toplam kapasite") BURADA HÂLÂ AYNEN
+    # HESAPLANIYOR ve dönen sözlükte `queue_pressure`/`utilization`
+    # alanlarında KALMAYA DEVAM EDİYOR - ADIM (Wait-Based Passenger
+    # Risk) bunları SİLMEDİ, SADECE `risk`'in ARTIK bu ikisinden değil,
+    # aşağıdaki `wq`'dan türemesini sağladı (risk = yolcu bekleme
+    # riski, utilization/queue_pressure = operasyonel kapasite baskısı,
+    # ARTIK BİRBİRİNDEN BAĞIMSIZ İKİ SİNYAL).
     queue_pressure = (demand + risk_backlog_start) / service_capacity
 
-    if queue_pressure >= 1.0:
-        risk = RISK_CRITICAL
-        reasons = [PASSPORT_OVERLOAD_MESSAGE]
-    elif queue_pressure < PASSPORT_RHO_LOW:
-        risk = RISK_LOW
-        reasons = []
-    elif queue_pressure < PASSPORT_RHO_MEDIUM:
-        risk = RISK_MEDIUM
-        reasons = []
-    else:
-        risk = RISK_HIGH
-        reasons = []
+    # `PASSPORT_OVERLOAD_MESSAGE` KASITLI olarak HÂLÂ `queue_pressure`'a
+    # bağlı bırakıldı (risk'e DEĞİL) - bu, "operasyonel kapasite fiilen
+    # aşıldı" tanısı, passenger-facing risk etiketinden BAĞIMSIZ bir
+    # sinyal olarak korunuyor.
+    reasons = [PASSPORT_OVERLOAD_MESSAGE] if queue_pressure >= 1.0 else []
 
     if backlog_start <= 0.0 and rho < 1.0:
         wq = erlang_c_wait_time(c, lam, mu)
@@ -428,6 +453,18 @@ def queue_capacity_model(
         served_since_window_start = capacity_rate * elapsed
         current_queue = max(0.0, backlog_start + arrived - served_since_window_start)
         wq = current_queue / capacity_rate
+
+    # ADIM (Wait-Based Passenger Risk) - risk ARTIK `queue_pressure`/
+    # `rho`'dan DEĞİL, GERÇEK, yolcunun yaşayacağı bekleme süresinden
+    # (`wq`) türer (bkz. `risk_from_wait()` docstring'i - eşikler
+    # 5/15/30 dk). `_predict_window_core` bu değeri, event-driven
+    # override varsa (4 visible süreç) O GERÇEK wait ile YENİDEN
+    # hesaplayarak ÜZERİNE YAZAR (bkz. engine.py) - burada `wq`'dan
+    # türeyen risk, HENÜZ event-driven override uygulanmamış "ham"
+    # bir başlangıç değeridir (doğrudan `queue_capacity_model()`
+    # çağıranlar - ör. `predict_window()`, testler - için zaten
+    # KENDİ İÇİNDE tutarlıdır).
+    risk = risk_from_wait(wq)
 
     return {
         "flight_count": len(window_flights),
@@ -456,6 +493,7 @@ def passport_queue_model(
     demand_override: float | None = None,
     pool: str | None = None,
     risk_backlog_start: float = 0.0,
+    server_count_override: float | None = None,
 ) -> dict:
     """
     Passport wrapper.
@@ -474,9 +512,27 @@ def passport_queue_model(
            bulgu: eski kodda PASSPORT için bu parametre HİÇ
            kullanılmıyordu - artık departure/arrival AYRI havuzlar
            event-driven demand'e ihtiyaç duyuyor).
+    server_count_override : ADIM (Dynamic Capacity / Scoring Consistency) -
+           verilirse (None DEĞİLSE), `config`'ten çözülen `server_count`
+           YERİNE bu değer kullanılır - SADECE LARGE dynamic havuzlar
+           için `engine.py`'nin o pencere için hesapladığı GERÇEK,
+           zaman-ağırlıklı aktif server ortalamasını taşımak amacıyla
+           (bkz. `domain/dynamic_staffing.py:effective_capacity_by_hour()`).
+           `queue_pressure`/risk eşikleri/formülü HİÇ DEĞİŞMEDİ - sadece
+           bu ÇAĞRIDA hangi kapasite SAYISININ kullanıldığı değişiyor.
+           Verilmezse (None, MEDIUM/SMALL/UNKNOWN, override'lı LARGE
+           alanları VE legacy PROCESS_PASSPORT dahil diğer TÜM yollarda
+           hep None) eski davranış (config-derived, statik) birebir korunur.
+           `round()` ile en yakın TAM sayıya yuvarlanır - Erlang-C'nin
+           `c!`/`range(c)` kullanan kombinatorik formülü (bkz.
+           `core/erlang.py`) YAPISAL OLARAK tam sayı gerektirir, zaman-
+           ağırlıklı ortalamanın kesirli KISMI (ör. 40.3) sadece
+           RAPORLAMA/audit amaçlı `effective_capacity_by_hour()`
+           çıktısında saklanır, buraya TAM SAYI olarak girer.
     """
     server_count = (
-        passport_effective_server_count(config) if pool is None
+        round(server_count_override) if server_count_override is not None
+        else passport_effective_server_count(config) if pool is None
         else passport_server_count(config, pool)
     )
     return queue_capacity_model(

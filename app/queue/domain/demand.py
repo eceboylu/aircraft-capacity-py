@@ -18,6 +18,7 @@ from ..constants import (
     EXCLUDED_STATUSES,
     PASSPORT_RELEASE_BUFFER_MINUTES,
 )
+from .occupancy_calibration import occupancy_factor_for
 
 
 class DemandCalculator:
@@ -64,12 +65,22 @@ class DemandCalculator:
         """
         Bu uçuşun kuyruğa getireceği tahmini yolcu sayısı.
 
-        ADIM (ICAO Demand Kalibrasyonu): artık `route_based_load_factor()`
-        İLE ÇARPILMAZ - resolver'ın çözdüğü koltuk kapasitesi DOĞRUDAN
-        yolcu talebi sayılır (ICAO A320 -> capacity=180 ise demand=180).
-        Load factor fonksiyonu (bkz. `flight_rules.route_based_load_factor`)
-        SİLİNMEDİ - kendi birim testlerinde hâlâ mevcut/geçerli bir saf
-        fonksiyon olarak duruyor, sadece prediction zincirinden AYRILDI.
+        ADIM (ICAO Demand Kalibrasyonu): resolver'ın çözdüğü koltuk
+        kapasitesi (`AircraftCapacityService` - HİÇ DEĞİŞTİRİLMEDİ)
+        hâlâ TEK girdi; `route_based_load_factor()` (silinmedi, kendi
+        birim testlerinde geçerli, prediction zincirinden AYRI) hâlâ
+        KULLANILMIYOR.
+
+        ADIM (Passenger Demand Calibration) - resolve edilen koltuk
+        sayısı artık DOĞRUDAN talep DEĞİL; `occupancy_calibration.
+        occupancy_factor_for(flight.airport_iata)`'ın döndürdüğü,
+        SADECE bu turda gerçek kaynaktan araştırılmış 9 havalimanı için
+        tanımlı bir çarpanla ayarlanır (bkz. o modülün SOURCE/DATE/VALUE
+        metodolojisi). Araştırılmamış HERHANGİ bir havalimanı için bu
+        çarpan 1.0 (ESKİ %100-koltuk davranışı, DEĞİŞMEDEN) - production'daki
+        diğer tüm havalimanları (ve onları kullanan mevcut testler) bu
+        ADIM'dan HİÇ ETKİLENMEZ. `round()` ile deterministik tam sayıya
+        yuvarlanır (rastgelelik YOK - aynı girdi HER ZAMAN aynı çıktı).
 
         counts_toward_passenger_total False ise (genel havacılık)
         talep hesabına HİÇ girmez.
@@ -77,7 +88,8 @@ class DemandCalculator:
         result = self._resolve(flight)
         if not result.counts_toward_passenger_total:
             return 0
-        return result.capacity
+        factor, _level = occupancy_factor_for(getattr(flight, "airport_iata", None))
+        return round(result.capacity * factor)
 
 
 def effective_time(flight) -> datetime | None:

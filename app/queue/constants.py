@@ -159,9 +159,23 @@ SECURITY_RATIO_HIGH = 1.8
 SECURITY_FLIGHT_RATIO_WEIGHT = 0.5
 SECURITY_PASSENGER_RATIO_WEIGHT = 0.5
 
-# Passport Erlang-C bantları (utilization / rho üzerinden)
+# Passport Erlang-C bantları (utilization / rho üzerinden) - ADIM
+# (Wait-Based Passenger Risk) SONRASI ARTIK `risk` sınıflandırmasını
+# BESLEMİYOR (o artık aşağıdaki WAIT_RISK_* eşiklerinden türer) - SADECE
+# `queue_pressure`/`utilization`'ın (operasyonel kapasite baskısı,
+# `risk`'ten BAĞIMSIZ, hâlâ görünür API alanları) kendi diagnostik
+# bağlamı için KORUNDU, SİLİNMEDİ.
 PASSPORT_RHO_LOW = 0.7
 PASSPORT_RHO_MEDIUM = 0.9
+
+# ADIM (Wait-Based Passenger Risk) - `risk` ARTIK "yolcunun yaşayacağı
+# bekleme riski"dir (`estimated_wait_minutes`, dakika) - `utilization`/
+# `queue_pressure` (operasyonel kapasite baskısı) BUNDAN TAMAMEN
+# BAĞIMSIZ, AYRI bir API alanı olarak kalmaya devam eder (bkz.
+# core/scoring.py:risk_from_wait()).
+WAIT_RISK_LOW_MINUTES = 5
+WAIT_RISK_MEDIUM_MINUTES = 15
+WAIT_RISK_HIGH_MINUTES = 30
 
 # --- Load factor varsayımları (AŞAMA 3) --------------------------------
 # AÇIK VARSAYIM - canlı doluluk verisi YOK, endustri gozlemlerine
