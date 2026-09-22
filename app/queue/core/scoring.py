@@ -52,7 +52,7 @@ def risk_from_wait(wait_minutes: float | None) -> str:
         wait_minutes is None -> RISK_UNKNOWN (ASLA sessizce LOW'a
             düşürülmez - `RISK_ORDER`'da en düşük öncelik, "no-data
             NORMAL/LOW ile karıştırılmaz" ilkesi)
-        wait_minutes < 5.0   -> RISK_LOW
+        wait_minutes < 10.0  -> RISK_LOW
         wait_minutes < 15.0  -> RISK_MEDIUM
         wait_minutes < 30.0  -> RISK_HIGH
         else                 -> RISK_CRITICAL
@@ -446,6 +446,27 @@ def queue_capacity_model(
 
     if backlog_start <= 0.0 and rho < 1.0:
         wq = erlang_c_wait_time(c, lam, mu)
+    elif demand <= 0.0:
+        # ADIM (Consistent Backlog-Only Wait Semantic) - bu pencereye
+        # YENİ hiç kimse gelmedi (`demand`/incoming == 0), sadece önceki
+        # pencerelerden taşınan backlog var. Wait HER ZAMAN "bu
+        # pencerenin BAŞINDAKİ backlog / o andaki kapasite" anlamına
+        # gelir - bu pencerenin `now`'a göre geçmişte/şimdi/gelecekte
+        # olması SONUCU DEĞİŞTİRMEZ. Eskiden (aşağıdaki ELSE dalı, HER
+        # pencere için kullanılıyordu) `elapsed_minutes`/`current_
+        # arrived_demand` "now" sınırına göre farklı davranıyordu -
+        # tamamlanmış (geçmiş) bir backlog-only saat `backlog_start +
+        # 0 - tam_saat_kapasitesi` (küçük/backlog_end'e yakın) kullanırken,
+        # şimdiki/gelecek bir saat `backlog_start + 0 - 0 = backlog_
+        # start` kullanıyordu - AYNI fiziksel backlog için İKİ FARKLI
+        # sayı, "now" sınırında yapay bir sıçrama üretiyordu (bkz.
+        # rapor - IST canlı-veri denetiminde bulunan 21:00->22:00
+        # 338.1->370.4 sıçraması). `demand > 0` olan pencereler (ELSE
+        # dalı) HİÇ DEĞİŞTİRİLMEDİ - onlar zaten `event_driven_wait_
+        # override` tarafından ezilir (4 görünür süreç, bkz. engine.py),
+        # bu dal SADECE legacy/birleşik PROCESS_PASSPORT/PROCESS_
+        # SECURITY için hâlâ tüketiliyor.
+        wq = backlog_start / capacity_rate
     else:
         arrived = demand if current_arrived_demand is None else current_arrived_demand
         elapsed = window_minutes if elapsed_minutes is None else elapsed_minutes

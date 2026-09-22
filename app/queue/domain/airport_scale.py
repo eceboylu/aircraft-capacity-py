@@ -62,35 +62,50 @@ SCALE_RESOURCES: dict[str, dict[str, int]] = {
     # servers`/`arrival_passport_servers` LARGE için artık "sabit
     # server sayısı" DEĞİL, dinamik staffing'in ASLA ALTINA
     # DÜŞMEYECEĞİ default/taban değeridir (bkz. config.py/engine.py).
-    # `_max` anahtarları SADECE LARGE'da var - bir ölçek sözlüğünde bu
+    # `_max` anahtarı SADECE LARGE'da var - bir ölçek sözlüğünde bu
     # anahtar YOKSA (MEDIUM/SMALL/UNKNOWN) o ölçek SABİT/statik kalır,
     # dynamic staffing hiç devreye girmez (bkz. config.py
-    # `_resolve_passport_server_counts`). SECURITY lane değerleri
-    # (domestic=28/international=18) bu ADIM'da HİÇ DEĞİŞMEDİ - security
-    # dynamic YAPILMADI (bkz. rapor Bölüm 13).
-    # ADIM (Security Resource Update, LARGE Contract v2) - domestic
-    # 28->15, international 18->30. Security HÂLÂ sabit/statik
-    # (dynamic YAPILMADI - bkz. rapor Bölüm 16); SADECE bu iki SAYI
-    # değişti, security_service_time_minutes (1.0) VE security queue
-    # math'i (core/scoring.py/core/event_queue.py) HİÇ DOKUNULMADI.
+    # `_resolve_passport_server_counts`).
+    #
+    # ADIM (VERY_LARGE Tier Removed) - önceki turda eklenen ayrı
+    # VERY_LARGE/HUB tier'ı (IST/AMS'i LARGE'dan ayıran) TAMAMEN
+    # KALDIRILDI - kullanıcı TÜM LARGE havalimanlarının (IST/AMS/SAW
+    # dahil) AYNI tek contract'ı paylaşmasını istedi, airport-özel
+    # hardcode YOK. Bu yüzden LARGE'ın `domestic_security_lanes`/
+    # `international_security_lanes` değeri artık eski VERY_LARGE
+    # tier'ının sayısı (20) - security lane-count contract'ı GERİ
+    # DÜŞÜRÜLMEDİ, SADECE tek bir tier'a birleştirildi.
+    #
+    # ADIM (Security Capacity Contract v4) - security artık `security_
+    # service_time_minutes` üzerinden DOLAYLI değil, `SECURITY_
+    # PASSENGERS_PER_HOUR_PER_LANE` (constants.py, tek source-of-truth,
+    # =150) İLE DOĞRUDAN "lane_count x 150 pax/saat" olarak okunur -
+    # buradaki sayılar SADECE lane_count, throughput/lane HER ölçek
+    # için AYNI sabittir. v3'te domestic/international BİLEREK eşit
+    # (symmetric) tutulmuştu - kullanıcı bu ADIM'da AÇIKÇA farklı lane
+    # sayıları verdi (LARGE: domestic=14/international=30, MEDIUM:
+    # 6/8, SMALL: 2/2) - domestic/international HÂLÂ AYRI, bağımsız
+    # queue pool (Bölüm 4 - ayrı incoming/backlog/served/utilization/
+    # wait), SADECE artık aynı lane SAYISINI PAYLAŞMIYORLAR. Passport
+    # tarafı bu ADIM'da DOKUNULMADI.
     SCALE_LARGE: {
         "departure_passport_servers": 30,
         "departure_passport_servers_max": 70,
         "arrival_passport_servers": 45,
         "arrival_passport_servers_max": 75,
-        "domestic_security_lanes": 15,
+        "domestic_security_lanes": 14,
         "international_security_lanes": 30,
     },
     SCALE_MEDIUM: {
         "departure_passport_servers": 10,
         "arrival_passport_servers": 15,
-        "domestic_security_lanes": 12,
-        "international_security_lanes": 6,
+        "domestic_security_lanes": 6,
+        "international_security_lanes": 8,
     },
     SCALE_SMALL: {
         "departure_passport_servers": 3,
         "arrival_passport_servers": 4,
-        "domestic_security_lanes": 4,
+        "domestic_security_lanes": 2,
         "international_security_lanes": 2,
     },
 }

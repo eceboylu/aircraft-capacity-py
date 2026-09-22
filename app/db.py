@@ -1,23 +1,81 @@
 """
 Veritabanı bağlantısı.
 
-Canlıya geçince: DATABASE_URL ortam değişkenini değiştir
+MySQL (8.x/InnoDB) - BİRİNCİL/TEK application database - örnek:
+    mysql+pymysql://user:pass@host:3306/dbname?charset=utf8mb4
+Postgres de desteklenir (aynı SQLAlchemy engine deseni):
     postgresql://user:pass@host:5432/dbname
-    mysql+pymysql://user:pass@host:3306/dbname
 
+ADIM (MySQL-Only Database Layer) - ÖNCEKİ bir sürümde `DATABASE_URL`
+verilmediğinde local/dev/test'te SESSİZCE SQLite'a düşülüyordu (APP_ENV
+üzerinden production'da bu kapatılmıştı). Bu ADIM'da o fallback
+TAMAMEN KALDIRILDI - `DATABASE_URL` artık HER environment'ta (local,
+dev, production, worker, web, script) KOŞULSUZ ZORUNLUDUR; yoksa
+`app.db` import edilir edilmez (engine/DB'ye HİÇ dokunmadan) AÇIK bir
+`RuntimeError` fırlatılır. `APP_ENV` DEĞİŞMEDEN kalır (bkz. aşağı) ama
+artık SADECE bilgilendirici - DB engine seçimini HİÇ ETKİLEMEZ.
+
+SQLite desteği KODDAN TAMAMEN SİLİNMEDİ - `_migrate_sqlite_table()`
+(dialect kontrolüyle KENDİ İÇİNDE korunur, MySQL/Postgres'te no-op'tur)
+ve `_SQLITE_*_COLUMNS` sabitleri, `tests/test_queue_config_migration.py`
+gibi bunları AÇIKÇA import eden araçlar için KASITLI OLARAK bırakıldı -
+ama NORMAL uygulama başlangıcı (`import app.db`) artık HİÇBİR KOŞULDA
+otomatik/örtük olarak bir SQLite dosyası SEÇMEZ/AÇMAZ.
 """
 
 import os
 
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from .models import Base
 
-DEFAULT_SQLITE_PATH = os.path.join(os.path.dirname(__file__), "..", "database.sqlite")
-DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DEFAULT_SQLITE_PATH}")
+# ADIM (MySQL-Only Database Layer) - artık SADECE bilgilendirici; DB
+# engine seçimini ETKİLEMEZ (bkz. modül docstring'i). Başka bir
+# yerde (ör. loglama) okunmak istenirse diye KALDIRILMADI, sadece
+# `DATABASE_URL` zorunluluğundan BAĞIMSIZ hale getirildi.
+APP_ENV = os.environ.get("APP_ENV", "development")
 
-engine = create_engine(DATABASE_URL, echo=False)
+# ADIM (MySQL-Only Database Layer) - eski `DEFAULT_SQLITE_PATH`/örtük
+# SQLite fallback'i TAMAMEN KALDIRILDI. `DATABASE_URL` yoksa/boşsa
+# engine HİÇ OLUŞTURULMAZ - "sessizce yanlış (SQLite) DB'ye bağlanmak"
+# yerine "hemen ve anlaşılır şekilde başarısız olmak" HER environment'ta
+# (sadece production'da değil) tercih edilir.
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is required. Configure a MySQL database connection "
+        "(e.g. mysql+pymysql://user:pass@host:3306/dbname?charset=utf8mb4) - "
+        "see deploy/systemd/aircraft-capacity.env.example. There is no "
+        "SQLite fallback in any environment."
+    )
+
+_is_sqlite = make_url(DATABASE_URL).get_backend_name() == "sqlite"
+
+# ADIM (MySQL/Postgres Engine Config) - SQLite dosya bağlantılarına
+# HİÇ uygulanmaz (o zaten tek-dosya, pool/ping kavramı YOK) - SADECE
+# gerçek bir DB SERVER'ına bağlanan dialect'lerde devreye girer:
+#   pool_pre_ping : her checkout'ta ucuz bir "SELECT 1" ile bağlantının
+#                    hâlâ canlı olduğunu doğrular - MySQL'in kendi
+#                    `wait_timeout`'u (varsayılan 8 saat) VEYA bir
+#                    proxy/LB'nin çok daha kısa idle-kill penceresi
+#                    yüzünden "MySQL server has gone away" hatasını
+#                    SESSİZCE ÇÖKMEK yerine şeffafça yeniden bağlanarak
+#                    önler.
+#   pool_recycle  : bağlantıları 1800 saniyede (30 dk) bir ZORLA
+#                    yeniler - MySQL'in varsayılan `wait_timeout`'undan
+#                    (8 saat) BİLİNÇLİ OLARAK çok daha kısa, kör bir
+#                    "büyük sayı" DEĞİL - tipik proxy/LB idle-timeout
+#                    pencerelerinin (dakikalar) güvenli üstünde ama
+#                    gereksiz sık yeniden bağlanmayacak kadar uzun,
+#                    ölçülmeden seçilmiş agresif bir değer DEĞİL.
+_engine_kwargs: dict = {"echo": False}
+if not _is_sqlite:
+    _engine_kwargs["pool_pre_ping"] = True
+    _engine_kwargs["pool_recycle"] = 1800
+
+engine = create_engine(DATABASE_URL, **_engine_kwargs)
 SessionLocal = sessionmaker(bind=engine)
 
 

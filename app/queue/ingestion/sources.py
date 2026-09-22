@@ -22,6 +22,7 @@ HAZIR geliyorsa doğrudan kullanılır, tekrar hesaplanmaz.
 """
 
 import json
+import logging
 import re
 from datetime import datetime, timezone
 
@@ -33,7 +34,47 @@ from ...queue.constants import (
 )
 from ...queue.domain.retention_time import canonical_operational_time
 
+logger = logging.getLogger(__name__)
+
 _NON_ALNUM = re.compile(r"[^A-Z0-9]")
+
+# ADIM (Malformed Record Isolation) - bir kaydın alan tiplerinin
+# beklenmedikten (ör. `dep_time_utc` string yerine int) doğabilecek,
+# TEK BİR bozuk kaydın ayrıştırmasını başarısız kılan ama SİSTEM
+# seviyesinde bir arıza OLMAYAN hatalar. `field()`/`clean_text()`
+# metin-olmayan değerleri OLDUĞU GİBİ geçirir (uydurma bir dönüşüm
+# YAPMAZ) - bu yüzden sonraki `.upper()`/`strptime()` gibi çağrılar
+# TypeError/AttributeError fırlatabilir; sözlük erişimleri `field()`
+# üzerinden `.get()` ile yapıldığından KeyError normalde beklenmez
+# ama gelecekte eklenecek bir yardımcı fonksiyon için güvenlik payı
+# olarak listede tutulur. `MemoryError`/`OSError`/config/programlama
+# hataları BURADA YAKALANMAZ - bunlar kayıt-seviyesi değil, sistem
+# seviyesi arızalardır ve olduğu gibi yukarı taşınmalıdır.
+_MALFORMED_RECORD_EXCEPTIONS = (TypeError, ValueError, KeyError, AttributeError)
+
+
+def _record_context(record: dict) -> str:
+    """
+    Bozuk kayıt log satırı için tanı bağlamı - ham `record` HİÇBİR
+    ZAMAN olduğu gibi loglanmaz (Bölüm: "full raw payload gereksiz
+    yere loglanmaz"), sadece teşhis için yeterli birkaç alan. `.get()`
+    kullanılır - `record`'un KENDİSİ bozuk/beklenmedik tipte olsa bile
+    (ör. alan değerleri int) bu erişim ASLA kendisi bir hataya yol
+    AÇMAZ.
+    """
+    def _safe(*names):
+        for name in names:
+            value = record.get(name) if isinstance(record, dict) else None
+            if value is not None:
+                return value
+        return None
+
+    return (
+        f"flight_iata={_safe('flight_iata', 'flightIata')!r} "
+        f"flight_icao={_safe('flight_icao', 'flightIcao')!r} "
+        f"dep_iata={_safe('dep_iata', 'depIata')!r} "
+        f"arr_iata={_safe('arr_iata', 'arrIata')!r}"
+    )
 
 # Kaynaklarda görülen zaman biçimleri. Canlı feed ISO 8601 de
 # gönderebilir; hepsi naive UTC datetime'a indirgenir çünkü tüm iç
@@ -178,23 +219,38 @@ def build_aircraft_index(source_b_records: list[dict]) -> dict[str, list[dict]]:
     güvenli bir eşleşme üretemez (bkz. `parse_source_a_record`).
     """
     index: dict[str, list[dict]] = {}
+    skipped_malformed = 0
     for record in source_b_records:
-        icao = (field(record, "aircraft_icao", "aircraftIcao") or "").upper()
-        if not icao:
+        try:
+            icao = (field(record, "aircraft_icao", "aircraftIcao") or "").upper()
+            if not icao:
+                continue
+
+            time_utc = _parse_source_b_timestamp(record)
+            if not time_utc:
+                continue
+
+            entry = {"icao": icao, "time": time_utc}
+
+            for name in ("flight_iata", "flightIata", "flight_icao", "flightIcao"):
+                key = normalize_flight_number(record.get(name))
+                if key:
+                    if key not in index:
+                        index[key] = []
+                    index[key].append(entry)
+        except _MALFORMED_RECORD_EXCEPTIONS as exc:
+            skipped_malformed += 1
+            logger.warning(
+                "malformed source-B (live flights) record skipped (%s): %s: %s",
+                _record_context(record), type(exc).__name__, exc,
+            )
             continue
 
-        time_utc = _parse_source_b_timestamp(record)
-        if not time_utc:
-            continue
-
-        entry = {"icao": icao, "time": time_utc}
-
-        for name in ("flight_iata", "flightIata", "flight_icao", "flightIcao"):
-            key = normalize_flight_number(record.get(name))
-            if key:
-                if key not in index:
-                    index[key] = []
-                index[key].append(entry)
+    if skipped_malformed:
+        logger.warning(
+            "Source B parse summary: raw=%d indexed_keys=%d skipped_malformed=%d",
+            len(source_b_records), len(index), skipped_malformed,
+        )
     return index
 
 
@@ -423,15 +479,45 @@ def parse_source_a(
     aircraft_index: dict[str, str] | None = None,
     min_operational_time: datetime | None = None,
 ) -> list[dict]:
-    """Kaynak A kayıt listesini Flight sözlüklerine çevirir. `min_operational_time`: bkz. `parse_source_a_record()`."""
+    """
+    Kaynak A kayıt listesini Flight sözlüklerine çevirir. `min_operational_time`:
+    bkz. `parse_source_a_record()`.
+
+    ADIM (Malformed Record Isolation) - TEK bir kaydın alan tipi/biçimi
+    beklenmedikse (`_MALFORMED_RECORD_EXCEPTIONS`) o kayıt loglanıp
+    ATLANIR, TÜM batch/refresh cycle'ı İPTAL EDİLMEZ - önceki davranışta
+    `parse_source_a_record()`'ın fırlattığı herhangi bir istisna bu
+    döngüde YAKALANMIYORDU, bu yüzden bir havalimanının tek bozuk kaydı
+    `load_flight_rows()` -> `pipeline.run()` zincirinin TAMAMINI
+    (TÜM havalimanları, HER İKİ yön) başarısız kılabiliyordu (bkz.
+    pre-production audit raporu). Sistem seviyesi hatalar (DB, bellek,
+    config, programlama hatası) BU except'e GİRMEZ, olduğu gibi yukarı
+    taşınmaya devam eder - geniş bir `except Exception` KASITLI OLARAK
+    kullanılmadı.
+    """
     parsed = []
+    skipped_malformed = 0
     for record in records:
-        row = parse_source_a_record(
-            record, direction, country_by_iata, aircraft_index,
-            min_operational_time=min_operational_time,
-        )
+        try:
+            row = parse_source_a_record(
+                record, direction, country_by_iata, aircraft_index,
+                min_operational_time=min_operational_time,
+            )
+        except _MALFORMED_RECORD_EXCEPTIONS as exc:
+            skipped_malformed += 1
+            logger.warning(
+                "malformed source-A record skipped (direction=%s, %s): %s: %s",
+                direction, _record_context(record), type(exc).__name__, exc,
+            )
+            continue
         if row is not None:
             parsed.append(row)
+
+    if skipped_malformed:
+        logger.warning(
+            "Source A parse summary (direction=%s): raw=%d parsed=%d skipped_malformed=%d",
+            direction, len(records), len(parsed), skipped_malformed,
+        )
     return parsed
 
 

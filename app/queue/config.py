@@ -34,7 +34,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import select
 
-from .domain.airport_scale import SCALE_LARGE, resource_view_for_scale
+from .domain.airport_scale import resource_view_for_scale
 from .models import Airport, AirportOperationalConfig
 
 # Varsayılanlar burada TEKRAR YAZILMAZ; tek doğruluk kaynağı
@@ -203,20 +203,24 @@ def _build_config_view(
     ) = _resolve_passport_server_counts(row, resources)
     domestic_lanes, international_lanes = _resolve_security_lane_counts(row, resources)
 
-    # ADIM (Dynamic LARGE Passport Staffing) - SADECE scale=="large" VE
-    # o havuz için explicit override YOKSA dynamic aktif. `resources`'ta
-    # `_max` anahtarı yoksa (MEDIUM/SMALL/UNKNOWN - SCALE_RESOURCES'ta
-    # bu ölçeklerin sözlüğünde `_max` hiç YOK) dynamic zaten anlamsız
-    # kalır (max=None -> engine.py bu bayrağı hiç okumaz ama güvenlik
-    # için burada da False'a düşürülür).
+    # ADIM (Dynamic LARGE Passport Staffing) - SADECE scale'in `_max`
+    # taşıyan bir tier olması (LARGE) VE o havuz için explicit override
+    # YOKSA dynamic aktif. `resources`'ta `_max` anahtarı yoksa (MEDIUM/
+    # SMALL/UNKNOWN - SCALE_RESOURCES'ta bu ölçeklerin sözlüğünde `_max`
+    # hiç YOK) dynamic zaten anlamsız kalır (max=None -> engine.py bu
+    # bayrağı hiç okumaz ama güvenlik için burada da False'a düşürülür).
+    # Kasıtlı olarak `scale == SCALE_LARGE` yerine `departure_max is not
+    # None` kontrolü kullanılıyor - bir zamanlar burada sabit `scale ==
+    # SCALE_LARGE` kontrolü vardı, artık kaldırılmış olan ayrı bir
+    # VERY_LARGE tier'ı eklenince bu, VERY_LARGE havalimanlarını SESSİZCE
+    # statik/sabit server sayısına düşürüyordu (peak'te max'a asla ramp
+    # ETMİYORDU) - `departure_max is not None` scale-agnostik olduğu
+    # için `_max` taşıyan HERHANGİ bir gelecekteki tier için de doğru
+    # çalışır, hard-code bir tier adına bağlı DEĞİLDİR.
     departure_max = resources.get("departure_passport_servers_max") if resources else None
     arrival_max = resources.get("arrival_passport_servers_max") if resources else None
-    passport_departure_dynamic = (
-        scale == SCALE_LARGE and not departure_is_override and departure_max is not None
-    )
-    passport_arrival_dynamic = (
-        scale == SCALE_LARGE and not arrival_is_override and arrival_max is not None
-    )
+    passport_departure_dynamic = not departure_is_override and departure_max is not None
+    passport_arrival_dynamic = not arrival_is_override and arrival_max is not None
 
     if row is not None:
         base_fields = {name: getattr(row, name) for name in _CONFIG_FIELDS}

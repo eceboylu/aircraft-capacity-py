@@ -18,6 +18,28 @@ havalimanına bağlanmaz.
 # kullanır - "60" ikinci bir yerde AYRI tanımlı DEĞİLDİR.
 DEMAND_WINDOW_MINUTES = 60
 
+# ADIM (Security Capacity Contract v4) - TEK source-of-truth: security
+# kapasitesi artık "lane_count x bu sabit" olarak okunur. Kullanıcının
+# AÇIKÇA verdiği contract değeri - genel bir araştırma ortalaması
+# DEĞİL, IMPLEMENT ET talimatının kendi sayısı (v3'teki 180'den 150'ye
+# GÜNCELLENDİ - bkz. rapor, "SECURITY CONTRACT'I PRODUCTION'A UYGULA").
+# `models.py:AirportOperationalConfig.security_service_time_minutes`'ın
+# varsayılanı bu sabitten TÜRETİLİR (`SECURITY_EFFECTIVE_SERVICE_TIME_
+# MINUTES`, aşağıda) - iki yerde AYRI yazılan bir "150" ve bir "0.4"
+# YOKTUR, ikinci SADECE birincinin türevidir.
+SECURITY_PASSENGERS_PER_HOUR_PER_LANE = 150
+
+# `security_service_time_minutes` alanı (core/scoring.py:
+# `security_effective_service_rate`/`queue_capacity_rate`) hâlâ
+# "dakika/yolcu" biçiminde bir Erlang-C/event-driven FIFO servis
+# süresi BEKLİYOR - bu yüzden 150 pax/saat/lane'i o formüle sokmak
+# için dakikaya çevrilir: 60/150 = 0.4 dk. BU DEĞER, TEK BİR yolcunun
+# fiziksel muayene/tarama süresi (literal passenger inspection time)
+# DEĞİLDİR - lane'in AGREGE/EFEKTİF throughput'unun Erlang-C'nin
+# beklediği "servis süresi" birimine matematiksel eşdeğeridir (bkz.
+# models.py'deki alan yorumu).
+SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES = 60.0 / SECURITY_PASSENGERS_PER_HOUR_PER_LANE
+
 # Arrival yolcusunun uçaktan inip passport kuyruğuna ulaşması için
 # geçen süre. Sabit varsayım - gerçek veri yok. BİLİNÇLİ OLARAK
 # DEMAND_WINDOW_MINUTES'TEN BAĞIMSIZDIR (rastgele aynı sayı - bir uçuş
@@ -173,7 +195,15 @@ PASSPORT_RHO_MEDIUM = 0.9
 # `queue_pressure` (operasyonel kapasite baskısı) BUNDAN TAMAMEN
 # BAĞIMSIZ, AYRI bir API alanı olarak kalmaya devam eder (bkz.
 # core/scoring.py:risk_from_wait()).
-WAIT_RISK_LOW_MINUTES = 5
+#
+# ADIM (Passenger-Facing Risk Threshold v2) - LOW eşiği 5 -> 10 dk
+# yükseltildi (kullanıcı talebi: "5 dakikalık bekleme bile MEDIUM
+# oluyordu, bunu istemiyoruz" - yolcu için 5-10dk arası hâlâ normal
+# sayılıyor). MEDIUM/HIGH eşikleri (15/30dk) DEĞİŞMEDİ. Bu SADECE
+# `estimated_wait_minutes`'ın risk KATEGORİSİNE nasıl eşlendiğini
+# değiştirir - `estimated_wait_minutes`'ın KENDİSİ (queue/backlog/
+# capacity hesabı) bu ADIM'da HİÇ DOKUNULMADI.
+WAIT_RISK_LOW_MINUTES = 10
 WAIT_RISK_MEDIUM_MINUTES = 15
 WAIT_RISK_HIGH_MINUTES = 30
 

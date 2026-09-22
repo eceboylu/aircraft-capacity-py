@@ -26,6 +26,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..models import Base, utcnow
+from .constants import SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES
 
 
 class Airport(Base):
@@ -164,16 +165,36 @@ class AirportOperationalConfig(Base):
     passport_staff_count: Mapped[int] = mapped_column(Integer, default=8)
 
     # Production queue modelinin açık servis varsayımı: TEK BİR
-    # GÖREVLİNİN bir yolcuyu işleme süresi. mu = 1/service_time =
-    # 2/3 pax/dk/görevli; c=4 gişe x 2 paralel görevli/gişe = 8 efektif
-    # server ile toplam kapasite 320 pax/saat (core/scoring.py:
+    # GÖREVLİNİN bir yolcuyu işleme süresi.
+    #
+    # ADIM (Resource/Service Throughput Calibration) - kullanıcının
+    # AÇIKÇA belirttiği yeni contract değeri: 1.0 dk = 60 pax/saat/
+    # görevli (eski değer 1.5 dk'dan DEĞİŞTİ - bu bilinçli bir
+    # kullanıcı kararıdır, genel araştırma oranı DEĞİL). mu = 1/1.0 =
+    # 1.0 pax/dk/görevli; c=4 gişe x 2 paralel görevli/gişe = 8 efektif
+    # server ile toplam kapasite 480 pax/saat (core/scoring.py:
     # `passport_capacity_rate`).
     passport_service_time_minutes: Mapped[float] = mapped_column(
-        Float, default=1.5
+        Float, default=1.0
     )
 
     # Security için fiziksel lane sayısı ve lane başına işlem süresi.
-    # c=8, service_time=1 dk -> 8 pax/dk -> 480 pax/saat.
+    #
+    # ADIM (Security Capacity Contract v4 - lane_count x pax/hour/
+    # lane) - bu alan artık "TEK bir yolcunun lane'de geçirdiği
+    # fiziksel muayene süresi" olarak OKUNMAZ/YORUMLANMAZ. Kaynak
+    # gerçek sayı `constants.py:SECURITY_PASSENGERS_PER_HOUR_PER_LANE`
+    # (=150, kullanıcının AÇIKÇA verdiği contract) - bu alanın
+    # varsayılanı SADECE Erlang-C/event-driven FIFO'nun (core/
+    # scoring.py, core/event_queue.py) matematiksel olarak "dakika/
+    # yolcu" birimi BEKLEMESİ yüzünden var: `SECURITY_EFFECTIVE_
+    # SERVICE_TIME_MINUTES` = 60/150 = 0.4 dk, "EFFECTIVE AGGREGATE
+    # LANE THROUGHPUT"'un o birime çevrilmiş HALİDİR, literal passenger
+    # inspection time DEĞİLDİR. İki yerde ayrı yazılan bir "150" ve bir
+    # "0.4" YOK - ikincisi birincinin türevi (bkz. constants.py).
+    # capacity_per_hour = lane_count x 150 (queue simulation/scoring/
+    # reporting/utilization/queue_pressure HEPSİ bu tek formülü, bu tek
+    # sabit üzerinden kullanır).
     #
     # `security_lane_count`: BİRLEŞİK/legacy `PROCESS_SECURITY` (tüm
     # kalkışlar, geriye dönük uyumluluk) ve `PROCESS_SECURITY_INTL`
@@ -197,7 +218,7 @@ class AirportOperationalConfig(Base):
     domestic_security_lane_count: Mapped[int] = mapped_column(Integer, default=8)
     international_security_lane_count: Mapped[int] = mapped_column(Integer, default=8)
     security_service_time_minutes: Mapped[float] = mapped_column(
-        Float, default=1.0
+        Float, default=SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES
     )
 
     # `passport_staff_per_counter` (4x2=8 efektif server modeli) AKTİF

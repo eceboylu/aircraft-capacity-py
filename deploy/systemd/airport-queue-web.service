@@ -8,9 +8,13 @@ User=airportqueue
 Group=airportqueue
 WorkingDirectory=/opt/airport-queue
 Environment=PYTHONUNBUFFERED=1
-# DATABASE_URL verilmezse app/db.py'nin varsayılanı (proje kökündeki
-# database.sqlite) kullanılır - production'da açıkça ayarlanmalı.
-# Environment=DATABASE_URL=sqlite:////opt/airport-queue/database.sqlite
+# ADIM (MySQL Production Database) - airport-queue-worker.service ile
+# AYNI dosya (bkz. deploy/systemd/aircraft-capacity.env.example) -
+# APP_ENV=production ayarlıyken bu değer olmadan web server de SQLite'a
+# SESSİZCE düşmez (bkz. app/db.py). Web server AIRLABS_API_KEY'i hiç
+# okumaz ama aynı dosyayı paylaşmak (worker ile İKİ AYRI env dosyası
+# yerine) config drift riskini ortadan kaldırır.
+EnvironmentFile=/etc/aircraft-capacity/aircraft-capacity.env
 ExecStart=/opt/airport-queue/venv/bin/python -m app.web.server --port 8000
 Restart=always
 RestartSec=5

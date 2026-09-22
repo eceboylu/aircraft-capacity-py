@@ -292,6 +292,73 @@ def _capacity_of(icao: str, scale: str) -> int:
     return next(cap for code, cap, _ in MIX[scale] if code == icao)
 
 
+# ========================================================================
+# ADIM (Fixture Domestic/International Distribution Bug Fix) - eski
+# mantık (`idx < n_dep_intl`, saat-artan sırayla YÜRÜYEN TEK global
+# indeks) günün İLK yüzdesini (n_dep_intl'e kadar) TAMAMEN international,
+# KALANINI TAMAMEN domestic yapıyordu - IST'de saat 17'ye kadar HER
+# kalkış international, AMS'de neredeyse GÜNÜN TAMAMI international,
+# SAW'da ilk yarı international/ikinci yarı domestic gibi gerçek dışı
+# "blok" bir dağılım üretiyordu (bkz. rapor - "Passport Peak Demand
+# Realism Audit"). Bu artık HER SAATİN KENDİ int'l/domestic oranını
+# (`intl_ratio`) KENDİ flight count'u üzerinden uygulayıp saat İÇİNDE
+# deterministic interleave etmesiyle DÜZELTİLDİ - hiçbir saat artık
+# "tamamen international" veya "tamamen domestic" bir blok DEĞİL
+# (aksi hâlâ mümkün: bir saatin kendi flight count'u 1-2 gibi çok
+# küçükse ve oran ekstrem ise - ör. tek uçuşluk bir saat - ama bu
+# GERÇEK bir havalimanının da o saatte gerçekten tek uçuşu olabileceği
+# anlamına gelir, YAPAY bir global-indeks kesişimi DEĞİLDİR).
+# ========================================================================
+
+def _hourly_international_counts(hour_counts: dict[int, int], intl_ratio: float) -> dict[int, int]:
+    """
+    Her saatin KENDİ flight count'una `intl_ratio`'yu uygular - GLOBAL
+    bir prefix/kesim YOK, her saat kendi oranını bağımsız taşır.
+
+    Conservation EXACT: `departure_show_up_events()` ile AYNI kümülatif-
+    yuvarlama ilkesi (Bölüm 4 - "kümülatif hedefin YUVARLANMIŞ farkı")
+    - `sum(sonuç.values()) == round(sum(hour_counts.values()) *
+    intl_ratio)` HER ZAMAN tam sağlanır, ara saatlerin ayrı ayrı
+    yuvarlanması TOPLAMDA kayıp/fazlalık üretemez. Saatler DETERMINISTIC
+    sabit bir sırayla (artan saat) dolaşılır - bu sıra SADECE yuvarlama
+    kalıntısının hangi saate düştüğünü belirler, ESKİ bug'ın aksine
+    hiçbir saati "tamamen" bir tipe İTMEZ (her saat kendi count'unun
+    ORANINI alır, count sıfır değilse ve oran 0 ile 1 arasındaysa o
+    saat İKİ TİPTEN de pay alabilir).
+    """
+    cumulative_target = 0.0
+    cumulative_rounded = 0
+    result: dict[int, int] = {}
+    for hour in sorted(hour_counts):
+        count = hour_counts[hour]
+        cumulative_target += count * intl_ratio
+        new_rounded = round(cumulative_target)
+        result[hour] = min(count, new_rounded - cumulative_rounded)
+        cumulative_rounded += result[hour]
+    return result
+
+
+def _interleave_flags(count: int, true_count: int) -> list[bool]:
+    """
+    `count` pozisyon içinde `true_count` adet `True`'yu DETERMINISTIC
+    (RANDOM YOK) olarak MÜMKÜN OLDUĞUNCA EŞİT ARALIKLI yerleştirir -
+    "ilk N tanesi True, kalanı False" gibi bloklaşma YOK (Bölüm 3 -
+    "aynı hour içindeki flights deterministic interleave olsun").
+    """
+    flags = [False] * count
+    if count <= 0 or true_count <= 0:
+        return flags
+    if true_count >= count:
+        return [True] * count
+    step = count / true_count
+    for k in range(true_count):
+        idx = int(k * step)
+        if idx >= count:
+            idx = count - 1
+        flags[idx] = True
+    return flags
+
+
 def _fmt(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%d %H:%M")
 
@@ -323,8 +390,15 @@ def build_records_for_airport(airport: str) -> tuple[list[dict], list[dict], dic
     dep_hours = _allocate_hours(n_dep, DEPARTURE_HOUR_WEIGHTS_BY_AIRPORT[airport])
     arr_hours = _allocate_hours(n_arr, ARR_HOUR_PROFILES[airport])
 
-    n_dep_intl = round(n_dep * (1 - cfg["domestic_ratio"])) if cfg["intl"] else 0
-    n_arr_intl = round(n_arr * (1 - cfg["domestic_ratio"])) if cfg["intl"] else 0
+    intl_ratio = (1 - cfg["domestic_ratio"]) if cfg["intl"] else 0.0
+    n_dep_intl = round(n_dep * intl_ratio)
+    n_arr_intl = round(n_arr * intl_ratio)
+    dep_hour_intl_counts = _hourly_international_counts(dep_hours, intl_ratio)
+    arr_hour_intl_counts = _hourly_international_counts(arr_hours, intl_ratio)
+    # Conservation EXACT doğrulaması (Bölüm 2) - saat-bazlı toplamlar
+    # günlük hedefle BİREBİR eşleşmeli, ekstra/kayıp yolcu ÜRETİLMEMELİ.
+    assert sum(dep_hour_intl_counts.values()) == n_dep_intl, airport
+    assert sum(arr_hour_intl_counts.values()) == n_arr_intl, airport
 
     departures = []
     arrivals = []
@@ -333,12 +407,13 @@ def build_records_for_airport(airport: str) -> tuple[list[dict], list[dict], dic
 
     idx = 0
     for hour, count in sorted(dep_hours.items()):
+        hour_flags = _interleave_flags(count, dep_hour_intl_counts.get(hour, 0))
         for i in range(count):
             minute = int(i * 60 / count) if count else 0
             local_dt = datetime(DATE.year, DATE.month, DATE.day, hour, minute, tzinfo=tz)
             dep_utc = local_dt.astimezone(UTC).replace(tzinfo=None)
 
-            is_intl = idx < n_dep_intl and bool(cfg["intl"])
+            is_intl = hour_flags[i] and bool(cfg["intl"])
             if is_intl:
                 partner = cfg["intl"][idx % len(cfg["intl"])]
                 airline = cfg["intl_airlines"][idx % len(cfg["intl_airlines"])]
@@ -380,12 +455,13 @@ def build_records_for_airport(airport: str) -> tuple[list[dict], list[dict], dic
 
     idx = 0
     for hour, count in sorted(arr_hours.items()):
+        hour_flags = _interleave_flags(count, arr_hour_intl_counts.get(hour, 0))
         for i in range(count):
             minute = int(i * 60 / count) if count else 0
             local_dt = datetime(DATE.year, DATE.month, DATE.day, hour, minute, tzinfo=tz)
             arr_utc = local_dt.astimezone(UTC).replace(tzinfo=None)
 
-            is_intl = idx < n_arr_intl and bool(cfg["intl"])
+            is_intl = hour_flags[i] and bool(cfg["intl"])
             if is_intl:
                 partner = cfg["intl"][idx % len(cfg["intl"])]
                 airline = cfg["intl_airlines"][idx % len(cfg["intl_airlines"])]

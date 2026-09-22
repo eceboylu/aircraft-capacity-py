@@ -24,6 +24,7 @@ Veritabanı bağlantısı sadece `run_predictions` ve yardımcılarındadır.
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
+from typing import Callable
 import json
 import logging
 
@@ -658,9 +659,19 @@ def _queue_backlog_starts(
     return backlog_starts
 
 
+# ADIM (Backlog-Aware Empty-Hour Reporting) - `_hourly_backlog_chain`'in
+# son talep saatinden sonra backlog>0 kaldığı sürece zinciri UZATMASI
+# için güvenlik tavanı (saat cinsinden). capacity_rate>0 garantisi
+# altında backlog HER ek saatte kesin (service_capacity kadar) azaldığı
+# için normal şartlarda asla tetiklenmez - SADECE teorik bir sonsuz
+# döngüye karşı son çare. 24*30 = 30 gün, gerçekçi hiçbir backlog'un
+# bunu aşması beklenmez (aşarsa zaten config gerçek dışıdır).
+_MAX_BACKLOG_DRAIN_EXTENSION_HOURS = 24 * 30
+
+
 def _hourly_backlog_chain(
     demand_by_hour: dict[datetime, float],
-    capacity_rate: float,
+    capacity_rate: float | Callable[[datetime], float],
     window_minutes: int,
 ) -> dict[datetime, float]:
     """
@@ -673,24 +684,67 @@ def _hourly_backlog_chain(
     `_passport_security_hourly_coupling`). Formülün KENDİSİ hiç
     değişmedi, sadece girdi kaynağı farklı.
 
+    ADIM (Analytic Backlog = Dynamic Capacity) - `capacity_rate` ARTIK
+    sabit bir `float` OLMAK ZORUNDA DEĞİL - dynamic LARGE passport
+    havuzları için saat-bazlı DEĞİŞEN kapasiteyi yansıtan bir
+    `Callable[[datetime], float]` da kabul eder (bkz. çağıran taraf -
+    `_event_driven_queue_demand`'in `_dynamic_capacity_rate_fn()`'i).
+    ESKİDEN bu fonksiyon HER ZAMAN `config.passport_departure_server_
+    count`/`arrival_server_count`'un SABİT/TABAN değerinden türeyen TEK
+    bir `capacity_rate` alıyordu - gerçek event-driven simülasyon
+    (`simulate_fifo_queue_dynamic`) dynamic havuzlarda TABANDAN ÇOK
+    DAHA YÜKSEK (max'a kadar) kapasiteyle çalışsa BİLE, bu analitik
+    zincir hep düşük/sabit tabanı kullanıp GERÇEK olandan ÇOK DAHA
+    BÜYÜK bir backlog RAPORLUYORDU (bkz. rapor - "IST canlı-veri
+    denetiminde bulunan static-vs-dynamic capacity mismatch": gerçek
+    simülasyonun kendi backlog'u ~250-950 iken bu zincirin ürettiği
+    "analytic backlog" ~23,000-28,000'di). `float` veren ESKİ
+    çağıranlar (security süreçleri, hiçbiri dynamic DEĞİL) HİÇ
+    ETKİLENMEDİ - sadece dynamic passport departure/arrival artık
+    KENDİ GERÇEK, saat-bazlı kapasitesini kullanıyor.
+
     İlk/son dolu saat arasındaki BOŞ saatler de dolaşılır (gişeler o
     saatlerde de servise devam eder) - `_queue_backlog_starts` ile AYNI
     ilke.
+
+    ADIM (Backlog-Aware Empty-Hour Reporting) - eskiden zincir TAM
+    OLARAK `starts[-1]`'de (son TALEP saati) dururdu - bu saatten sonra
+    backlog>0 kalsa BİLE (ör. departure passport'un günün son show-up
+    dalgası bitti ama devasa bir backlog hâlâ sunucularda işleniyor)
+    zincir bu saatleri hiç ÜRETMİYORDU. Çağıran taraf (`predict_
+    airport`) bu yüzden o saatler için hiç `WindowPrediction` üretmiyor,
+    API katmanı da (`_pad_series_to_24_hours`) "talep yok -> LOW/0"
+    sanıp SIFIR-TALEP padding'i basıyordu - GERÇEK, sürmekte olan
+    backlog GİZLENİYORDU (bkz. rapor - Graph Bug #1). Şimdi zincir,
+    `starts[-1]`'den SONRA da backlog kesinlikle 0'a inene kadar
+    (`demand_here=0` varsayarak) DEVAM eder - bu, "gişeler boş saatlerde
+    de servise devam eder" ilkesinin (yukarıdaki, mevcut) DOĞAL
+    uzantısıdır, YENİ bir kavram değil. Underlying FIFO event-driven
+    simülasyon (`core/event_queue.py`) HİÇ DEĞİŞMEDİ - bu SADECE fluid/
+    analitik backlog zincirinin, simülasyonun ZATEN bildiği gerçeği
+    (backlog boşalana kadar sunucular çalışır) ne kadar ileri saate
+    kadar RAPORLADIĞI ile ilgili.
     """
     starts = sorted(demand_by_hour)
     if not starts:
         return {}
 
-    service_capacity = capacity_rate * window_minutes
+    capacity_rate_fn = capacity_rate if callable(capacity_rate) else (lambda _t: capacity_rate)
     backlog_start: dict[datetime, float] = {}
 
     backlog = 0.0
     current = starts[0]
     last = starts[-1]
     step = timedelta(minutes=window_minutes)
+    extension_hours = 0
 
-    while current <= last:
+    while current <= last or backlog > 0:
+        if current > last:
+            if extension_hours >= _MAX_BACKLOG_DRAIN_EXTENSION_HOURS:
+                break
+            extension_hours += 1
         demand_here = demand_by_hour.get(current, 0.0)
+        service_capacity = capacity_rate_fn(current) * window_minutes
         backlog_start[current] = backlog
         backlog = max(0.0, backlog + demand_here - service_capacity)
         current += step
@@ -1041,7 +1095,7 @@ def _event_driven_queue_demand(
     # (`passport_counter_count`/`passport_staff_per_counter`) sayıyla
     # DEĞİŞMEDEN hesaplanmaya devam eder; departure/arrival'ın KENDİ
     # GERÇEK kapasiteleri SADECE PROCESS_PASSPORT_DEPARTURE/ARRIVAL'da.
-    capacity_rates = {
+    capacity_rates: dict[str, float | Callable[[datetime], float]] = {
         PROCESS_PASSPORT: passport_capacity_rate(config),
         PROCESS_PASSPORT_DEPARTURE: passport_departure_capacity_rate(config),
         PROCESS_PASSPORT_ARRIVAL: passport_arrival_capacity_rate(config),
@@ -1049,6 +1103,37 @@ def _event_driven_queue_demand(
         PROCESS_SECURITY: security_capacity_rate(config),
         PROCESS_SECURITY_INTL: international_security_capacity_rate(config),
     }
+
+    # ADIM (Analytic Backlog = Dynamic Capacity) - dynamic LARGE passport
+    # havuzları için PROCESS_PASSPORT_DEPARTURE/ARRIVAL'ın yukarıdaki
+    # SABİT (taban server sayısından türeyen) `capacity_rate`'i, o
+    # havuzun GERÇEK event-driven simülasyonunun (`simulate_fifo_queue_
+    # dynamic`) o saat ne kullandığına göre DEĞİŞEN bir fonksiyonla
+    # DEĞİŞTİRİLİR - `_hourly_backlog_chain`'in ("analytic" backlog,
+    # reported wait'i besler) REAL SIMÜLASYONUN KENDİSİYLE AYNI
+    # kapasiteyi kullanması için (bkz. rapor - static-vs-dynamic capacity
+    # mismatch bulgusu). Dynamic DEĞİLSE (`schedule is None` - MEDIUM/
+    # SMALL/UNKNOWN veya explicit override'lı LARGE) yukarıdaki SABİT
+    # değer AYNEN kalır - davranış HİÇ DEĞİŞMEZ.
+    def _dynamic_capacity_rate_fn(
+        schedule: list[tuple[datetime, int]],
+    ) -> Callable[[datetime], float]:
+        service_rate_per_server_per_minute = 1.0 / config.passport_service_time_minutes
+        ordered = sorted(schedule, key=lambda item: item[0])
+
+        def _rate(hour_start: datetime) -> float:
+            eff = effective_capacity_by_hour(ordered, [hour_start], window_minutes)
+            active = eff.get(hour_start, ordered[0][1])
+            return active * service_rate_per_server_per_minute
+
+        return _rate
+
+    departure_schedule = passport_result.get("departure_schedule")
+    if departure_schedule is not None:
+        capacity_rates[PROCESS_PASSPORT_DEPARTURE] = _dynamic_capacity_rate_fn(departure_schedule)
+    arrival_schedule = passport_result.get("arrival_schedule")
+    if arrival_schedule is not None:
+        capacity_rates[PROCESS_PASSPORT_ARRIVAL] = _dynamic_capacity_rate_fn(arrival_schedule)
 
     backlog_start_by_hour = {
         process: _hourly_backlog_chain(
@@ -1185,7 +1270,18 @@ def predict_airport(
         # security'ye ancak bir SONRAKİ saatte ulaşan yolcular; PASSPORT/
         # SECURITY_DOMESTIC için ikisi PRATİKTE AYNIDIR çünkü arrival_time
         # zaten flight'ın kendi effective_time'ıdır).
-        starts = sorted(set(buckets) | set(coupled_demand))
+        #
+        # ADIM (Backlog-Aware Empty-Hour Reporting) - `set(coupled_
+        # backlog)` EKLENDİ: `_hourly_backlog_chain` artık son talep
+        # saatinden sonra backlog>0 kaldığı sürece ek saatler üretiyor
+        # (bkz. o fonksiyonun docstring'i) - bu saatler `buckets`'ta da
+        # `coupled_demand`'da da YOKTUR (hiç yeni uçuş/arrival yok), bu
+        # yüzden onlar olmadan `starts` bu saatleri hiç İÇERMEZ ve o
+        # saat için WindowPrediction hiç ÜRETİLMEZ - API katmanı sonra
+        # bunu "talep yok" sanıp sıfır-talep padding'i basar (Graph
+        # Bug #1). `coupled_backlog`'u birliğe eklemek, backlog varken
+        # HİÇBİR saatin sessizce atlanmamasını garantiler.
+        starts = sorted(set(buckets) | set(coupled_demand) | set(coupled_backlog))
 
         # ADIM (Visible Risk = Gerçek Queue Pressure) - GERÇEK, event-
         # türevli backlog SADECE 4 görünür/event-driven-wait sürecinde

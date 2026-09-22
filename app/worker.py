@@ -27,15 +27,102 @@ kalıcılık tasarımının doğal bir sonucudur.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Callable
 
 from .queue import pipeline, retention
 from .queue.engine import domain_now
 
+# ADIM (Worker Single-Instance Lock) - `fcntl` POSIX-only (Linux/systemd
+# production hedefi - bkz. deploy/systemd/). Windows gibi fcntl'siz bir
+# platformda modülün KENDİSİ (import app.worker) hâlâ sorunsuz import
+# edilebilmeli - mevcut testler (`tests/test_auto_refresh_worker.py`,
+# `tests/test_auto_ingestion_worker_integration.py`) SADECE `run_forever()`'ı
+# doğrudan çağırır, `main()`'e hiç dokunmaz - bu yüzden import-time bir
+# ImportError yerine BURADA sessizce None'a düşülür; gerçek kilitleme
+# denemesi (`_acquire_worker_lock()`, SADECE `main()` içinden çağrılır)
+# fcntl yoksa AÇIKÇA `WorkerLockError` fırlatır (aşağıya bkz.) - "sessizce
+# korumasız devam etme" kuralı bu şekilde korunur.
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows/non-POSIX dev ortamı
+    fcntl = None
+
 logger = logging.getLogger(__name__)
 
 REFRESH_INTERVAL_SECONDS = 5 * 60
+
+# ADIM (Worker Single-Instance Lock) - Bölüm: aynı host'ta yanlışlıkla
+# ikinci bir `python -m app.worker` başlatılırsa iki worker'ın AYNI ANDA
+# DB'ye yazmasını engeller (bkz. deployment audit raporu - cold-start
+# `database is locked` çökmesi VE steady-state `flight_key` upsert race'i
+# GERÇEKTEN reproduce edildi). `/run` systemd'nin `RuntimeDirectory=`
+# ile OLUŞTURDUĞU, servis user'ına (`ProtectSystem=strict` altında bile)
+# yazılabilir tmpfs dizinidir (bkz. deploy/systemd/airport-queue-worker.service)
+# - reboot'ta da otomatik temizlenir, ekstra bir "eski kilit" riski katmaz.
+WORKER_LOCK_PATH = os.environ.get("WORKER_LOCK_PATH", "/run/airport-queue/worker.lock")
+
+
+class WorkerLockError(RuntimeError):
+    """
+    Kilit dosyası/dizini HİÇ AÇILAMADI (izin, eksik RuntimeDirectory,
+    fcntl bu platformda YOK, vb.) - Bölüm (Fail-Safe): bu durumda worker
+    SESSİZCE korumasız (kilitsiz) çalışmaya asla DEVAM ETMEZ; `main()`
+    bunu AÇIK bir başlangıç hatası olarak ele alıp süreci BAŞLATMADAN
+    durdurmalı - "startup should fail visibly rather than run unprotected".
+    """
+
+
+def _acquire_worker_lock(path: str = WORKER_LOCK_PATH):
+    """
+    Bu host üzerinde AYNI ANDA yalnızca TEK bir worker'ın DB'ye
+    yazmasını garanti eden POSIX dosya kilidi (`flock(2)`, exclusive,
+    non-blocking - `LOCK_EX | LOCK_NB`).
+
+    NEDEN PID-DOSYASI DEĞİL: bir PID dosyası process beklenmedik
+    şekilde (kill -9, OOM, segfault) ölürse STALE kalabilir - kernel
+    onu OTOMATİK temizlemez, bir sonraki başlatma "zaten çalışıyor"
+    sanıp YANLIŞLIKLA çıkabilir (deadlock). `flock` ise dosyayı tutan
+    file descriptor'ı process SONLANDIĞINDA (normal çıkış, kill -9,
+    crash - HEPSİ dahil) kernel tarafından OTOMATİK serbest bırakılır -
+    stale-lock riski YAPISAL OLARAK yok (bkz. Senaryo C doğrulaması).
+
+    Döner:
+      (lock_file, None)        - kilit BAŞARIYLA alındı. `lock_file`
+                                  process ömrü boyunca AÇIK TUTULMALI -
+                                  kapatılırsa/GC edilirse kilit HEMEN
+                                  serbest kalır (bkz. `main()`).
+      (None, "duplicate")      - kilit BAŞKA bir process'te - normal,
+                                  beklenen "ikinci worker" durumu.
+
+    fcntl bu platformda YOKSA VEYA kilit dosyası/dizini (izin, eksik
+    dizin) hiç AÇILAMIYORSA `WorkerLockError` fırlatır - bkz. o
+    sınıfın docstring'i.
+    """
+    if fcntl is None:
+        raise WorkerLockError(
+            "worker single-instance lock requires POSIX flock() (fcntl module) "
+            "- not available on this platform/interpreter."
+        )
+
+    try:
+        lock_dir = os.path.dirname(path)
+        if lock_dir:
+            os.makedirs(lock_dir, exist_ok=True)
+        lock_file = open(path, "a+")
+    except OSError as exc:
+        raise WorkerLockError(
+            f"worker lock file could not be opened at {path!r}: {exc}"
+        ) from exc
+
+    try:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        lock_file.close()
+        return None, "duplicate"
+
+    return lock_file, None
 
 # ADIM (Retention Cleanup Schedule) - Bölüm 9: 5 dakikalık refresh'ten
 # TAMAMEN BAĞIMSIZ, AYRI bir cadence (48 saat). Bu sabit SADECE
@@ -155,7 +242,30 @@ def main() -> int:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    run_forever()
+
+    # ADIM (Worker Single-Instance Lock) - SADECE `main()` (gerçek process
+    # giriş noktası) kilit alır - `run_forever()`'ın kendisi DEĞİŞMEDİ,
+    # mevcut testler (`tests/test_auto_refresh_worker.py`,
+    # `tests/test_auto_ingestion_worker_integration.py`) `run_forever()`'ı
+    # DOĞRUDAN çağırdığı için kilitten hiç ETKİLENMEZ.
+    try:
+        lock_file, reason = _acquire_worker_lock()
+    except WorkerLockError:
+        logger.exception(
+            "worker lock could not be acquired at %s - refusing to start "
+            "unprotected (fail-safe)", WORKER_LOCK_PATH,
+        )
+        return 1
+
+    if lock_file is None:
+        logger.info("Another airport queue worker is already running; exiting.")
+        return 0
+
+    logger.info("worker lock acquired (%s)", WORKER_LOCK_PATH)
+    try:
+        run_forever()
+    finally:
+        lock_file.close()
     return 0
 
 

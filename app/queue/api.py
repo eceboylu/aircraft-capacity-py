@@ -51,21 +51,21 @@ from .models import Airport, Flight, QueuePrediction
 # --- Risk -> UI durum etiketi (TEK yer, SADECE sunum) ------------------
 #
 # Backend'in ürettiği risk değeri (LOW/MEDIUM/HIGH/CRITICAL/UNKNOWN)
-# BURADA değişmez - sadece kullanıcıya gösterilecek Türkçe etikete
-# eşlenir. UI'da yalnızca 3 resmi durum var (NORMAL/YOĞUN/ÇOK YOĞUN);
-# backend'in 5 değeri bu 3'e sıkıştırılırken:
-#   - HIGH ve CRITICAL ikisi de "ÇOK YOĞUN" gösterilir (ham `risk`
-#     alanı yanıtta AYNEN de bulunur - frontend istersen ikisini görsel
-#     olarak ayırabilir, bilgi kaybı yok, sadece etiket ortak).
-#   - UNKNOWN "BİLİNMİYOR" olur - "NORMAL"a KESİNLİKLE düşürülmez
-#     (bkz. modül testleri) - baseline eksikliğini normal yoğunlukla
-#     karıştırmak, ADIM 5H'nin en kritik kuralı.
+# BURADA değişmez - sadece kullanıcıya gösterilecek İNGİLİZCE etikete
+# eşlenir (ADIM: Passenger-Facing Risk Threshold v2 - kullanıcı talebi:
+# tüm UI metinleri İngilizce, 5 backend değeri artık 5 AYRI etikete
+# eşlenir, önceki sürümdeki HIGH/CRITICAL "ÇOK YOĞUN" sıkıştırması
+# KALDIRILDI - artık her risk seviyesi kendi ayrı etiketini taşır):
+#   LOW -> "Normal", MEDIUM -> "Getting Busy", HIGH -> "Busy",
+#   CRITICAL -> "Very Busy", UNKNOWN -> "Unknown" (baseline eksikliğini
+#   normal yoğunlukla KESİNLİKLE karıştırmaz - ADIM 5H'nin en kritik
+#   kuralı, bkz. modül testleri).
 RISK_TO_UI_LABEL = {
-    RISK_LOW: "NORMAL",
-    RISK_MEDIUM: "YOĞUN",
-    RISK_HIGH: "ÇOK YOĞUN",
-    RISK_CRITICAL: "ÇOK YOĞUN",
-    RISK_UNKNOWN: "BİLİNMİYOR",
+    RISK_LOW: "Normal",
+    RISK_MEDIUM: "Getting Busy",
+    RISK_HIGH: "Busy",
+    RISK_CRITICAL: "Very Busy",
+    RISK_UNKNOWN: "Unknown",
 }
 
 
@@ -74,10 +74,10 @@ def ui_label_for_risk(risk: str | None) -> str | None:
     Ham backend risk değerini UI etiketine çevirir.
 
     `risk is None` (bu havalimanı/süreç için HİÇ pencere yok) `None`
-    döner - çağıran taraf (frontend) bunu "Veri bulunamadı" ile
-    göstermeli, "NORMAL" ile DEĞİL. Bilinmeyen bir risk string'i
-    gelirse (ileride yeni bir değer eklenirse) olduğu gibi geçirilir -
-    sessizce NORMAL'e düşürülmez.
+    döner - çağıran taraf (frontend) bunu "No data" ile göstermeli,
+    "Normal" ile DEĞİL. Bilinmeyen bir risk string'i gelirse (ileride
+    yeni bir değer eklenirse) olduğu gibi geçirilir - sessizce
+    Normal'e düşürülmez.
     """
     if risk is None:
         return None
@@ -129,20 +129,45 @@ def overall_status(*risks: str | None) -> dict:
 
 def tracked_airports(session) -> list[str]:
     """
-    İzlenen havalimanları - `QueuePrediction`'da GERÇEKTEN tahmini
-    olan havalimanlar (hiçbir hardcoded liste YOK). Alfabetik sıralı.
+    İzlenen havalimanları - hiçbir hardcoded liste YOK. Alfabetik sıralı.
+
+    ADIM (Zero-Flight Airport Visibility) - ÖNCEDEN SADECE `QueuePrediction`
+    satırı olan havalimanları listeleniyordu. Bu, GERÇEKTEN ingest edilmiş
+    (en az bir `Flight` satırı üretmiş) ama o günün operasyonel-gün
+    filtresine göre BUGÜN hiç uçuşu olmayan bir havalimanının (`run_
+    predictions()`'ın "flights boşsa atla" davranışı, bkz. o fonksiyon)
+    dizin'den TAMAMEN KAYBOLMASINA yol açıyordu - `airport_predictions()`/
+    `process_series()` bu havalimanı için ZATEN doğru, tam 24-saatlik
+    sıfır-talep günü üretebiliyor olsa bile (`_pad_series_to_24_hours` -
+    `day_start`/`tz` SADECE `Airport` tablosundan gelir, Flight/
+    QueuePrediction geçmişine bağlı DEĞİLDİR), dizin listede hiç
+    GÖRÜNMÜYORDU (canlı `/api/airports/EYP/predictions` ile doğrulandı -
+    sıfır flight/prediction geçmişiyle bile 5/5 grafik 24 dolu/LOW/
+    Normal pencere döndürüyor, SADECE eski `tracked_airports()` onu
+    dizine hiç EKLEMİYORDU).
+
+    DÜZELTME: artık `Flight.airport_iata` (en az bir kez GERÇEKTEN
+    ingest edilmiş havalimanı - `engine.airport_codes()`'un ZATEN
+    kullandığı AYNI "desteklenen evren" tanımı) İLE `QueuePrediction.
+    airport_iata`'nın BİRLEŞİMİ kullanılır - global `Airport` referans
+    tablosundaki (binlerce havalimanı) HİÇBİRİ otomatik olarak
+    İFŞA EDİLMEZ, sadece gerçekten en az bir kez refresh edilmiş
+    havalimanlar (mevcut/eski davranışın ÜST KÜMESİ, hiçbir mevcut
+    satır listeden ÇIKARILMAZ).
 
     GERİYE DÖNÜK UYUMLULUK: bu fonksiyonun/`/api/airports`'un dönüş
     şekli (düz string listesi) DEĞİŞTİRİLMEDİ - havalimanı adı
     isteyen tüketiciler `airport_directory()`/`/api/airports/directory`
     kullanmalı (ADIM 6A-UI-2).
     """
-    rows = session.execute(
-        select(QueuePrediction.airport_iata)
-        .distinct()
-        .order_by(QueuePrediction.airport_iata)
+    flight_codes = session.execute(
+        select(Flight.airport_iata).distinct()
     ).scalars().all()
-    return list(rows)
+    prediction_codes = session.execute(
+        select(QueuePrediction.airport_iata).distinct()
+    ).scalars().all()
+    codes = {code for code in (*flight_codes, *prediction_codes) if code}
+    return sorted(codes)
 
 
 # ADIM 6C §B - İKİNCİL isim kaynağı: `Airport.airport_name` (BİRİNCİL
@@ -684,17 +709,29 @@ def _merge_overall_series(*process_results: dict, now: datetime) -> dict:
     (`RISK_ORDER`) seçer. YENİ bir risk/skor formülü YOK - sadece zaten
     hesaplanmış `risk` değerleri arasında MAX.
 
-    ADIM 6D-2 H2 - wait KAYNAĞI iki adımlı seçilir (risk matematiği bu
-    adımda DEĞİŞMEDİ, sadece wait'in HANGİ sürecin satırından
-    taşınacağı düzeltildi):
+    ADIM 6D-2 H2 / ADIM (Overall Tie-Break = Highest Wait) - wait
+    KAYNAĞI iki adımlı seçilir (risk matematiği bu adımda DEĞİŞMEDİ,
+    sadece wait'in HANGİ sürecin satırından taşınacağı düzeltildi):
 
       1) Önce en yüksek severity bulunur (yukarıdaki risk seçimiyle
          AYNI `RISK_ORDER`).
       2) O severity'yi taşıyan süreçler arasında (birden fazla olabilir -
-         ör. security_intl VE passport aynı anda CRITICAL) gerçek/finite
-         bir `estimated_wait_minutes`'ı OLAN ilk süreç tercih edilir;
-         hiçbirinde yoksa (hepsi security gibi wait modelsizse)
-         `estimated_wait_minutes = None` kalır.
+         ör. security_intl VE passport aynı anda CRITICAL) artık gerçek/
+         finite bir `estimated_wait_minutes`'ı OLAN, o wait'i EN YÜKSEK
+         olan süreç tercih edilir (ör. CRITICAL/57, CRITICAL/146,
+         CRITICAL/171 -> 171 kazanır); hiçbirinde finite wait yoksa
+         (hepsi security gibi wait modelsizse) `estimated_wait_minutes
+         = None` kalır. ESKİDEN (Graph Bug #2) burada "argüman sırasına
+         göre İLK süreç" seçiliyordu - bu, `_merge_overall_series`'e
+         VERİLME SIRASINA (domestic_security, international_security,
+         passport_departure, passport_arrival) bağlı, GERÇEK wait
+         büyüklüğüyle İLGİSİZ bir sonuç üretiyordu (bkz. rapor - IST
+         16:00->17:00 local geçişinde overall'ın 136.7'den 57.5'e
+         "düşmesi", oysa o saatte international_security 146.7 VE
+         arrival_passport 171.5 idi - her ikisi de domestic_security'nin
+         57.5'inden YÜKSEKTİ). Artık tie-break DAİMA gerçek en yüksek
+         wait'i taşıyan süreci seçer - argüman sırası SONUCU
+         ETKİLEMEZ.
 
     Böylece DÜŞÜK severity'deki bir sürecin wait'i overall'a HİÇBİR
     ZAMAN taşınmaz (ör. security_intl=CRITICAL/wait=None VE
@@ -717,11 +754,9 @@ def _merge_overall_series(*process_results: dict, now: datetime) -> dict:
     def _worst_of(entries: list[dict]) -> dict:
         top_severity = max(RISK_ORDER.get(w["risk"], -1) for w in entries)
         top_entries = [w for w in entries if RISK_ORDER.get(w["risk"], -1) == top_severity]
-        base = top_entries[0]
-        wait = next(
-            (w["estimated_wait_minutes"] for w in top_entries if w["estimated_wait_minutes"] is not None),
-            None,
-        )
+        with_wait = [w for w in top_entries if w["estimated_wait_minutes"] is not None]
+        base = max(with_wait, key=lambda w: w["estimated_wait_minutes"]) if with_wait else top_entries[0]
+        wait = base["estimated_wait_minutes"]
         return {
             "window_start": base["window_start"],
             "window_end": base["window_end"],

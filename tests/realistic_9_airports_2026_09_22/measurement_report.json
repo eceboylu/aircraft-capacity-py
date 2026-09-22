@@ -1,25 +1,25 @@
 {
   "now_utc": "2026-09-22T19:00:00",
-  "total_generated_flights": 3838,
+  "total_generated_flights": 1122,
   "refresh": {
-    "inserted": 3838,
+    "inserted": 1122,
     "updated": 0,
     "events_written": 0,
     "failed": 0
   },
   "prediction_summary": {
     "airports": {
-      "AMS": 152,
+      "AMS": 124,
       "ISC": 24,
-      "IST": 129,
-      "JMK": 68,
+      "IST": 201,
+      "JMK": 115,
       "JTY": 8,
       "KOI": 28,
-      "SAW": 97,
-      "SOG": 24,
-      "TZX": 57
+      "SAW": 120,
+      "SOG": 26,
+      "TZX": 66
     },
-    "predictions": 587,
+    "predictions": 712,
     "failed_airports": []
   },
   "per_airport": {
@@ -27,8 +27,8 @@
       "research_movements": 1499,
       "generated_movements": 1499,
       "diff_pct": 0.0,
-      "departures": 749,
-      "arrivals": 750,
+      "departures": 404,
+      "arrivals": 6,
       "before_modeled_passengers_day": 330429,
       "real_pax_per_movement": 156.19,
       "real_passengers_day_at_this_volume": 234128.8,
@@ -36,41 +36,41 @@
       "calibration_level": "airport_specific",
       "peak": {
         "domestic_security": {
-          "peak_wait_minutes": 1706.5,
-          "peak_wait_window": "2026-09-22T19:00:00",
-          "peak_utilization": 6.782,
-          "peak_risk": "CRITICAL"
+          "peak_wait_minutes": 1.3,
+          "peak_wait_window": "2026-09-22T13:00:00",
+          "peak_utilization": 0.496,
+          "peak_risk": "LOW"
         },
         "departure_passport": {
-          "peak_wait_minutes": 848.7,
-          "peak_wait_window": "2026-09-22T12:00:00",
-          "peak_utilization": 2.872,
+          "peak_wait_minutes": 112.2,
+          "peak_wait_window": "2026-09-22T15:00:00",
+          "peak_utilization": 1.644,
           "peak_risk": "CRITICAL"
         },
         "international_security": {
-          "peak_wait_minutes": 751.8,
-          "peak_wait_window": "2026-09-22T20:00:00",
-          "peak_utilization": 1.556,
-          "peak_risk": "CRITICAL"
+          "peak_wait_minutes": 0.3,
+          "peak_wait_window": "2026-09-22T07:00:00",
+          "peak_utilization": 0.933,
+          "peak_risk": "LOW"
         },
         "arrival_passport": {
-          "peak_wait_minutes": 664.4,
-          "peak_wait_window": "2026-09-22T14:00:00",
-          "peak_utilization": 2.386,
-          "peak_risk": "CRITICAL"
+          "peak_wait_minutes": 0.0,
+          "peak_wait_window": "2026-09-21T21:00:00",
+          "peak_utilization": 0.08,
+          "peak_risk": "LOW"
         }
       },
       "peak_departure_active_passport_servers": 70,
-      "peak_arrival_active_passport_servers": 75,
-      "after_modeled_passengers_day": 234249,
-      "difference_vs_real_pct": 0.05
+      "peak_arrival_active_passport_servers": 45,
+      "after_modeled_passengers_day": 58376,
+      "difference_vs_real_pct": -75.07
     },
     "SAW": {
       "research_movements": 755,
       "generated_movements": 755,
       "diff_pct": 0.0,
-      "departures": 377,
-      "arrivals": 378,
+      "departures": 231,
+      "arrivals": 10,
       "before_modeled_passengers_day": 165990,
       "real_pax_per_movement": 175.66,
       "real_passengers_day_at_this_volume": 132623.3,
@@ -78,41 +78,41 @@
       "calibration_level": "airport_specific",
       "peak": {
         "domestic_security": {
-          "peak_wait_minutes": 1361.6,
-          "peak_wait_window": "2026-09-22T18:00:00",
-          "peak_utilization": 4.556,
-          "peak_risk": "CRITICAL"
+          "peak_wait_minutes": 1.5,
+          "peak_wait_window": "2026-09-22T14:00:00",
+          "peak_utilization": 0.641,
+          "peak_risk": "LOW"
         },
         "departure_passport": {
-          "peak_wait_minutes": 207.1,
-          "peak_wait_window": "2026-09-22T07:00:00",
-          "peak_utilization": 2.06,
-          "peak_risk": "CRITICAL"
+          "peak_wait_minutes": 1.5,
+          "peak_wait_window": "2026-09-22T11:00:00",
+          "peak_utilization": 0.77,
+          "peak_risk": "LOW"
         },
         "international_security": {
-          "peak_wait_minutes": 374.1,
-          "peak_wait_window": "2026-09-22T11:00:00",
-          "peak_utilization": 1.556,
-          "peak_risk": "CRITICAL"
+          "peak_wait_minutes": 0.2,
+          "peak_wait_window": "2026-09-22T06:00:00",
+          "peak_utilization": 0.538,
+          "peak_risk": "LOW"
         },
         "arrival_passport": {
-          "peak_wait_minutes": 176.9,
-          "peak_wait_window": "2026-09-22T09:00:00",
-          "peak_utilization": 2.061,
-          "peak_risk": "CRITICAL"
+          "peak_wait_minutes": 0.1,
+          "peak_wait_window": "2026-09-22T13:00:00",
+          "peak_utilization": 0.092,
+          "peak_risk": "LOW"
         }
       },
-      "peak_departure_active_passport_servers": 70,
-      "peak_arrival_active_passport_servers": 75,
-      "after_modeled_passengers_day": 132470,
-      "difference_vs_real_pct": -0.12
+      "peak_departure_active_passport_servers": 62,
+      "peak_arrival_active_passport_servers": 45,
+      "after_modeled_passengers_day": 30358,
+      "difference_vs_real_pct": -77.11
     },
     "AMS": {
       "research_movements": 1308,
       "generated_movements": 1308,
       "diff_pct": 0.0,
-      "departures": 654,
-      "arrivals": 654,
+      "departures": 228,
+      "arrivals": 7,
       "before_modeled_passengers_day": 288484,
       "real_pax_per_movement": 144.05,
       "real_passengers_day_at_this_volume": 188417.4,
@@ -126,28 +126,28 @@
           "peak_risk": "LOW"
         },
         "departure_passport": {
-          "peak_wait_minutes": 875.2,
-          "peak_wait_window": "2026-09-22T18:00:00",
-          "peak_utilization": 2.861,
+          "peak_wait_minutes": 125.0,
+          "peak_wait_window": "2026-09-22T09:00:00",
+          "peak_utilization": 1.752,
           "peak_risk": "CRITICAL"
         },
         "international_security": {
-          "peak_wait_minutes": 673.8,
-          "peak_wait_window": "2026-09-22T21:00:00",
-          "peak_utilization": 1.556,
-          "peak_risk": "CRITICAL"
+          "peak_wait_minutes": 0.3,
+          "peak_wait_window": "2026-09-22T06:00:00",
+          "peak_utilization": 0.933,
+          "peak_risk": "LOW"
         },
         "arrival_passport": {
-          "peak_wait_minutes": 732.5,
-          "peak_wait_window": "2026-09-22T19:00:00",
-          "peak_utilization": 2.761,
-          "peak_risk": "CRITICAL"
+          "peak_wait_minutes": 0.2,
+          "peak_wait_window": "2026-09-22T14:00:00",
+          "peak_utilization": 0.088,
+          "peak_risk": "LOW"
         }
       },
       "peak_departure_active_passport_servers": 70,
-      "peak_arrival_active_passport_servers": 75,
-      "after_modeled_passengers_day": 188656,
-      "difference_vs_real_pct": 0.13
+      "peak_arrival_active_passport_servers": 45,
+      "after_modeled_passengers_day": 31970,
+      "difference_vs_real_pct": -83.03
     },
     "JMK": {
       "research_movements": 130,
@@ -162,27 +162,27 @@
       "calibration_level": "airport_specific",
       "peak": {
         "domestic_security": {
-          "peak_wait_minutes": 1.6,
-          "peak_wait_window": "2026-09-22T13:00:00",
-          "peak_utilization": 0.824,
+          "peak_wait_minutes": 1.1,
+          "peak_wait_window": "2026-09-22T12:00:00",
+          "peak_utilization": 0.366,
           "peak_risk": "LOW"
         },
         "departure_passport": {
-          "peak_wait_minutes": 21.1,
-          "peak_wait_window": "2026-09-22T05:00:00",
-          "peak_utilization": 1.18,
-          "peak_risk": "HIGH"
+          "peak_wait_minutes": 1.3,
+          "peak_wait_window": "2026-09-22T04:00:00",
+          "peak_utilization": 0.44,
+          "peak_risk": "LOW"
         },
         "international_security": {
-          "peak_wait_minutes": 23.6,
-          "peak_wait_window": "2026-09-22T06:00:00",
-          "peak_utilization": 1.111,
-          "peak_risk": "HIGH"
+          "peak_wait_minutes": 0.1,
+          "peak_wait_window": "2026-09-22T01:00:00",
+          "peak_utilization": 0.22,
+          "peak_risk": "LOW"
         },
         "arrival_passport": {
-          "peak_wait_minutes": 1.5,
-          "peak_wait_window": "2026-09-22T05:00:00",
-          "peak_utilization": 0.783,
+          "peak_wait_minutes": 0.6,
+          "peak_wait_window": "2026-09-22T15:00:00",
+          "peak_utilization": 0.313,
           "peak_risk": "LOW"
         }
       },
@@ -193,8 +193,8 @@
       "research_movements": 73,
       "generated_movements": 73,
       "diff_pct": 0.0,
-      "departures": 36,
-      "arrivals": 37,
+      "departures": 22,
+      "arrivals": 11,
       "before_modeled_passengers_day": 9902,
       "real_pax_per_movement": 146.17,
       "real_passengers_day_at_this_volume": 10670.4,
@@ -202,32 +202,32 @@
       "calibration_level": "airport_specific",
       "peak": {
         "domestic_security": {
-          "peak_wait_minutes": 1.9,
-          "peak_wait_window": "2026-09-22T04:00:00",
-          "peak_utilization": 0.562,
+          "peak_wait_minutes": 0.7,
+          "peak_wait_window": "2026-09-22T12:00:00",
+          "peak_utilization": 0.289,
           "peak_risk": "LOW"
         },
         "departure_passport": {
-          "peak_wait_minutes": 2.4,
-          "peak_wait_window": "2026-09-22T00:00:00",
-          "peak_utilization": 0.58,
-          "peak_risk": "LOW"
+          "peak_wait_minutes": 5.2,
+          "peak_wait_window": "2026-09-22T14:00:00",
+          "peak_utilization": 0.85,
+          "peak_risk": "MEDIUM"
         },
         "international_security": {
-          "peak_wait_minutes": 0.7,
-          "peak_wait_window": "2026-09-22T00:00:00",
-          "peak_utilization": 0.644,
+          "peak_wait_minutes": 0.1,
+          "peak_wait_window": "2026-09-22T06:00:00",
+          "peak_utilization": 0.372,
           "peak_risk": "LOW"
         },
         "arrival_passport": {
-          "peak_wait_minutes": 1.5,
-          "peak_wait_window": "2026-09-22T02:00:00",
-          "peak_utilization": 0.48,
+          "peak_wait_minutes": 0.0,
+          "peak_wait_window": "2026-09-21T21:00:00",
+          "peak_utilization": 0.0,
           "peak_risk": "LOW"
         }
       },
-      "after_modeled_passengers_day": 9394,
-      "difference_vs_real_pct": -11.96
+      "after_modeled_passengers_day": 4672,
+      "difference_vs_real_pct": -56.22
     },
     "KOI": {
       "research_movements": 28,
@@ -244,7 +244,7 @@
         "domestic_security": {
           "peak_wait_minutes": 0.0,
           "peak_wait_window": "2026-09-21T23:00:00",
-          "peak_utilization": 0.028,
+          "peak_utilization": 0.022,
           "peak_risk": "LOW"
         },
         "departure_passport": {
@@ -282,9 +282,9 @@
       "calibration_level": "airport_specific",
       "peak": {
         "domestic_security": {
-          "peak_wait_minutes": 0.2,
+          "peak_wait_minutes": 0.3,
           "peak_wait_window": "2026-09-22T06:00:00",
-          "peak_utilization": 0.079,
+          "peak_utilization": 0.063,
           "peak_risk": "LOW"
         },
         "departure_passport": {
@@ -322,9 +322,9 @@
       "calibration_level": "airport_specific",
       "peak": {
         "domestic_security": {
-          "peak_wait_minutes": 0.3,
+          "peak_wait_minutes": 0.4,
           "peak_wait_window": "2026-09-22T05:00:00",
-          "peak_utilization": 0.092,
+          "peak_utilization": 0.073,
           "peak_risk": "LOW"
         },
         "departure_passport": {
@@ -362,9 +362,9 @@
       "calibration_level": "airport_specific",
       "peak": {
         "domestic_security": {
-          "peak_wait_minutes": 0.0,
-          "peak_wait_window": "2026-09-21T21:00:00",
-          "peak_utilization": 0.054,
+          "peak_wait_minutes": 0.2,
+          "peak_wait_window": "2026-09-22T07:00:00",
+          "peak_utilization": 0.043,
           "peak_risk": "LOW"
         },
         "departure_passport": {
@@ -397,36 +397,36 @@
   },
   "conservation": {
     "IST": {
-      "departure_original_demand": 117204,
-      "departure_showup_sum": 117204.0,
+      "departure_original_demand": 57831,
+      "departure_showup_sum": 57831.0,
       "departure_conserved": true,
-      "arrival_original_demand": 117045,
-      "arrival_release_sum": 117045.0,
+      "arrival_original_demand": 545,
+      "arrival_release_sum": 545.0,
       "arrival_conserved": true,
-      "departure_passport_output": 83834.0,
-      "international_security_input": 83834.0,
+      "departure_passport_output": 49702.0,
+      "international_security_input": 49702.0,
       "passport_to_security_conserved": true
     },
     "SAW": {
-      "departure_original_demand": 66175,
-      "departure_showup_sum": 66175.0,
+      "departure_original_demand": 29333,
+      "departure_showup_sum": 29333.0,
       "departure_conserved": true,
-      "arrival_original_demand": 66295,
-      "arrival_release_sum": 66295.0,
+      "arrival_original_demand": 1025,
+      "arrival_release_sum": 1025.0,
       "arrival_conserved": true,
-      "departure_passport_output": 35030.0,
-      "international_security_input": 35030.0,
+      "departure_passport_output": 20701.0,
+      "international_security_input": 20701.0,
       "passport_to_security_conserved": true
     },
     "AMS": {
-      "departure_original_demand": 94328,
-      "departure_showup_sum": 94328.0,
+      "departure_original_demand": 31189,
+      "departure_showup_sum": 31189.0,
       "departure_conserved": true,
-      "arrival_original_demand": 94328,
-      "arrival_release_sum": 94328.0,
+      "arrival_original_demand": 781,
+      "arrival_release_sum": 781.0,
       "arrival_conserved": true,
-      "departure_passport_output": 94328.0,
-      "international_security_input": 94328.0,
+      "departure_passport_output": 30622.0,
+      "international_security_input": 30622.0,
       "passport_to_security_conserved": true
     },
     "JMK": {
@@ -436,19 +436,19 @@
       "arrival_original_demand": 6098,
       "arrival_release_sum": 6098.0,
       "arrival_conserved": true,
-      "departure_passport_output": 2113.0,
-      "international_security_input": 2113.0,
+      "departure_passport_output": 2390.0,
+      "international_security_input": 2390.0,
       "passport_to_security_conserved": true
     },
     "TZX": {
-      "departure_original_demand": 4592,
-      "departure_showup_sum": 4592.0,
+      "departure_original_demand": 3394,
+      "departure_showup_sum": 3394.0,
       "departure_conserved": true,
-      "arrival_original_demand": 4802,
-      "arrival_release_sum": 4802.0,
+      "arrival_original_demand": 1278,
+      "arrival_release_sum": 1278.0,
       "arrival_conserved": true,
-      "departure_passport_output": 556.0,
-      "international_security_input": 556.0,
+      "departure_passport_output": 1468.0,
+      "international_security_input": 1468.0,
       "passport_to_security_conserved": true
     },
     "KOI": {
@@ -498,137 +498,137 @@
   },
   "long_wait_check": {
     "IST": {
-      "max_wait_minutes": 1706.5,
+      "max_wait_minutes": 112.2,
       "max_wait_graph": "overall",
-      "max_wait_window": "2026-09-22T19:00:00",
-      "wait_20h_plus": true,
-      "wait_1000min_plus": true
+      "max_wait_window": "2026-09-22T15:00:00",
+      "wait_20h_plus": false,
+      "wait_1000min_plus": false
     },
     "SAW": {
-      "max_wait_minutes": 1361.6,
+      "max_wait_minutes": 1.5,
       "max_wait_graph": "overall",
-      "max_wait_window": "2026-09-22T18:00:00",
-      "wait_20h_plus": true,
-      "wait_1000min_plus": true
+      "max_wait_window": "2026-09-22T11:00:00",
+      "wait_20h_plus": false,
+      "wait_1000min_plus": false
     },
     "AMS": {
-      "max_wait_minutes": 875.2,
-      "max_wait_graph": "international_departure_passport",
-      "max_wait_window": "2026-09-22T18:00:00",
+      "max_wait_minutes": 125.0,
+      "max_wait_graph": "overall",
+      "max_wait_window": "2026-09-22T09:00:00",
       "wait_20h_plus": false,
       "wait_1000min_plus": false
     },
     "JMK": {
-      "max_wait_minutes": 23.6,
+      "max_wait_minutes": 1.3,
       "max_wait_graph": "overall",
-      "max_wait_window": "2026-09-22T06:00:00",
+      "max_wait_window": "2026-09-22T04:00:00",
       "wait_20h_plus": false,
       "wait_1000min_plus": false
     }
   },
   "security_bottleneck": {
     "IST": {
-      "domestic_security_capacity_per_hour": 900.0,
-      "domestic_security_peak_incoming_per_hour": 6104,
-      "domestic_bottleneck": true,
-      "international_security_capacity_per_hour": 1800.0,
-      "international_security_peak_incoming_per_hour": 2800,
-      "international_bottleneck": true
+      "domestic_security_capacity_per_hour": 2100.0,
+      "domestic_security_peak_incoming_per_hour": 1041,
+      "domestic_bottleneck": false,
+      "international_security_capacity_per_hour": 4500.0,
+      "international_security_peak_incoming_per_hour": 4200,
+      "international_bottleneck": false
     },
     "SAW": {
-      "domestic_security_capacity_per_hour": 900.0,
-      "domestic_security_peak_incoming_per_hour": 4100,
-      "domestic_bottleneck": true,
-      "international_security_capacity_per_hour": 1800.0,
-      "international_security_peak_incoming_per_hour": 2800,
-      "international_bottleneck": true
+      "domestic_security_capacity_per_hour": 2100.0,
+      "domestic_security_peak_incoming_per_hour": 1346,
+      "domestic_bottleneck": false,
+      "international_security_capacity_per_hour": 4500.0,
+      "international_security_peak_incoming_per_hour": 2420,
+      "international_bottleneck": false
     },
     "AMS": {
-      "domestic_security_capacity_per_hour": 900.0,
+      "domestic_security_capacity_per_hour": 2100.0,
       "domestic_security_peak_incoming_per_hour": 0,
       "domestic_bottleneck": false,
-      "international_security_capacity_per_hour": 1800.0,
-      "international_security_peak_incoming_per_hour": 2800,
-      "international_bottleneck": true
+      "international_security_capacity_per_hour": 4500.0,
+      "international_security_peak_incoming_per_hour": 4200,
+      "international_bottleneck": false
     },
     "JMK": {
-      "domestic_security_capacity_per_hour": 720.0,
-      "domestic_security_peak_incoming_per_hour": 593,
+      "domestic_security_capacity_per_hour": 900.0,
+      "domestic_security_peak_incoming_per_hour": 329,
       "domestic_bottleneck": false,
-      "international_security_capacity_per_hour": 360.0,
-      "international_security_peak_incoming_per_hour": 400,
-      "international_bottleneck": true
+      "international_security_capacity_per_hour": 1200.0,
+      "international_security_peak_incoming_per_hour": 264,
+      "international_bottleneck": false
     },
     "TZX": {
-      "domestic_security_capacity_per_hour": 720.0,
-      "domestic_security_peak_incoming_per_hour": 405,
+      "domestic_security_capacity_per_hour": 900.0,
+      "domestic_security_peak_incoming_per_hour": 260,
       "domestic_bottleneck": false,
-      "international_security_capacity_per_hour": 360.0,
-      "international_security_peak_incoming_per_hour": 232,
+      "international_security_capacity_per_hour": 1200.0,
+      "international_security_peak_incoming_per_hour": 447,
       "international_bottleneck": false
     },
     "KOI": {
-      "domestic_security_capacity_per_hour": 720.0,
+      "domestic_security_capacity_per_hour": 900.0,
       "domestic_security_peak_incoming_per_hour": 20,
       "domestic_bottleneck": false,
-      "international_security_capacity_per_hour": 360.0,
+      "international_security_capacity_per_hour": 1200.0,
       "international_security_peak_incoming_per_hour": 0,
       "international_bottleneck": false
     },
     "ISC": {
-      "domestic_security_capacity_per_hour": 240.0,
+      "domestic_security_capacity_per_hour": 300.0,
       "domestic_security_peak_incoming_per_hour": 19,
       "domestic_bottleneck": false,
-      "international_security_capacity_per_hour": 120.0,
+      "international_security_capacity_per_hour": 300.0,
       "international_security_peak_incoming_per_hour": 0,
       "international_bottleneck": false
     },
     "SOG": {
-      "domestic_security_capacity_per_hour": 240.0,
+      "domestic_security_capacity_per_hour": 300.0,
       "domestic_security_peak_incoming_per_hour": 22,
       "domestic_bottleneck": false,
-      "international_security_capacity_per_hour": 120.0,
+      "international_security_capacity_per_hour": 300.0,
       "international_security_peak_incoming_per_hour": 0,
       "international_bottleneck": false
     },
     "JTY": {
-      "domestic_security_capacity_per_hour": 240.0,
+      "domestic_security_capacity_per_hour": 300.0,
       "domestic_security_peak_incoming_per_hour": 13,
       "domestic_bottleneck": false,
-      "international_security_capacity_per_hour": 120.0,
+      "international_security_capacity_per_hour": 300.0,
       "international_security_peak_incoming_per_hour": 0,
       "international_bottleneck": false
     }
   },
   "ist_deep_dive": {
     "domestic_security": {
-      "daily_demand": 33370.0,
-      "peak_hourly_demand": 6104.0,
-      "capacity_per_hour": 900.0,
-      "peak_wait": 1706.5,
-      "peak_utilization": 6.782
+      "daily_demand": 7145.0,
+      "peak_hourly_demand": 1041.0,
+      "capacity_per_hour": 2100.0,
+      "peak_wait": 1.3,
+      "peak_utilization": 0.496
     },
     "departure_passport": {
-      "daily_demand": 83834.0,
-      "peak_hourly_incoming": 8042.0,
+      "daily_demand": 49702.0,
+      "peak_hourly_incoming": 6905.0,
       "peak_active_servers": 70,
-      "effective_capacity_per_hour_peak": 2800.0,
-      "peak_wait": 848.7,
-      "peak_utilization": 2.872
+      "effective_capacity_per_hour_peak": 4200.0,
+      "peak_wait": 112.2,
+      "peak_utilization": 1.644
     },
     "international_security": {
-      "daily_incoming": 83834.0,
-      "capacity_per_hour": 1800.0,
-      "peak_incoming_per_hour": 2800.0,
-      "peak_wait": 751.8,
-      "peak_utilization": 1.556
+      "daily_incoming": 49702.0,
+      "capacity_per_hour": 4500.0,
+      "peak_incoming_per_hour": 4200.0,
+      "peak_wait": 0.3,
+      "peak_utilization": 0.933
     },
     "arrival_passport": {
-      "daily_demand": 83675.0,
-      "peak_active_servers": 75,
-      "effective_capacity_per_hour_peak": 3000.0,
-      "peak_wait": 664.4,
-      "peak_utilization": 2.386
+      "daily_demand": 221.0,
+      "peak_active_servers": 45,
+      "effective_capacity_per_hour_peak": 2700.0,
+      "peak_wait": 0.0,
+      "peak_utilization": 0.08
     }
   }
 }

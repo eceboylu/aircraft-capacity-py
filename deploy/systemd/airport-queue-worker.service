@@ -8,10 +8,24 @@ User=airportqueue
 Group=airportqueue
 WorkingDirectory=/opt/airport-queue
 Environment=PYTHONUNBUFFERED=1
-# Environment=DATABASE_URL=sqlite:////opt/airport-queue/database.sqlite
+# ADIM (MySQL Production Database) - APP_ENV/DATABASE_URL/AIRLABS_API_KEY/
+# RETENTION_* buradan okunur (bkz. deploy/systemd/aircraft-capacity.env.example -
+# AYNI dosya airport-queue-web.service tarafından da paylaşılır). Gerçek
+# secret'lar bu .service dosyasına ASLA hardcode edilmez.
+EnvironmentFile=/etc/aircraft-capacity/aircraft-capacity.env
 ExecStart=/opt/airport-queue/venv/bin/python -m app.worker
 Restart=always
 RestartSec=10
+
+# ADIM (Worker Single-Instance Lock) - `app/worker.py:_acquire_worker_lock()`
+# varsayılan olarak /run/airport-queue/worker.lock üzerinde bir flock(2)
+# tutar. `RuntimeDirectory=` systemd'ye bu dizini servis BAŞLAMADAN ÖNCE
+# `User=`/`Group=` sahipliğiyle OLUŞTURMASINI söyler - `ProtectSystem=strict`
+# ALTINDA BİLE (o /run'ı elleçlemez, /run zaten systemd'nin kendi tmpfs'i)
+# servis user'ı tarafından yazılabilir olur; ekstra bir ReadWritePaths
+# GEREKMEZ. Reboot'ta /run otomatik temizlenir - stale-lock riski katmaz.
+RuntimeDirectory=airport-queue
+RuntimeDirectoryMode=0755
 
 # `app/worker.py:run_forever()` KENDİ İÇİNDE 5 dk'lık döngüyü yönetir
 # (her tur kendi try/except'i içinde izole edilir - bkz. modül

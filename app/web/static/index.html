@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="tr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -234,21 +234,6 @@
   .wait-line b { color: var(--ink); font-weight: 600; }
   .wait-detail { font-size: 11.5px; color: var(--ink-soft); opacity: 0.8; margin-top: 1px; }
 
-  /* ---- Operasyon dağılımı ---- */
-  #breakdown { max-width: 360px; margin-top: 4px; }
-  #breakdown h3 {
-    font-size: 11.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--ink-soft);
-    margin: 0 0 10px;
-  }
-  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; font-size: 12.5px; }
-  .bar-row .bar-label { flex: 0 0 92px; color: var(--ink-soft); }
-  .bar-row .bar-track { flex: 1 1 auto; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
-  .bar-row .bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
-  .bar-row .bar-value { flex: 0 0 26px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
-  #breakdown .note { color: var(--ink-soft); font-size: 12.5px; }
 </style>
 </head>
 <body>
@@ -256,15 +241,15 @@
   <h1>AIRPORT QUEUE STATUS</h1>
   <div id="refresh-info"></div>
 </header>
-<div id="error-banner">Veri yenilenemedi - son bilinen değerler gösteriliyor.</div>
+<div id="error-banner">Failed to refresh data - showing last known values.</div>
 
 <div class="layout">
   <div id="airport-sidebar">
-    <h2>Havalimanları</h2>
+    <h2>Airports</h2>
     <div id="airport-selector">
       <button type="button" id="selected-airport-label"></button>
       <input id="airport-search" type="text" autocomplete="off"
-             placeholder="Havalimanı ara... (IATA veya isim)">
+             placeholder="Search airport... (IATA or name)">
       <div id="airport-list"></div>
     </div>
   </div>
@@ -285,6 +270,18 @@
   var SEVERITY_COLOR = {
     UNKNOWN: "#b3b7c2", LOW: "#2fa968", MEDIUM: "#d1a92c",
     HIGH: "#e08a3c", CRITICAL: "#d4514f",
+  };
+  // ADIM (Passenger-Facing Risk Threshold v2) - backend risk kodundan
+  // (LOW/MEDIUM/HIGH/CRITICAL/UNKNOWN) İNGİLİZCE UI etiketine TEK JS-
+  // side eşleme - backend'in `risk_label` alanıyla (app/queue/api.py
+  // `RISK_TO_UI_LABEL`) AYNI metinler, SADECE window objesi olmayan
+  // yerlerde (ör. y-ekseni tick'leri, sadece height değeri bilinir,
+  // belirli bir pencereye ait `risk_label` YOK) kullanılır - risk
+  // wait'ten burada YENİDEN TÜRETİLMEZ, sadece zaten var olan risk
+  // kodu metne çevrilir.
+  var RISK_UI_LABEL = {
+    LOW: "Normal", MEDIUM: "Getting Busy", HIGH: "Busy",
+    CRITICAL: "Very Busy", UNKNOWN: "Unknown",
   };
 
   // ADIM (Frontend 4-Graph Contract) - Bölüm 26/52: source artık
@@ -327,7 +324,7 @@
 
   function pillHtml(riskOrNull, labelOrNull) {
     if (!riskOrNull || !labelOrNull) {
-      return '<span class="pill pill-none">Veri bulunamadı</span>';
+      return '<span class="pill pill-none">No data</span>';
     }
     var cls = PILL_CLASS[riskOrNull] || "pill-none";
     return '<span class="pill ' + cls + '">' + escapeHtml(labelOrNull) + "</span>";
@@ -352,10 +349,7 @@
   // (havalimanının timezone'u çözülemediyse - nadir, bkz. backend
   // fallback notu) ham `window_start`'a (UTC) güvenli şekilde düşülür -
   // frontend YENİ bir offset/dönüşüm İCAT ETMEZ, sadece backend'in
-  // ZATEN hesapladığı alanı okur. `traffic_breakdown()` (Operasyon
-  // Dağılımı) bu contract'ın DIŞINDA - kendi ham `window_start`'ını
-  // (hhmm() ile) kullanmaya devam eder (backend ona hiç local alan
-  // eklemedi, Bölüm 5 kapsamı SADECE 5 risk/wait grafiği).
+  // ZATEN hesapladığı alanı okur.
   function windowLabel(window) {
     var value = (window && window.window_start_local) || (window && window.window_start);
     return value ? hhmm(value) : "";
@@ -534,7 +528,7 @@
     if (entry) {
       label.innerHTML = escapeHtml(airportLabel(entry));
     } else {
-      label.innerHTML = '<span class="muted">Havalimanı seç...</span>';
+      label.innerHTML = '<span class="muted">Select airport...</span>';
     }
   }
 
@@ -543,12 +537,12 @@
 
     var el = document.getElementById("airport-list");
     if (!state.directory.length) {
-      el.innerHTML = '<div class="empty">Henüz izlenen havalimanı yok.</div>';
+      el.innerHTML = '<div class="empty">No airports being tracked yet.</div>';
       return;
     }
     var visible = filteredDirectory();
     if (!visible.length) {
-      el.innerHTML = '<div class="empty">"' + escapeHtml(state.searchQuery) + '" için sonuç bulunamadı.</div>';
+      el.innerHTML = '<div class="empty">No results for "' + escapeHtml(state.searchQuery) + '".</div>';
       return;
     }
     el.innerHTML = visible.map(function (entry) {
@@ -620,7 +614,7 @@
     var heading = entry ? airportLabel(entry) : state.selected;
 
     if (!data) {
-      root.innerHTML = "<h2>" + escapeHtml(heading) + "</h2><p>Yükleniyor...</p>";
+      root.innerHTML = "<h2>" + escapeHtml(heading) + "</h2><p>Loading...</p>";
       return;
     }
 
@@ -634,12 +628,11 @@
     // grafiği YOK (Bölüm 16, değişmedi).
     root.innerHTML =
       "<h2>" + escapeHtml(heading) + "</h2>" +
-      graphSectionHtml("overall", "GENEL HAVALİMANI YOĞUNLUĞU", data.overall) +
+      graphSectionHtml("overall", "OVERALL AIRPORT CONGESTION", data.overall) +
       graphSectionHtml("domestic_security", "DOMESTIC SECURITY", data.domestic_security) +
       graphSectionHtml("international_departure_passport", "INTERNATIONAL DEPARTURE — PASSPORT", data.international_departure.passport) +
       graphSectionHtml("international_departure_security", "INTERNATIONAL DEPARTURE — SECURITY", data.international_departure.security) +
-      graphSectionHtml("international_arrival", "INTERNATIONAL ARRIVAL", data.international_arrival) +
-      breakdownHtml(data.breakdown);
+      graphSectionHtml("international_arrival", "INTERNATIONAL ARRIVAL", data.international_arrival);
 
     drawChart(data.overall.windows, "chart-overall", "overall");
     drawChart(data.domestic_security.windows, "chart-domestic_security", "domestic_security");
@@ -663,18 +656,18 @@
   // mantık HİÇBİR YERDE kopyalanmaz.
   //
   // Kurallar:
-  //   null/undefined           -> "Hesaplanamıyor"
-  //   0                        -> "0 dk"
-  //   1-59                     -> "N dk"
-  //   tam saat (60, 120, ...)  -> "N saat"  (gereksiz "0 dk" EKLENMEZ)
-  //   saat + dakika (65, 125)  -> "N saat M dk"
+  //   null/undefined           -> "Unavailable"
+  //   0                        -> "0 min"
+  //   1-59                     -> "N min"
+  //   tam saat (60, 120, ...)  -> "N h"  (gereksiz "0 min" EKLENMEZ)
+  //   saat + dakika (65, 125)  -> "N h M min"
   function formatWaitMinutes(minutes) {
-    if (minutes == null) return "Hesaplanamıyor";
+    if (minutes == null) return "Unavailable";
     var total = Math.round(minutes);
-    if (total < 60) return total + " dk";
+    if (total < 60) return total + " min";
     var hours = Math.floor(total / 60);
     var rem = total % 60;
-    return rem === 0 ? hours + " saat" : hours + " saat " + rem + " dk";
+    return rem === 0 ? hours + " h" : hours + " h " + rem + " min";
   }
 
   // Bekleme süresi metni SADECE backend'in o pencere için ZATEN
@@ -696,9 +689,9 @@
       return formatWaitMinutes(w.estimated_wait_minutes);
     }
     if (w.utilization != null && w.utilization >= 1) {
-      return "Kapasite aşıldı";
+      return "Capacity exceeded";
     }
-    return "Hesaplanamıyor";
+    return "Unavailable";
   }
 
   // ADIM (International Departure Split Graphs) - Bölüm 14: risk
@@ -710,9 +703,9 @@
   // birleştirilmez.
   function waitDetailHtml(displayWindow) {
     if (!displayWindow) {
-      return '<div class="wait-line">Bu saat için veri yok</div>';
+      return '<div class="wait-line">No data for this hour</div>';
     }
-    return '<div class="wait-line">Tahmini bekleme süresi: <b>' + escapeHtml(waitTimeText(displayWindow)) + "</b></div>";
+    return '<div class="wait-line">Estimated wait: <b>' + escapeHtml(waitTimeText(displayWindow)) + "</b></div>";
   }
 
   // ADIM (Frontend 4-Graph Contract) - Bölüm 50/64/67: her grafik
@@ -740,10 +733,10 @@
     var canvasId = "chart-" + key;
     var chartArea = windows.length
       ? '<div class="chart-wrap"><canvas id="' + canvasId + '"></canvas></div>'
-      : '<div class="chart-empty">Bu havalimanı için henüz pencere yok.</div>';
+      : '<div class="chart-empty">No windows yet for this airport.</div>';
 
     var rangeText = displayWindow ? windowLabelRange(displayWindow) : "";
-    var suffix = displayWindow && usingCurrent ? " · şu anki pencere" : "";
+    var suffix = displayWindow && usingCurrent ? " · current window" : "";
     var risk = displayWindow ? displayWindow.risk : null;
     var label = displayWindow ? displayWindow.risk_label : null;
 
@@ -758,41 +751,9 @@
     );
   }
 
-  // ADIM 6A-UI-2 §6-7 - Operasyon dağılımı: SADECE Flight tablosundan
-  // türetilen uçuş SAYISI (departure/arrival, domestic/international).
-  // Yolcu sayısı YOK. `breakdown` backend'de o an için üretilemediyse
-  // (bkz. app/queue/api.py:traffic_breakdown) bu AÇIKÇA gösterilir -
-  // sahte/sıfır bir sayı ÜRETİLMEZ.
-  function breakdownHtml(breakdown) {
-    if (!breakdown) {
-      return (
-        '<div id="breakdown"><h3>Operasyon Dağılımı</h3>' +
-        '<p class="note">Bu an için uçuş dağılımı hesaplanamıyor.</p></div>'
-      );
-    }
-    var max = Math.max(breakdown.departures, breakdown.arrivals, breakdown.domestic, breakdown.international, 1);
-    function row(label, value) {
-      var pct = Math.round((value / max) * 100);
-      return (
-        '<div class="bar-row"><span class="bar-label">' + label + '</span>' +
-        '<span class="bar-track"><span class="bar-fill" style="width:' + pct + '%"></span></span>' +
-        '<span class="bar-value">' + value + "</span></div>"
-      );
-    }
-    return (
-      '<div id="breakdown"><h3>Operasyon Dağılımı (' +
-      hhmm(breakdown.window_start) + "–" + hhmm(breakdown.window_end) + ")</h3>" +
-      row("Departures", breakdown.departures) +
-      row("Arrivals", breakdown.arrivals) +
-      row("Domestic", breakdown.domestic) +
-      row("International", breakdown.international) +
-      "</div>"
-    );
-  }
-
   function renderRefreshInfo() {
     document.getElementById("refresh-info").textContent =
-      "Son güncelleme: " + new Date().toLocaleTimeString() + " · 5 dk sonra yenilenecek";
+      "Last updated: " + new Date().toLocaleTimeString() + " · refreshes in 5 min";
   }
 
   function setError(isError) {
@@ -847,7 +808,7 @@
               },
               label: function (item) {
                 var w = windows[item.dataIndex];
-                return w.risk_label || "Bilinmiyor";
+                return w.risk_label || RISK_UI_LABEL.UNKNOWN;
               },
             },
           },
@@ -864,7 +825,14 @@
             ticks: {
               stepSize: 1,
               callback: function (value) {
-                return { 1: "NORMAL", 2: "YOĞUN", 3: "ÇOK YOĞUN" }[value] || "";
+                // ADIM (Passenger-Facing Risk Threshold v2) - önceki
+                // sürüm burada AYRI, eksik (CRITICAL/4 hiç yoktu) ve
+                // Türkçe bir tablo tutuyordu - artık SEVERITY_HEIGHT'ın
+                // (yukarıda tanımlı, TEK yükseklik<->risk eşlemesi)
+                // TERSİ üzerinden AYNI RISK_UI_LABEL tablosunu okur -
+                // ikinci bir bağımsız etiket kümesi YOK.
+                var riskForHeight = { 1: "LOW", 2: "MEDIUM", 3: "HIGH", 4: "CRITICAL" }[value];
+                return riskForHeight ? RISK_UI_LABEL[riskForHeight] : "";
               },
               font: { size: 10 },
             },

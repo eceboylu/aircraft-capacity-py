@@ -398,6 +398,25 @@ class DynamicStaffingParams:
     `max_server_count`     : ramp bu değerin üstüne çıkamaz.
     `control_interval_minutes` / `look_ahead_minutes` / `target_
     utilization` / `ramp_step` : Bölüm 2'nin sabit kontrol parametreleri.
+    `scale_down_backlog_floor_minutes` : ADIM (Backlog-Aware Scale-Down
+                              Floor) - backlog, TAVAN kapasitede
+                              (`max_server_count x per_server_rate`)
+                              bu kadar dakikadan FAZLA sürede
+                              temizlenecek büyüklükteyse (`backlog /
+                              max_capacity_per_minute >= bu eşik`)
+                              o checkpoint'te SCALE-DOWN'a İZİN
+                              VERİLMEZ (scale-UP hâlâ serbest, `ramp`
+                              sadece negatif yöne KİLİTLENİR - bkz.
+                              `_apply_checkpoint`). Bu bir wait-risk
+                              eşiği DEĞİLDİR (`risk_from_wait()`'e HİÇ
+                              DOKUNMAZ) - SADECE operasyonel bir
+                              staffing histerezisi/tabanı: "tavan
+                              kapasiteyle bile temizlenmesi >=30 dk
+                              sürecek bir kuyruk varken personel
+                              ASLA azaltılmaz" ilkesi (bkz. rapor -
+                              IST canlı-veri denetiminde bulunan,
+                              backlog onbinlerdeyken 70->65 server'a
+                              düşen senaryo).
     """
 
     default_server_count: int
@@ -406,6 +425,7 @@ class DynamicStaffingParams:
     look_ahead_minutes: int = 10
     target_utilization: float = 0.85
     ramp_step: int = 5
+    scale_down_backlog_floor_minutes: float = 30.0
 
 
 def simulate_fifo_queue_dynamic(
@@ -495,6 +515,21 @@ def simulate_fifo_queue_dynamic(
             )
 
         ramp = max(-params.ramp_step, min(params.ramp_step, needed_servers - active_count))
+
+        # ADIM (Backlog-Aware Scale-Down Floor) - backlog, TAVAN
+        # kapasitede (max_server_count) bile >=`scale_down_backlog_
+        # floor_minutes` dakikada temizlenecek büyüklükteyse, bu
+        # checkpoint'te scale-DOWN'a izin VERİLMEZ - `ramp` negatifse
+        # 0'a KİLİTLENİR (scale-UP, yani pozitif ramp, ETKİLENMEZ).
+        # `needed_servers`'ın KENDİSİ DEĞİŞMEDİ - SADECE bu bir çeyreklik
+        # aşağı adımı ENGELLEYEN ek bir kapı; `total_relevant`/`ramp
+        # yukarı` mantığı olduğu gibi kalır.
+        max_capacity_per_minute = params.max_server_count * per_server_rate
+        if max_capacity_per_minute > 0:
+            backlog_clearance_minutes_at_max = backlog / max_capacity_per_minute
+            if backlog_clearance_minutes_at_max >= params.scale_down_backlog_floor_minutes:
+                ramp = max(ramp, 0)
+
         target = max(
             params.default_server_count,
             min(params.max_server_count, active_count + ramp),
