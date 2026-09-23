@@ -15,10 +15,60 @@ zaten varsa bu çağrı NO-OP'tur (havuz bir daha güncellenmez).
 
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, tuple_
 from sqlalchemy.exc import IntegrityError
 
 from .models import BaselineObservation, HistoricalFlightCount
+
+# ADIM (MySQL Performance Fix - Phase 2) - `existing_baseline_observation_
+# keys()`'in bulk-lookup chunk boyutu - `engine.py:PREDICTION_PERSIST_
+# CHUNK_SIZE`/`refresh.py:REFRESH_CHUNK_SIZE` ile AYNI ölçek (her modül
+# kendi sabitini taşır - BİLEREK ayrık, bkz. o modüllerin başlıkları).
+BASELINE_KEY_LOOKUP_CHUNK_SIZE = 500
+
+
+def existing_baseline_observation_keys(
+    session, keys: list[tuple[str, str, datetime]]
+) -> set[tuple[str, str, datetime]]:
+    """
+    ADIM (MySQL Performance Fix - Phase 2) - verilen (airport_iata,
+    process, window_start) üçlülerinden HANGİLERİNİN `BaselineObservation`
+    defterinde ZATEN kayıtlı olduğunu TEK (veya `BASELINE_KEY_LOOKUP_
+    CHUNK_SIZE`'lık parçalar halinde) bulk sorguda döner.
+
+    Bu, `record_observation()`'ın MEVCUT idempotency garantisini
+    (aynı üçlü ikinci kez INSERT edilmeye çalışılırsa unique constraint
+    + `IntegrityError` + rollback ile reddedilir - bkz. o fonksiyonun
+    docstring'i, DEĞİŞTİRİLMEDİ) YOK ETMEZ - SADECE çağıran tarafın
+    (`engine.py:record_baseline_observations()`) GERÇEKTEN yeni olan
+    üçlüler için `record_observation()`'ı çağırmasını, zaten kayıtlı
+    olanlar için BAŞTAN atlamasını sağlar. Böylece normal (tek worker,
+    race YOK) tekrar/identical cycle'da hiç IntegrityError/rollback
+    ÜRETİLMEZ - ama gerçek bir race (iki eşzamanlı worker) olursa
+    `record_observation()`'ın KENDİ unique-constraint savunma hattı
+    HÂLÂ devrede kalır (bu fonksiyon SADECE bir performans ön-kontrolü,
+    doğruluk garantisinin YERİNE geçmez).
+    """
+    if not keys:
+        return set()
+
+    found: set[tuple[str, str, datetime]] = set()
+    key_tuple = tuple_(
+        BaselineObservation.airport_iata,
+        BaselineObservation.process,
+        BaselineObservation.window_start,
+    )
+    for start in range(0, len(keys), BASELINE_KEY_LOOKUP_CHUNK_SIZE):
+        chunk = keys[start:start + BASELINE_KEY_LOOKUP_CHUNK_SIZE]
+        rows = session.execute(
+            select(
+                BaselineObservation.airport_iata,
+                BaselineObservation.process,
+                BaselineObservation.window_start,
+            ).where(key_tuple.in_(chunk))
+        ).all()
+        found.update(tuple(row) for row in rows)
+    return found
 
 
 def _bucket(

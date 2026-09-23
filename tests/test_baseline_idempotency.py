@@ -13,7 +13,7 @@ Bellek içi SQLite kullanılır; gerçek dosya veya üretim verisi yoktur.
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import sessionmaker
 
 from app.models import Base
@@ -442,3 +442,138 @@ def test_expire_on_commit_false_session_is_restored_to_false_not_forced_true(ses
     record_baseline_observations(session, [prediction], now=at(18, 16))
 
     assert session.expire_on_commit is False
+
+
+# ========================================================================
+# ADIM (MySQL Performance Fix - Phase 2) - bulk existing-key precheck.
+# `record_observation()`'ın KENDİSİ (idempotency/IntegrityError savunma
+# hattı) BURADA DEĞİŞTİRİLMEDİ - SADECE `record_baseline_observations()`'ın
+# onu GEREKSİZ yere (zaten kayıtlı bir üçlü için) ÇAĞIRMAMASI doğrulanır.
+# `tests/test_refresh_bulk_performance.py`'nin (Phase 1) AYNI gevşek
+# üst-sınır felsefesi ("Do not overfit fragile exact counts").
+# ========================================================================
+
+def _make_many_predictions(n: int, base_hour: int = 6) -> list:
+    """`n` farklı (KAPANMIŞ) 15dk pencere - her biri KENDİ ayrı unique key'i."""
+    predictions = []
+    for i in range(n):
+        window_start = at(base_hour, 0) + timedelta(minutes=15 * i)
+        predictions.append(make_prediction(window_start=window_start, flight_count=3 + (i % 5)))
+    return predictions
+
+
+def test_a_105_observations_first_cycle_all_inserted(session):
+    now = at(6, 0) + timedelta(minutes=15 * 105 + 30)
+    predictions = _make_many_predictions(105)
+
+    recorded = record_baseline_observations(session, predictions, now=now)
+
+    assert recorded == 105
+    assert observation_count(session) == 105
+
+
+def test_b_same_105_again_zero_duplicate_inserts_zero_rollback(session):
+    engine = session.get_bind()
+    now = at(6, 0) + timedelta(minutes=15 * 105 + 30)
+    predictions = _make_many_predictions(105)
+    record_baseline_observations(session, predictions, now=now)
+
+    rollback_count = {"n": 0}
+    insert_count = {"n": 0}
+
+    @event.listens_for(engine, "rollback")
+    def _on_rollback(conn):
+        rollback_count["n"] += 1
+
+    @event.listens_for(engine, "before_cursor_execute")
+    def _on_execute(conn, cursor, statement, parameters, context, executemany):
+        head = statement.strip().split(None, 1)[0].upper() if statement.strip() else ""
+        if head == "INSERT" and "baseline_observations" in statement.lower():
+            insert_count["n"] += 1
+
+    repeat_predictions = _make_many_predictions(105)
+    recorded_again = record_baseline_observations(session, repeat_predictions, now=now)
+
+    assert recorded_again == 0, "ZATEN kayıtlı 105 üçlü için tekrar record_observation() ÇAĞRILMAMALI"
+    assert observation_count(session) == 105, "duplicate satır AÇILMADI"
+    assert insert_count["n"] == 0, (
+        f"baseline_observations'a HİÇBİR INSERT denemesi gitmemeli - görülen: {insert_count['n']}"
+    )
+    assert rollback_count["n"] == 0, (
+        f"normal (race'siz) tekrar cycle'ında rollback ÜRETİLMEMELİ - görülen: {rollback_count['n']}"
+    )
+
+
+def test_c_5_new_observations_among_105_existing_exactly_5_new_inserts(session):
+    # `now` HER İKİ grubun (105 + yeni 5) TÜM pencerelerini kapatacak kadar
+    # ileride olmalı - ilk grup 6h-32h, ikinci grup (base_hour=40) 40h-41h15
+    # sürüyor (bkz. aşağı) - 45h ikisini de güvenle kapatır.
+    now = at(6, 0) + timedelta(hours=45)
+    predictions = _make_many_predictions(105)
+    record_baseline_observations(session, predictions, now=now)
+
+    # base_hour=40: ilk 105 pencere 6h-32h aralığını kapsıyor (6 + 15*104dk
+    # = 32h) - 40h'den başlayan 5 pencere bu aralıkla ÇAKIŞMAZ, GERÇEKTEN yeni.
+    mixed = _make_many_predictions(105) + _make_many_predictions(5, base_hour=40)
+    recorded = record_baseline_observations(session, mixed, now=now)
+
+    assert recorded == 5
+    assert observation_count(session) == 110
+
+
+def test_d_historical_flight_count_output_identical_before_after_precheck(session):
+    """
+    Bulk precheck SADECE `record_observation()`'ın ÇAĞRILIP
+    ÇAĞRILMAYACAĞINA karar verir - GERÇEKTEN çağrıldığında ürettiği
+    hareketli ortalama/upsert matematiği (HistoricalFlightCount) HİÇ
+    DEĞİŞMEDİ. İki farklı airport+process+saat'e aynı flight_count'larla
+    5'er kez (tekrar tekrar) yazıp nihai ortalamayı doğrular.
+    """
+    now = at(6, 0) + timedelta(hours=2)
+    window_start = at(6, 0)
+
+    for _ in range(5):
+        prediction = make_prediction(window_start=window_start, flight_count=8)
+        record_baseline_observations(session, [prediction], now=now)
+        # AYNI pencere tekrar "gelirse" (identical repeat) - precheck bunu
+        # atlar, havuz İKİNCİ KEZ GÜNCELLENMEZ (ZATEN eski davranış).
+
+    assert observation_count(session) == 1
+    assert sample_size(session, "AAA", PROCESS_SECURITY, 6, window_start.weekday()) == 1
+    assert get_baseline(session, "AAA", PROCESS_SECURITY, 6, window_start.weekday()) == 8.0
+
+
+def test_e_race_like_duplicate_still_safely_handled_by_db_constraint(session):
+    """
+    Section 16-E: precheck'in KAÇIRABİLECEĞİ bir race'i simüle eder -
+    defter satırı bulk-lookup'tan SONRA, `record_observation()`
+    çağrılmadan ÖNCE başka bir yoldan (ör. eşzamanlı bir worker) zaten
+    yazılmış gibi. `record_observation()`'ın KENDİ, DEĞİŞTİRİLMEMİŞ
+    IntegrityError/rollback savunma hattı hâlâ devrede olmalı - session
+    bozulmadan kullanılabilir kalmalı (bkz. mevcut, DEĞİŞTİRİLMEMİŞ
+    `test_duplicate_insert_at_db_level_does_not_crash_or_double_count`).
+    """
+    window_start = at(6, 0)
+    # Precheck'in GÖREMEYECEĞİ şekilde - bulk lookup'tan SONRA - defter
+    # satırını "başka bir process" gibi ekle.
+    session.add(BaselineObservation(
+        airport_iata="AAA", process=PROCESS_SECURITY, window_start=window_start,
+    ))
+    session.commit()
+
+    # record_observation() DOĞRUDAN çağrılır (race anındaki KENDİ savunma
+    # hattı, precheck'ten BAĞIMSIZ) - session'ın hâlâ sağlıklı olduğunu kanıtlar.
+    result = record_observation(
+        session, "AAA", PROCESS_SECURITY, window_start,
+        hour_of_day=6, day_of_week=window_start.weekday(), flight_count=10,
+    )
+    assert result == 10.0
+    assert observation_count(session) == 1
+
+    # Session hâlâ sağlıklı - farklı bir pencereye yazabiliyor.
+    other_window = window_start + timedelta(minutes=15)
+    record_observation(
+        session, "AAA", PROCESS_SECURITY, other_window,
+        hour_of_day=6, day_of_week=other_window.weekday(), flight_count=4,
+    )
+    assert observation_count(session) == 2

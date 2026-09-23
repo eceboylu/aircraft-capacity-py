@@ -541,10 +541,16 @@ def _window(series: dict, window_start: datetime) -> dict | None:
 
 def _windows_without_timestamp(series: dict) -> list[dict]:
     """
-    `calculated_at` her UPSERT'te (değer aynı kalsa bile) YENİLENİR -
-    bu KASITLI (satırın "en son ne zaman hesaplandığı" bilgisi); bu
-    yüzden idempotency karşılaştırması bu alanı GÖZ ARDI eder, geri
-    kalan HER alan (risk/wait/flight_count/...) birebir aynı kalmalı.
+    ADIM (MySQL Performance Fix - Phase 2) GÜNCELLEMESİ: `calculated_at`
+    artık SADECE satırın persisted alanlarından (risk/wait/flight_count/
+    .../reasons) GERÇEKTEN biri değiştiğinde ilerler - no-op bir
+    UPSERT'te (değerler birebir aynıysa) DONAR/değişmez (bkz.
+    `engine.py:persist_predictions()`/`_prediction_differs()` - `refresh.
+    py`'nin `last_refreshed_at` için ZATEN kurduğu AYNI presedan).
+    İdempotency karşılaştırması bu alanı YİNE DE göz ardı eder - onun
+    HANGİ değere sahip olduğu (değişti/değişmedi) bu testin konusu
+    DEĞİL, geri kalan HER alan (risk/wait/flight_count/...) birebir
+    aynı kalmalı.
     """
     return [{k: v for k, v in w.items() if k != "calculated_at"} for w in series["windows"]]
 

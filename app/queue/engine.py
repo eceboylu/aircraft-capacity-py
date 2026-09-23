@@ -28,9 +28,9 @@ from typing import Callable
 import json
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 
-from .baseline import record_observation
+from .baseline import existing_baseline_observation_keys, record_observation
 from .config import AirportConfigView, get_configs
 from .constants import (
     DEMAND_WINDOW_MINUTES,
@@ -1487,49 +1487,171 @@ def _db_passenger_baseline_fn(session, airport_iata: str, cache: dict | None = N
     return lookup
 
 
+# ADIM (MySQL Performance Fix - Phase 2) - `persist_predictions()`'ın
+# bulk existing-row prefetch chunk boyutu. `refresh.py:REFRESH_CHUNK_SIZE`
+# (500) ile AYNI ölçek - ayrı bir modülün kendi sabiti, paylaşılan/
+# import edilen bir değer DEĞİL (modüller BİLEREK ayrık, bkz. refresh.py
+# başlığı - aynı gerekçe).
+PREDICTION_PERSIST_CHUNK_SIZE = 500
+
+# `persist_predictions()`'ın no-op karşılaştırmasına KATILAN alanlar -
+# `calculated_at` BİLEREK DIŞARIDA (bkz. fonksiyonun kendi docstring'i,
+# Bölüm "no-op skip AYNI zamanda calculated_at'i de dondurur").
+_PREDICTION_COMPARE_COLUMNS = (
+    "window_end",
+    "operational_date",
+    "flight_count",
+    "expected_passengers",
+    "baseline_ratio",
+    "flight_ratio",
+    "passenger_ratio",
+    "utilization",
+    "estimated_wait_minutes",
+    "risk",
+    "confidence",
+)
+
+
+def _prediction_as_candidate_values(prediction: WindowPrediction) -> dict:
+    """`WindowPrediction` -> QueuePrediction kolon değerleri (id/
+    calculated_at HARİÇ) - INSERT'te VE no-op karşılaştırmasında
+    (`_prediction_differs`) TEK gerçek kaynak, iki yerde ayrı yazılan
+    bir alan listesi YOK."""
+    return {
+        "window_end": prediction.window_end,
+        "operational_date": prediction.operational_date,
+        "flight_count": prediction.flight_count,
+        "expected_passengers": prediction.expected_passengers,
+        "baseline_ratio": prediction.baseline_ratio,
+        "flight_ratio": prediction.flight_ratio,
+        "passenger_ratio": prediction.passenger_ratio,
+        "utilization": prediction.utilization,
+        "estimated_wait_minutes": prediction.estimated_wait_minutes,
+        "risk": prediction.risk,
+        "reasons": prediction.reasons_json(),
+        "confidence": prediction.confidence,
+    }
+
+
+def _prediction_differs(existing: QueuePrediction, prediction: WindowPrediction) -> bool:
+    """
+    ADIM (MySQL Performance Fix - Phase 2) - `refresh.py:
+    _row_differs_from_existing()` ile AYNI ilke (Step 4/21 "no-op
+    update skip"), QueuePrediction için: `existing`'in GÜNCEL alan
+    değerlerinden (id/calculated_at HARİÇ) HERHANGİ biri `prediction`'ın
+    (yeniden hesaplanmış) değerinden farklıysa True. `reasons` JSON
+    string olarak (`reasons_json()` - ÜRETİMİ/serileştirmesi HİÇ
+    DEĞİŞMEDİ) karşılaştırılır - üretim/persist edilen DEĞER aynı,
+    sadece YAZILIP YAZILMAYACAĞINA karar verilir.
+
+    Float alanlar (`baseline_ratio`/`utilization`/`estimated_wait_
+    minutes`/`confidence`/vb.) için ekstra tolerans/rounding
+    EKLENMEDİ - `core/scoring.py` bu değerleri ZATEN sabit ondalık
+    basamağa yuvarlanmış üretir (`round(rho,3)`, `round(wq,1)` vb.) ve
+    MySQL FLOAT round-trip'i (doğrudan gerçek MySQL'de doğrulandı) bu
+    zaten-yuvarlanmış değerler için tam eşitliği KORUR - "mevcut output
+    semantics'i değiştirecek rounding ekleme" kuralına uyulur.
+    """
+    for column in _PREDICTION_COMPARE_COLUMNS:
+        if getattr(existing, column) != getattr(prediction, column):
+            return True
+    if existing.reasons != prediction.reasons_json():
+        return True
+    return False
+
+
+def _apply_prediction_fields(existing: QueuePrediction, prediction: WindowPrediction, now: datetime) -> None:
+    """Gerçekten değişen (veya yeni eklenen) bir satıra TÜM alanları
+    yazar - `calculated_at` SADECE bu fonksiyon çağrıldığında ilerler
+    (bkz. `persist_predictions()` no-op skip)."""
+    values = _prediction_as_candidate_values(prediction)
+    for column, value in values.items():
+        setattr(existing, column, value)
+    existing.calculated_at = now
+
+
 def persist_predictions(session, predictions: list[WindowPrediction]) -> dict:
     """
     QueuePrediction UPSERT: (havalimanı, süreç, pencere) başına TEK
     satır. Aynı pencere tekrar hesaplanırsa satır güncellenir, yenisi
     açılmaz (YASAK 4).
+
+    ADIM (MySQL Performance Fix - Phase 2) - Bölüm: 10k MySQL scale
+    benchmark'ında doğrulanan iki bottleneck'ten biri buradaydı:
+    ÖNCEDEN (a) her prediction için AYRI bir SELECT (`existing_by_key`
+    şimdi `refresh.py:_bulk_fetch_existing()` ile AYNI ilkeyle TEK bir
+    bulk sorguda - `tuple_(...).in_(...)` - önceden yükleniyor), (b)
+    eşleşen satırın TÜM alanları HER ZAMAN yeniden yazılıyordu (`calculated_
+    at` dahil - bu, DEĞER hiç değişmese de her cycle'da GERÇEK bir SQL
+    UPDATE'e yol açıyordu, bkz. 10k benchmark: identical cycle'da 1858
+    prediction için 1859 UPDATE). Artık `_prediction_differs()` ile
+    karşılaştırılıp GERÇEKTEN değişen satırlar YAZILIR - değişmeyenler
+    (no-op) `existing`'e HİÇ dokunmaz, DB'ye HİÇBİR UPDATE gitmez.
+
+    `calculated_at` no-op'ta DONAR (ilerlemez) - `_apply_prediction_
+    fields()` SADECE gerçek bir değişiklik/yeni satır olduğunda
+    çağrılır. Bu, `refresh.py`'nin `last_refreshed_at` için ZATEN
+    kurduğu AYNI, kabul edilmiş presedanla BİREBİR TUTARLIDIR (bkz. o
+    modülün `_apply_candidate()` docstring'i - "no-op skip sadece DB
+    YAZIMINI atlar" ilkesi `updated` SAYACINA da AYNI şekilde uygulanır,
+    aşağıda).
+
+    `inserted`/`updated` dönüş sözleşmesi DEĞİŞMEDİ: `updated`, bir
+    prediction MEVCUT bir satırla eşleştiğinde artırılır - GERÇEK bir
+    DB yazımı olup olmadığından BAĞIMSIZ (refresh.py'nin `updated`
+    sayacıyla AYNI konvansiyon - "eşleşti" ile "DB'ye yazıldı" AYRI
+    kavramlar).
     """
     now = datetime.now(timezone.utc)
     inserted = 0
     updated = 0
 
+    if not predictions:
+        session.commit()
+        return {"inserted": 0, "updated": 0}
+
+    keys = [
+        (p.airport_iata, p.process, p.window_start) for p in predictions
+    ]
+    existing_by_key: dict[tuple[str, str, datetime], QueuePrediction] = {}
+    key_tuple = tuple_(
+        QueuePrediction.airport_iata, QueuePrediction.process, QueuePrediction.window_start
+    )
+    for start in range(0, len(keys), PREDICTION_PERSIST_CHUNK_SIZE):
+        chunk_keys = keys[start:start + PREDICTION_PERSIST_CHUNK_SIZE]
+        rows = session.execute(
+            select(QueuePrediction).where(key_tuple.in_(chunk_keys))
+        ).scalars().all()
+        for row in rows:
+            existing_by_key[(row.airport_iata, row.process, row.window_start)] = row
+
     for prediction in predictions:
-        existing = session.execute(
-            select(QueuePrediction).where(
-                QueuePrediction.airport_iata == prediction.airport_iata,
-                QueuePrediction.process == prediction.process,
-                QueuePrediction.window_start == prediction.window_start,
-            )
-        ).scalar_one_or_none()
+        key = (prediction.airport_iata, prediction.process, prediction.window_start)
+        existing = existing_by_key.get(key)
 
         if existing is None:
-            existing = QueuePrediction(
+            values = _prediction_as_candidate_values(prediction)
+            new_row = QueuePrediction(
                 airport_iata=prediction.airport_iata,
                 process=prediction.process,
                 window_start=prediction.window_start,
+                calculated_at=now,
+                **values,
             )
-            session.add(existing)
+            session.add(new_row)
+            # Aynı (airport_iata, process, window_start) `predictions`
+            # listesinde (nadiren) TEKRAR gelirse ikinci INSERT değil
+            # ikinci eşleşme (UPDATE-veya-no-op yolu) olsun - `refresh.
+            # py:_process_chunk()`'ın AYNI, mevcut, kanıtlanmış deseni.
+            existing_by_key[key] = new_row
             inserted += 1
-        else:
-            updated += 1
+            continue
 
-        existing.window_end = prediction.window_end
-        existing.operational_date = prediction.operational_date
-        existing.flight_count = prediction.flight_count
-        existing.expected_passengers = prediction.expected_passengers
-        existing.baseline_ratio = prediction.baseline_ratio
-        existing.flight_ratio = prediction.flight_ratio
-        existing.passenger_ratio = prediction.passenger_ratio
-        existing.utilization = prediction.utilization
-        existing.estimated_wait_minutes = prediction.estimated_wait_minutes
-        existing.risk = prediction.risk
-        existing.reasons = prediction.reasons_json()
-        existing.confidence = prediction.confidence
-        existing.calculated_at = now
+        updated += 1
+        if _prediction_differs(existing, prediction):
+            _apply_prediction_fields(existing, prediction, now)
+        # else: no-op - existing'e HİÇ dokunulmaz, DB'ye UPDATE gitmez
+        # (calculated_at dahil - bkz. fonksiyon docstring'i).
 
     session.commit()
     return {"inserted": inserted, "updated": updated}
@@ -1622,16 +1744,42 @@ def record_baseline_observations(
     sayısı, IntegrityError/rollback deseni, unique constraint ve
     idempotency mantığının HİÇBİRİ değişmedi - sadece artık kullanılmayan
     obje cache'inin boşa invalidation'ı kalkıyor.
+
+    ADIM (MySQL Performance Fix - Phase 2) - 10k MySQL scale benchmark'ında
+    doğrulanan ikinci bottleneck buradaydı: kapanmış HER pencere için
+    `record_observation()` KOŞULSUZ çağrılıyordu - zaten defterde kayıtlı
+    (önceki bir cycle'da işlenmiş) bir üçlü için bu, GARANTİ bir INSERT
+    + `IntegrityError` + `rollback` + skip anlamına geliyordu (identical
+    cycle'da 105/105 pencere için, bkz. benchmark: 106 rollback/cycle).
+    Artık `existing_baseline_observation_keys()` ile (bkz. baseline.py)
+    kapanmış pencerelerin üçlüleri TEK bulk sorguda önceden çekilir;
+    ZATEN kayıtlı üçlüler için `record_observation()` HİÇ ÇAĞRILMAZ
+    (INSERT denemesi/IntegrityError/rollback ÜRETİLMEZ). Bu SADECE bir
+    performans ön-kontrolüdür - GERÇEK bir race (iki eşzamanlı worker
+    AYNI üçlüyü AYNI anda işlerse) `record_observation()`'ın KENDİ,
+    DEĞİŞTİRİLMEMİŞ unique-constraint/IntegrityError savunma hattı HÂLÂ
+    devrededir (bkz. o fonksiyonun docstring'i) - doğruluk garantisi
+    performans için FEDA EDİLMEDİ, sadece normal (race'siz) tekrar
+    cycle'ındaki GEREKSİZ deneme kaldırıldı. `HistoricalFlightCount`'un
+    hareketli ortalama/upsert matematiği (`record_observation()`'ın
+    KENDİSİ) HİÇ DEĞİŞMEDİ.
     """
     now = now if now is not None else domain_now()
     recorded = 0
 
+    closed_predictions = [p for p in predictions if now >= p.window_end]
+    closed_keys = [
+        (p.airport_iata, p.process, p.window_start) for p in closed_predictions
+    ]
+    already_recorded = existing_baseline_observation_keys(session, closed_keys)
+
     old_expire_on_commit = session.expire_on_commit
     session.expire_on_commit = False
     try:
-        for prediction in predictions:
-            if now < prediction.window_end:
-                continue  # açık pencere - baseline'a yazma
+        for prediction in closed_predictions:
+            key = (prediction.airport_iata, prediction.process, prediction.window_start)
+            if key in already_recorded:
+                continue  # bu üçlü ZATEN defterde - INSERT denemesi gereksiz
             record_observation(
                 session,
                 airport_iata=prediction.airport_iata,
