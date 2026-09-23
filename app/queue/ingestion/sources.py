@@ -412,6 +412,15 @@ def parse_source_a_record(
     flight_code = field(record, "flight_iata", "flightIata", "flightNo")
     flight_icao = field(record, "flight_icao", "flightIcao")
 
+    # Kayıtta uçuşu tekilleştirecek HİÇBİR alan yoksa (flight_number,
+    # flight_iata, flight_icao, airline_iata hepsi boş) build_flight_key
+    # sabit bir "UNK_UNK_<tarih>_<havalimanı>_<yön>" anahtarı üretir - aynı
+    # gün/havalimanı/yöndeki FARKLI fiziksel uçuşlar bu anahtarda çakışıp
+    # birbirinin UPSERT'iyle SESSİZCE ezilir. Böyle bir kayıt hiçbir
+    # tekilleştirici alan taşımıyorsa güvenle işlenemez; atlanır.
+    if not (flight_number or flight_code or flight_icao or airline_iata):
+        return None
+
     own_icao = (
         field(record, "aircraft_icao", "aircraftIcao") or ""
     ).upper() or None
