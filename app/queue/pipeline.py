@@ -71,6 +71,24 @@ SOURCE_A_FILES = {
 # Kaynak B - canlı uçuş beslemesi, aircraft_icao'nun kaynağı.
 SOURCE_B_FILE = "response-delays.json"
 
+# ADIM (Generated Local Source Mode) - local/dev'de gerçek IST departure/
+# arrival board'larından türetilmiş generated_delays_*.json dosyalarını
+# okumak için opsiyonel geçiş. Varsayılan (env var set DEĞİLSE) davranış
+# BİREBİR eskisiyle AYNI kalır - production'ın SOURCE_A_FILES/SOURCE_B_FILE
+# okuma yolu DEĞİŞMEDİ. `QUEUE_LOCAL_SOURCE_MODE=generated` AÇIKÇA
+# verildiğinde `file_source_a()`/`file_source_b()` bu üç dosyayı okur -
+# dosyaların ÜRETİMİ `scripts/generate_local_ist_source.py`'nin işidir,
+# bu modülün DEĞİL (SADECE hangi dosyanın okunacağına karar verir).
+GENERATED_SOURCE_A_FILES = {
+    DIRECTION_ARRIVAL: "generated_delays_arrivals.json",
+    DIRECTION_DEPARTURE: "generated_delays_departures.json",
+}
+GENERATED_SOURCE_B_FILE = "generated_response_delays.json"
+
+
+def _local_generated_source_mode() -> bool:
+    return os.environ.get("QUEUE_LOCAL_SOURCE_MODE", "").strip().lower() == "generated"
+
 
 def _path(data_dir: str, filename: str) -> str:
     return os.path.join(data_dir, filename)
@@ -176,16 +194,31 @@ def ensure_capacity_reference(session) -> bool:
 
 
 def file_source_a(data_dir: str = DATA_DIR):
-    """Örnek dosyalardan okuyan varsayılan Kaynak A sağlayıcısı."""
+    """
+    Örnek dosyalardan okuyan varsayılan Kaynak A sağlayıcısı.
+
+    `QUEUE_LOCAL_SOURCE_MODE=generated` verilirse (local/dev opsiyonu,
+    bkz. `GENERATED_SOURCE_A_FILES`) generated_delays_*.json okunur;
+    verilmezse (varsayılan) production'ın SOURCE_A_FILES'ı DEĞİŞMEDEN
+    okunmaya devam eder.
+    """
     def provide(direction: str) -> list[dict]:
-        return load_source_payload(_path(data_dir, SOURCE_A_FILES[direction]))
+        files = GENERATED_SOURCE_A_FILES if _local_generated_source_mode() else SOURCE_A_FILES
+        return load_source_payload(_path(data_dir, files[direction]))
     return provide
 
 
 def file_source_b(data_dir: str = DATA_DIR):
-    """Örnek dosyadan okuyan varsayılan Kaynak B sağlayıcısı."""
+    """
+    Örnek dosyadan okuyan varsayılan Kaynak B sağlayıcısı.
+
+    `QUEUE_LOCAL_SOURCE_MODE=generated` verilirse `GENERATED_SOURCE_B_FILE`
+    okunur; verilmezse (varsayılan) production'ın SOURCE_B_FILE'ı
+    DEĞİŞMEDEN okunmaya devam eder.
+    """
     def provide() -> list[dict]:
-        return load_source_payload(_path(data_dir, SOURCE_B_FILE))
+        filename = GENERATED_SOURCE_B_FILE if _local_generated_source_mode() else SOURCE_B_FILE
+        return load_source_payload(_path(data_dir, filename))
     return provide
 
 

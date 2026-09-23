@@ -10,6 +10,11 @@ Sunulan uç noktalar:
     GET /api/airports                       -> ["ADB", "IST", "SAW"]  (GERİYE DÖNÜK UYUMLU, değişmedi)
     GET /api/airports/directory             -> [{"iata": "IST", "name": "Istanbul Airport"}, ...]  (ADIM 6A-UI-2)
     GET /api/airports/{iata}/predictions     -> {"airport", "overall", "security", "passport", "breakdown"}
+    GET /health                              -> {"status", "db", "last_successful_refresh",
+                                                  "data_age_seconds", "stale"} (ADIM Health/Stale-Data
+                                                  Visibility - bkz. app/health.py; salt-okunur, worker'ın
+                                                  DB'ye yazdığı ayrı bir "son başarılı refresh" kaydını
+                                                  okur, 200/healthy veya 503/degraded|unhealthy döner)
     GET /                                    -> static/index.html (frontend)
 
 Hiçbir POST/PUT/DELETE YOK. Hiçbir uç nokta AirLabs'a çağrı yapmaz,
@@ -34,6 +39,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from ..db import get_session
+from ..health import build_health_report
 from ..queue.api import airport_directory, airport_predictions, tracked_airports
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
@@ -111,6 +117,34 @@ class QueueMonitorHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802 (BaseHTTPRequestHandler sözleşmesi)
         path = urlparse(self.path).path
+
+        if path == "/health":
+            # ADIM (Health / Stale-Data Visibility) - SALT-OKUNUR: SADECE
+            # `worker_status` tablosunu okur (bkz. app/health.py), hiçbir
+            # queue/prediction fonksiyonunu ÇAĞIRMAZ, hiçbir yere YAZMAZ.
+            # "Web server ayakta diye healthy dönmesin" - DB'ye erişim
+            # BURADA, gerçekten denenerek doğrulanır; erişilemezse
+            # (connection refused/timeout/vb. - dialect/driver'a göre
+            # değişen bir istisna sınıfı, bu yüzden KASITLI geniş except)
+            # "unhealthy" + 503 döner, worker hiç çalışmamışsa/veri
+            # eskiyse "degraded" + 503, aksi halde "healthy" + 200.
+            try:
+                session = get_session()
+                try:
+                    report = build_health_report(session)
+                finally:
+                    session.close()
+            except Exception:
+                report = {
+                    "status": "unhealthy",
+                    "db": "error",
+                    "last_successful_refresh": None,
+                    "data_age_seconds": None,
+                    "stale": True,
+                }
+            http_status = 200 if report["status"] == "healthy" else 503
+            self._send_json(report, status=http_status)
+            return
 
         if path == "/api/airports":
             session = get_session()

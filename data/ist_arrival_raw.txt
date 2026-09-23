@@ -1,0 +1,646 @@
+CZ 8065	CZ 8065	23/09/2026	07:15	06:38		GUANGZHOU (CAN)	International	Landed	 Detail
+TK 6899	TK 6899	23/09/2026	07:20	06:58		SINGAPORE (SIN)	International	Landed	 Detail
+VF 180	VF 180	23/09/2026	07:10	06:59		BAKI (GYD)	International	Landed	 Detail
+TK 3255	TK 3255	23/09/2026	07:30	07:04		KONYA (KYA)	Domestic	Landed	 Detail
+VF 262	VF 262	23/09/2026	07:30	07:11		MONT-LIBAN (BEY)	International	Landed	 Detail
+TK 144	TK 144	23/09/2026	07:15	07:18		DUBAI (DXB)	International	Landed	 Detail
+PC 633	PC 633	23/09/2026	07:25	07:19		SOUTH SINAI (SSH)	International	Landed	 Detail
+PC 4215	PC 4215	23/09/2026	07:40	07:24		ANTALYA (AYT)	Domestic	Landed	 Detail
+TK 214	TK 214	23/09/2026	07:15	07:26		AR RIYAD (RUH)	International	Landed	 Detail
+TK 280	TK 280	23/09/2026	07:30	07:28		BARTLETTS (BSZ)	International	Landed	 Detail
+PC 623	PC 623	23/09/2026	07:50	07:29		RED SEA (HRG)	International	Landed	 Detail
+PC 2029	PC 2029	23/09/2026	08:00	07:34		ANTALYA (AYT)	Domestic	Landed	 Detail
+PC 2099	PC 2099	23/09/2026	07:50	07:37		CASTELO BRANCO (COV)	International	Landed	 Detail
+SU 2170	SU 2170	23/09/2026	06:00	07:38		MOSCOW (SVO)	International	Landed	 Detail
+A3 434	A3 434	23/09/2026	07:35	07:39		CRETE (HER)	International	Landed	 Detail
+PC 687	PC 687	23/09/2026	07:55	07:42		AL MADINAH AL MUNAWWARAH (MED)	International	Landed	 Detail
+PC 315	PC 315	23/09/2026	07:30	07:43		DIDI LILO (TBS)	International	Landed	 Detail
+PC 551	PC 551	23/09/2026	08:00	07:45		ARMAVIR (EVN)	International	Landed	 Detail
+TK 3323	TK 3323	23/09/2026	08:00	07:45		TRABZON (TZX)	Domestic	Landed	 Detail
+PC 3306	PC 3306	23/09/2026	07:55	07:47		IZMIR (ADB)	Domestic	Landed	 Detail
+PC 2811	PC 2811	23/09/2026	07:45	07:56		TRABZON (TZX)	Domestic	Landed	 Detail
+MU 703	MU 703	23/09/2026	08:10	07:59		SHANGHAI SHI (PVG)	International	Landed	 Detail
+TK 3259	TK 3259	23/09/2026	08:00	08:02		MALATYA (MLX)	Domestic	Landed	 Detail
+PC 2679	PC 2679	23/09/2026	07:55	08:04		ANKARA (ESB)	Domestic	Landed	 Detail
+PC 659	PC 659	23/09/2026	08:25	08:04		MAYORALITY OF BAGHDAD (BGW)	International	Landed	 Detail
+TK 2303	TK 2303	23/09/2026	08:15	08:06		IZMIR (ADB)	Domestic	Landed	 Detail
+PC 825	PC 825	23/09/2026	08:10	08:07		MUHARRAQ (BAH)	International	Landed	 Detail
+PC 615	PC 615	23/09/2026	08:25	08:13		EASTERN PROVINCE (DMM)	International	Landed	 Detail
+TK 759	TK 759	23/09/2026	08:25	08:13		DUBAI (DXB)	International	Landed	 Detail
+TK 803	TK 803	23/09/2026	08:30	08:18		MAYORALITY OF BAGHDAD (BGW)	International	Landed	 Detail
+VF 148	VF 148	23/09/2026	08:35	08:20		ARBIL (EBL)	International	Landed	 Detail
+TK 132	TK 132	23/09/2026	08:50	08:20		ATLANTA (ATL)	International	Landed	 Detail
+TK 693	TK 693	23/09/2026	08:30	08:21		CAIRO (CAI)	International	Landed	 Detail
+CA 859	CA 859	23/09/2026	08:00	08:24		BEIJING CAPITAL INTERNATIONAL AIRPORT (PEK)	International	Landed	 Detail
+W6 2429	W6 2429	23/09/2026	08:45	08:25		PEST (BUD)	International	Landed	 Detail
+TK 805	TK 805	23/09/2026	08:25	08:26		ARBIL (EBL)	International	Landed	 Detail
+PC 131	PC 131	23/09/2026	08:45	08:31		SINDH (KHI)	International	Landed	 Detail
+PC 705	PC 705	23/09/2026	08:30	08:32		BARTLETTS (BSZ)	International	Landed	 Detail
+TK 355	TK 355	23/09/2026	08:35	08:32		AKMOLA (NQZ)	International	Landed	 Detail
+TK 377	TK 377	23/09/2026	08:20	08:37		DIDI LILO (TBS)	International	Landed	 Detail
+TK 99	TK 99	23/09/2026	08:55	08:40		AL MADINAH AL MUNAWWARAH (MED)	International	Landed	 Detail
+PC 2001	PC 2001	23/09/2026	09:00	08:40		ANTALYA (AYT)	Domestic	Landed	 Detail
+3U 3827	3U 3827	23/09/2026	06:30	08:41		SICHUAN (TFU)	International	Landed	 Detail
+GQ 670	GQ 670	23/09/2026	08:30	08:41		ATTICA (ATH)	International	Landed	 Detail
+TK 339	TK 339	23/09/2026	08:35	08:45		BAKI (GYD)	International	Landed	 Detail
+PC 691	PC 691	23/09/2026	09:00	08:48		AR RIYAD (RUH)	International	Landed	 Detail
+A4 6073	A4 6073	23/09/2026	08:30	08:52		STAVROPOL'SKIY (MRV)	International	Landed	 Detail
+SQ 392	SQ 392	23/09/2026	08:30	08:55		SINGAPORE (SIN)	International	Landed	 Detail
+PC 741	PC 741	23/09/2026	08:40	08:55		DUBAI (DXB)	International	Landed	 Detail
+PC 2265	PC 2265	23/09/2026	09:15	08:55		MUGLA (BJV)	Domestic	Landed	 Detail
+TK 2531	TK 2531	23/09/2026	09:05	08:56		MUGLA (BJV)	Domestic	Landed	 Detail
+TK 373	TK 373	23/09/2026	08:50	08:58		SAMARQAND (SKD)	International	Landed	 Detail
+TK 2429	TK 2429	23/09/2026	09:10	09:02		ANTALYA (AYT)	Domestic	Landed	 Detail
+TK 815	TK 815	23/09/2026	09:30	09:02		AMMAN (AMM)	International	Landed	 Detail
+PC 2181	PC 2181	23/09/2026	09:05	09:04		IZMIR (ADB)	Domestic	Landed	 Detail
+PC 747	PC 747	23/09/2026	09:05	09:04		SHARJAH (SHJ)	International	Landed	 Detail
+PC 831	PC 831	23/09/2026	09:05	09:05		MUHAFAZAT MASQAT (MCT)	International	Active	 Detail
+TK 349	TK 349	23/09/2026	08:55	09:08		BARTLETTS (BSZ)	International	Landed	 Detail
+TK 182	TK 182	23/09/2026	10:20	09:09		QUINTANA ROO (CUN)	International	Landed	 Detail
+TK 3021	TK 3021	23/09/2026	09:05	09:11		ANKARA (ESB)	Domestic	Landed	 Detail
+PC 699	PC 699	23/09/2026	08:55	09:13		MAKKAH (JED)	International	Landed	 Detail
+PC 407	PC 407	23/09/2026	09:05	09:13		ABU DHABI (AUH)	International	Landed	 Detail
+TK 406	TK 406	23/09/2026	09:45	09:14		ST. PETERSBURG (LED)	International	Landed	 Detail
+PC 2701	PC 2701	23/09/2026	09:15	09:15		KONYA (KYA)	Domestic	Landed	 Detail
+UT 727	UT 727	23/09/2026	09:15	09:15		CHECHNYA (GRV)	International	Scheduled	 Detail
+DV 485	DV 485	23/09/2026	09:20	09:20		ONGTUSTIK QAZAQSTAN (CIT)	International	Landed	 Detail
+TK 365	TK 365	23/09/2026	09:30	09:20		TOSHKENT SHAHRI (TAS)	International	Landed	 Detail
+J2 8103	J2 8103	23/09/2026	09:25	09:25		BAKI (GYD)	International	Active	 Detail
+TK 2117	TK 2117	23/09/2026	09:10	09:26		ANKARA (ESB)	Domestic	Landed	 Detail
+A3 990	A3 990	23/09/2026	09:35	09:29		ATTICA (ATH)	International	Landed	 Detail
+JI* 4805	JI* 4805	23/09/2026	09:30	09:30		TEHRAN (IKA)	International	Active	 Detail
+PC 229	PC 229	23/09/2026	09:30	09:30		AKMOLA (NQZ)	International	Active	 Detail
+PC 2731	PC 2731	23/09/2026	09:30	09:30		KAYSERI (ASR)	Domestic	Active	 Detail
+TBZ 6601	TBZ 6601	23/09/2026	09:00	09:35		EAST AZERBAIJAN (TBZ)	International	Active	 Detail
+PC 101	PC 101	23/09/2026	09:35	09:35		ALMATY OBLYSY (ALA)	International	Active	 Detail
+TK 2447	TK 2447	23/09/2026	10:00	09:36		ANTALYA (AYT)	Domestic	Landed	 Detail
+PC 2135	PC 2135	23/09/2026	09:40	09:40		HATAY (HTY)	Domestic	Landed	 Detail
+PC 711	PC 711	23/09/2026	09:45	09:45		OSH (OSS)	International	Active	 Detail
+TK 3281	TK 3281	23/09/2026	09:45	09:45		ORDU (OGU)	Domestic	Active	 Detail
+TK 715	TK 715	23/09/2026	10:05	09:45		PUNJAB (LHE)	International	Active	 Detail
+TK 2001	TK 2001	23/09/2026	10:15	09:48		NEVSEHIR (NAV)	Domestic	Active	 Detail
+TK 2553	TK 2553	23/09/2026	09:45	09:49		MUGLA (DLM)	Domestic	Active	 Detail
+PC 2081	PC 2081	23/09/2026	09:50	09:50		CASTELO BRANCO (COV)	International	Active	 Detail
+PC 2861	PC 2861	23/09/2026	09:50	09:50		ORDU (OGU)	Domestic	Active	 Detail
+PC 2891	PC 2891	23/09/2026	09:50	09:50		SINOP (NOP)	Domestic	Active	 Detail
+PC 819	PC 819	23/09/2026	09:50	09:50		ARBIL (EBL)	International	Scheduled	 Detail
+TK 351	TK 351	23/09/2026	09:35	09:53		ALMATY OBLYSY (ALA)	International	Active	 Detail
+TK 608	TK 608	23/09/2026	09:45	09:53		NAIROBI AREA (NBO)	International	Active	 Detail
+TK 2033	TK 2033	23/09/2026	10:00	09:53		KONYA (KYA)	Domestic	Active	 Detail
+TK 557	TK 557	23/09/2026	10:15	09:59		LAGUNES (ABJ)	International	Active	 Detail
+TK 711	TK 711	23/09/2026	09:05	10:00		PUNJAB (ISB)	International	Active	 Detail
+VF 3143	VF 3143	23/09/2026	10:00	10:00		CASTELO BRANCO (COV)	International	Active	 Detail
+VRH 6858	VRH 6858	23/09/2026	10:00	10:00		TEHRAN (IKA)	International	Scheduled	 Detail
+TK 2855	TK 2855	23/09/2026	09:55	10:04		AMASYA (MZH)	Domestic	Active	 Detail
+TK 849	TK 849	23/09/2026	10:25	10:04		RIF-DIMASHQ (DAM)	International	Active	 Detail
+PC 1911	PC 1911	23/09/2026	10:05	10:05		LEFKOSIA (ECN)	International	Active	 Detail
+PC 2403	PC 2403	23/09/2026	10:05	10:05		GAZIANTEP (GZT)	Domestic	Active	 Detail
+VF 278	VF 278	23/09/2026	10:05	10:05		MOSKOVSKAYA (VKO)	International	Scheduled	 Detail
+TK 2503	TK 2503	23/09/2026	10:05	10:10		MUGLA (BJV)	Domestic	Active	 Detail
+PC 2813	PC 2813	23/09/2026	10:10	10:10		TRABZON (TZX)	Domestic	Active	 Detail
+TK 2455	TK 2455	23/09/2026	10:10	10:11		CASTELO BRANCO (COV)	International	Active	 Detail
+TK 97	TK 97	23/09/2026	09:55	10:12		MAKKAH (JED)	International	Active	 Detail
+TK 2577	TK 2577	23/09/2026	09:45	10:13		DENIZLI (DNZ)	Domestic	Active	 Detail
+VF 294	VF 294	23/09/2026	10:15	10:15		ST. PETERSBURG (LED)	International	Active	 Detail
+TK 2011	TK 2011	23/09/2026	10:15	10:19		KAYSERI (ASR)	Domestic	Active	 Detail
+ME 265	ME 265	23/09/2026	10:20	10:20		MONT-LIBAN (BEY)	International	Active	 Detail
+PC 2243	PC 2243	23/09/2026	10:20	10:20		MUGLA (BJV)	Domestic	Active	 Detail
+PC 2285	PC 2285	23/09/2026	10:20	10:20		MUGLA (DLM)	Domestic	Active	 Detail
+PC 391	PC 391	23/09/2026	10:20	10:20		MOSKOVSKAYA (VKO)	International	Scheduled	 Detail
+TK 2311	TK 2311	23/09/2026	10:10	10:23		IZMIR (ADB)	Domestic	Active	 Detail
+TK 709	TK 709	23/09/2026	09:45	10:25		SINDH (KHI)	International	Active	 Detail
+PC 2663	PC 2663	23/09/2026	10:25	10:25		ANKARA (ESB)	Domestic	Scheduled	 Detail
+TK 2409	TK 2409	23/09/2026	10:15	10:27		ANTALYA (AYT)	Domestic	Active	 Detail
+IR 719	IR 719	23/09/2026	09:30	10:29		TEHRAN (IKA)	International	Active	 Detail
+RO 261	RO 261	23/09/2026	09:25	10:30		ILFOV (OTP)	International	Scheduled	 Detail
+TK 2631	TK 2631	23/09/2026	10:15	10:30		MALATYA (MLX)	Domestic	Active	 Detail
+LO 2101	LO 2101	23/09/2026	10:30	10:30		LESSER POLAND VOIVODESHIP (KRK)	International	Active	 Detail
+PC 2005	PC 2005	23/09/2026	10:30	10:30		ANTALYA (AYT)	Domestic	Active	 Detail
+PC 2183	PC 2183	23/09/2026	10:30	10:30		IZMIR (ADB)	Domestic	Scheduled	 Detail
+TK 1072	TK 1072	23/09/2026	10:30	10:30		VARNA (VAR)	International	Active	 Detail
+TK 1362	TK 1362	23/09/2026	10:45	10:30		LATIUM (FCO)	International	Active	 Detail
+TK 2807	TK 2807	23/09/2026	10:15	10:31		SAMSUN (SZF)	Domestic	Active	 Detail
+TK 420	TK 420	23/09/2026	10:20	10:32		MOSKOVSKAYA (VKO)	International	Active	 Detail
+TK 325	TK 325	23/09/2026	10:25	10:32		AHAL (ASB)	International	Active	 Detail
+TK 2817	TK 2817	23/09/2026	10:25	10:37		TRABZON (TZX)	Domestic	Active	 Detail
+TK 2123	TK 2123	23/09/2026	10:10	10:38		ANKARA (ESB)	Domestic	Active	 Detail
+PC 2531	PC 2531	23/09/2026	10:40	10:40		ELAZIG (EZS)	Domestic	Active	 Detail
+PC 2571	PC 2571	23/09/2026	10:40	10:40		MALATYA (MLX)	Domestic	Active	 Detail
+TK 3091	TK 3091	23/09/2026	10:40	10:40		MUGLA (BJV)	Domestic	Active	 Detail
+TK 3205	TK 3205	23/09/2026	10:40	10:40		ERZURUM (ERZ)	Domestic	Active	 Detail
+VF 3031	VF 3031	23/09/2026	10:40	10:40		ANTALYA (AYT)	Domestic	Active	 Detail
+TK 2243	TK 2243	23/09/2026	11:00	10:40		SANLIURFA (GNY)	Domestic	Active	 Detail
+TK 604	TK 604	23/09/2026	11:05	10:40		DAR ES SALAAM (DAR)	International	Active	 Detail
+TK 2643	TK 2643	23/09/2026	10:30	10:41		ELAZIG (EZS)	Domestic	Active	 Detail
+TK 263	TK 263	23/09/2026	10:30	10:42		XORAZM (UGC)	International	Active	 Detail
+TK 1710	TK 1710	23/09/2026	10:55	10:42		BADEN-WUERTTEMBERG (STR)	International	Active	 Detail
+TK 1878	TK 1878	23/09/2026	10:50	10:43		LOMBARDY (MXP)	International	Active	 Detail
+TBZ 6617	TBZ 6617	23/09/2026	09:50	10:45		TEHRAN (THR)	International	Scheduled	 Detail
+2U 2901	2U 2901	23/09/2026	10:45	10:45		SURXONDARYO (TMJ)	International	Scheduled	 Detail
+TK 2221	TK 2221	23/09/2026	10:40	10:46		GAZIANTEP (GZT)	Domestic	Active	 Detail
+TK 3307	TK 3307	23/09/2026	10:50	10:50		SAMSUN (SZF)	Domestic	Active	 Detail
+VF 3337	VF 3337	23/09/2026	10:50	10:50		TRABZON (TZX)	Domestic	Active	 Detail
+TK 2537	TK 2537	23/09/2026	10:50	10:52		RIZE–ARTVIN AIRPORT (RZV)	Domestic	Active	 Detail
+TK 2603	TK 2603	23/09/2026	10:50	10:53		DIYARBAKIR (DIY)	Domestic	Active	 Detail
+SV 265	SV 265	23/09/2026	10:55	10:56		MAKKAH (JED)	International	Active	 Detail
+TK 717	TK 717	23/09/2026	10:45	10:57		HARYANA (DEL)	International	Active	 Detail
+UD 161	UD 161	23/09/2026	08:00	11:00		MAYORALITY OF BAGHDAD (BGW)	International	Canceled	 Detail
+A4 5069	A4 5069	23/09/2026	09:00	11:00		KRASNODARSKIY (AER)	International	Scheduled	 Detail
+HY 271	HY 271	23/09/2026	11:00	11:00		TOSHKENT SHAHRI (TAS)	International	Active	 Detail
+PC 1981	PC 1981	23/09/2026	11:00	11:00		LEFKOSIA (ECN)	International	Scheduled	 Detail
+PC 2503	PC 2503	23/09/2026	11:00	11:00		VAN (VAN)	Domestic	Scheduled	 Detail
+TK 1598	TK 1598	23/09/2026	11:00	11:00		HESSE (FRA)	International	Canceled	 Detail
+TK 3349	TK 3349	23/09/2026	11:00	11:00		VAN (VAN)	Domestic	Active	 Detail
+VF 3171	VF 3171	23/09/2026	11:00	11:00		KAYSERI (ASR)	Domestic	Scheduled	 Detail
+VF 3265	VF 3265	23/09/2026	11:00	11:00		MARDIN (MQM)	Domestic	Active	 Detail
+VF 341	VF 341	23/09/2026	11:00	11:00		ALEPPO (ALP)	International	Active	 Detail
+TK 1638	TK 1638	23/09/2026	11:00	11:01		BAVARIA (MUC)	International	Active	 Detail
+TK 1028	TK 1028	23/09/2026	11:05	11:05		SOFIA-CAPITAL (SOF)	International	Scheduled	 Detail
+TK 1044	TK 1044	23/09/2026	11:05	11:05		ILFOV (OTP)	International	Scheduled	 Detail
+TK 2705	TK 2705	23/09/2026	11:05	11:05		ERZURUM (ERZ)	Domestic	Active	 Detail
+TK 3001	TK 3001	23/09/2026	11:05	11:05		ANKARA (ESB)	Domestic	Scheduled	 Detail
+U6 773	U6 773	23/09/2026	10:50	11:08		SVERDLOVSK (SVX)	International	Active	 Detail
+PC 2431	PC 2431	23/09/2026	11:10	11:10		MARDIN (MQM)	Domestic	Active	 Detail
+TK 216	TK 216	23/09/2026	11:15	11:10		SAO PAULO (GRU)	International	Active	 Detail
+TK 361	TK 361	23/09/2026	11:15	11:11		ARMAVIR (EVN)	International	Active	 Detail
+PC 2491	PC 2491	23/09/2026	11:15	11:15		MUS (MSR)	Domestic	Scheduled	 Detail
+TK 3269	TK 3269	23/09/2026	11:15	11:15		NEVSEHIR (NAV)	Domestic	Scheduled	 Detail
+TO 3420	TO 3420	23/09/2026	11:15	11:15		PAYS DE LA LOIRE (NTE)	International	Scheduled	 Detail
+TK 1890	TK 1890	23/09/2026	11:25	11:18		LOWER AUSTRIA (VIE)	International	Active	 Detail
+PC 2591	PC 2591	23/09/2026	11:20	11:20		KARS (KSY)	Domestic	Active	 Detail
+PC 2791	PC 2791	23/09/2026	11:20	11:20		SAMSUN (SZF)	Domestic	Scheduled	 Detail
+PC 2823	PC 2823	23/09/2026	11:20	11:20		TRABZON (TZX)	Domestic	Active	 Detail
+TK 1004	TK 1004	23/09/2026	11:20	11:20		PETROVEC (SKP)	International	Scheduled	 Detail
+TK 175	TK 175	23/09/2026	11:20	11:20		NEGERI SEMBILAN (KUL)	International	Active	 Detail
+TK 154	TK 154	23/09/2026	11:25	11:25		LEFKOSIA (ECN)	International	Scheduled	 Detail
+VF 3229	VF 3229	23/09/2026	11:25	11:25		GAZIANTEP (GZT)	Domestic	Scheduled	 Detail
+TK 763	TK 763	23/09/2026	11:20	11:26		DUBAI (DXB)	International	Active	 Detail
+TK 721	TK 721	23/09/2026	11:20	11:27		MAHARASHTRA (BOM)	International	Active	 Detail
+BJ 640	BJ 640	23/09/2026	11:30	11:30		ARIANA (TUN)	International	Active	 Detail
+TK 1668	TK 1668	23/09/2026	11:25	11:31		HAMBURG (HAM)	International	Active	 Detail
+TK 408	TK 408	23/09/2026	11:35	11:31		MOSKOVSKAYA (VKO)	International	Active	 Detail
+PC 2179	PC 2179	23/09/2026	11:35	11:35		IZMIR (ADB)	Domestic	Scheduled	 Detail
+PC 2373	PC 2373	23/09/2026	11:35	11:35		BATMAN (BAL)	Domestic	Scheduled	 Detail
+PC 2381	PC 2381	23/09/2026	11:35	11:35		DIYARBAKIR (DIY)	Domestic	Scheduled	 Detail
+TK 961	TK 961	23/09/2026	11:35	11:35		LEFKOSIA (ECN)	International	Scheduled	 Detail
+QR 239	QR 239	23/09/2026	11:55	11:36		BALADIYAT AD DAWHAH (DOH)	International	Active	 Detail
+TK 1912	TK 1912	23/09/2026	11:40	11:40		ZURICH (ZRH)	International	Active	 Detail
+TU 214	TU 214	23/09/2026	11:40	11:40		ARIANA (TUN)	International	Active	 Detail
+TK 1942	TK 1942	23/09/2026	11:45	11:42		FLANDERS (BRU)	International	Active	 Detail
+A3 440	A3 440	23/09/2026	11:45	11:45		SOUTH AEGEAN (JMK)	International	Scheduled	 Detail
+J2 75	J2 75	23/09/2026	11:45	11:45		BAKI (GYD)	International	Active	 Detail
+PC 771	PC 771	23/09/2026	11:45	11:45		ALEPPO (ALP)	International	Scheduled	 Detail
+QB 2213	QB 2213	23/09/2026	11:45	11:45		TEHRAN (IKA)	International	Scheduled	 Detail
+SU 630	SU 630	23/09/2026	11:45	11:45		SVERDLOVSK (SVX)	International	Active	 Detail
+TK 1048	TK 1048	23/09/2026	11:45	11:45		CLUJ (CLJ)	International	Scheduled	 Detail
+TK 2443	TK 2443	23/09/2026	11:55	11:45		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+TK 612	TK 612	23/09/2026	12:05	11:46		CENTRAL REGION (EBB)	International	Active	 Detail
+KU 155	KU 155	23/09/2026	11:50	11:50		AL FARWANIYAH (KWI)	International	Active	 Detail
+PC 1913	PC 1913	23/09/2026	11:50	11:50		LEFKOSIA (ECN)	International	Scheduled	 Detail
+S7 5889	S7 5889	23/09/2026	11:50	11:50		NOVOSIBIRSK (OVB)	International	Active	 Detail
+TK 1082	TK 1082	23/09/2026	11:50	11:50		CENTRAL SERBIA (BEG)	International	Scheduled	 Detail
+TK 2003	TK 2003	23/09/2026	11:50	11:50		NEVSEHIR (NAV)	Domestic	Scheduled	 Detail
+TK 2737	TK 2737	23/09/2026	11:50	11:50		KASTAMONU (KFS)	Domestic	Scheduled	 Detail
+TK 1830	TK 1830	23/09/2026	12:00	11:52		PARIS (CDG)	International	Active	 Detail
+HY 275	HY 275	23/09/2026	11:55	11:55		SAMARQAND (SKD)	International	Active	 Detail
+PC 2091	PC 2091	23/09/2026	11:55	11:55		CASTELO BRANCO (COV)	International	Scheduled	 Detail
+PC 3304	PC 3304	23/09/2026	11:55	11:55		IZMIR (ADB)	Domestic	Scheduled	 Detail
+TK 1950	TK 1950	23/09/2026	11:55	11:55		NORTH HOLLAND (AMS)	International	Active	 Detail
+TK 2555	TK 2555	23/09/2026	11:55	11:55		MUGLA (DLM)	Domestic	Scheduled	 Detail
+TK 2593	TK 2593	23/09/2026	11:55	11:55		ANTALYA (GZP)	Domestic	Scheduled	 Detail
+TK 2843	TK 2843	23/09/2026	11:55	11:55		SINOP (NOP)	Domestic	Scheduled	 Detail
+TK 1748	TK 1748	23/09/2026	12:10	11:56		AKERSHUS (OSL)	International	Active	 Detail
+TK 563	TK 563	23/09/2026	12:15	11:59		ARUSHA (JRO)	International	Active	 Detail
+IS 7340	IS 7340	23/09/2026	11:00	12:00		TEHRAN (IKA)	International	Active	 Detail
+PC 2007	PC 2007	23/09/2026	12:00	12:00		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+TK 2127	TK 2127	23/09/2026	12:00	12:00		ANKARA (ESB)	Domestic	Scheduled	 Detail
+TK 2313	TK 2313	23/09/2026	12:00	12:00		IZMIR (ADB)	Domestic	Scheduled	 Detail
+TK 3067	TK 3067	23/09/2026	12:00	12:00		IZMIR (ADB)	Domestic	Scheduled	 Detail
+TK 567	TK 567	23/09/2026	12:00	12:00		ZANZIBAR URBAN/WEST (ZNZ)	International	Active	 Detail
+VF 3187	VF 3187	23/09/2026	12:00	12:00		DIYARBAKIR (DIY)	Domestic	Scheduled	 Detail
+TK 1988	TK 1988	23/09/2026	12:20	12:02		ENGLAND (LHR)	International	Active	 Detail
+TK 375	TK 375	23/09/2026	12:05	12:09		SAMARQAND (SKD)	International	Active	 Detail
+PC 2269	PC 2269	23/09/2026	12:10	12:10		MUGLA (BJV)	Domestic	Scheduled	 Detail
+TK 438	TK 438	23/09/2026	12:10	12:10		DUBROVACKO-NERETVANSKA (DBV)	International	Scheduled	 Detail
+TK 831	TK 831	23/09/2026	12:10	12:10		MONT-LIBAN (BEY)	International	Scheduled	 Detail
+TK 1844	TK 1844	23/09/2026	12:00	12:11		ATTICA (ATH)	International	Scheduled	 Detail
+TK 1022	TK 1022	23/09/2026	12:10	12:14		FEDERATION OF BOSNIA AND HERZEGOVINA (SJJ)	International	Scheduled	 Detail
+TK 1036	TK 1036	23/09/2026	12:15	12:15		PEST (BUD)	International	Scheduled	 Detail
+TK 1074	TK 1074	23/09/2026	12:15	12:15		TIRANE (TIA)	International	Scheduled	 Detail
+TK 1086	TK 1086	23/09/2026	12:15	12:15		MOJANOVICI (TGD)	International	Scheduled	 Detail
+TK 2013	TK 2013	23/09/2026	12:15	12:15		KAYSERI (ASR)	Domestic	Scheduled	 Detail
+VF 3295	VF 3295	23/09/2026	12:15	12:15		RIZE–ARTVIN AIRPORT (RZV)	Domestic	Scheduled	 Detail
+TK 667	TK 667	23/09/2026	12:00	12:19		NSIMALEN AIRPORT (NSI)	International	Active	 Detail
+PC 2287	PC 2287	23/09/2026	12:20	12:20		MUGLA (DLM)	Domestic	Scheduled	 Detail
+SU 2172	SU 2172	23/09/2026	12:20	12:20		MOSCOW (SVO)	International	Active	 Detail
+TK 3221	TK 3221	23/09/2026	12:20	12:20		SANLIURFA (GNY)	Domestic	Scheduled	 Detail
+TK 368	TK 368	23/09/2026	12:20	12:20		TIRANE (TIA)	International	Scheduled	 Detail
+SV 259	SV 259	23/09/2026	12:25	12:22		AL MADINAH AL MUNAWWARAH (MED)	International	Active	 Detail
+TK 2583	TK 2583	23/09/2026	12:25	12:25		TOKAT (TJK)	Domestic	Scheduled	 Detail
+TK 2659	TK 2659	23/09/2026	12:25	12:25		SIVAS (VAS)	Domestic	Scheduled	 Detail
+TK 3033	TK 3033	23/09/2026	12:25	12:25		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+EY 541	EY 541	23/09/2026	12:35	12:28		ABU DHABI (AUH)	International	Active	 Detail
+TK 197	TK 197	23/09/2026	12:10	12:29		BEIJING CAPITAL INTERNATIONAL AIRPORT (PEK)	International	Active	 Detail
+PC 4037	PC 4037	23/09/2026	12:30	12:30		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+PC 982	PC 982	23/09/2026	12:30	12:30		BERLIN (BER)	International	Scheduled	 Detail
+TK 2459	TK 2459	23/09/2026	12:30	12:30		CASTELO BRANCO (COV)	International	Scheduled	 Detail
+TK 2849	TK 2849	23/09/2026	12:30	12:30		ORDU (OGU)	Domestic	Scheduled	 Detail
+TK 771	TK 771	23/09/2026	10:25	12:35		AL FARWANIYAH (KWI)	International	Active	 Detail
+PC 2665	PC 2665	23/09/2026	12:35	12:35		ANKARA (ESB)	Domestic	Scheduled	 Detail
+TK 2201	TK 2201	23/09/2026	12:35	12:35		KAHRAMANMARAS (KCM)	Domestic	Scheduled	 Detail
+TK 2505	TK 2505	23/09/2026	12:35	12:35		MUGLA (BJV)	Domestic	Scheduled	 Detail
+VF 192	VF 192	23/09/2026	12:35	12:35		MAKKAH (JED)	International	Active	 Detail
+TK 731	TK 731	23/09/2026	12:50	12:37		CMB (CMB)	International	Active	 Detail
+PC 1006	PC 1006	23/09/2026	12:40	12:40		DUSSELDORF (DUS)	International	Scheduled	 Detail
+TK 1780	TK 1780	23/09/2026	12:40	12:41		LISBON (LIS)	International	Active	 Detail
+TK 36	TK 36	23/09/2026	12:25	12:42		QUEBEC (YUL)	International	Active	 Detail
+W9 5327	W9 5327	23/09/2026	13:10	12:44		ENGLAND (LTN)	International	Scheduled	 Detail
+PC 2501	PC 2501	23/09/2026	12:45	12:45		VAN (VAN)	Domestic	Scheduled	 Detail
+RJ 165	RJ 165	23/09/2026	12:45	12:45		AMMAN (AMM)	International	Scheduled	 Detail
+TK 2253	TK 2253	23/09/2026	12:45	12:45		HATAY (HTY)	Domestic	Scheduled	 Detail
+TK 315	TK 315	23/09/2026	12:45	12:45		ARBIL (EBL)	International	Scheduled	 Detail
+TK 817	TK 817	23/09/2026	12:45	12:45		AMMAN (AMM)	International	Scheduled	 Detail
+TK 1360	TK 1360	23/09/2026	13:00	12:49		MADRID (MAD)	International	Active	 Detail
+KOC 2	KOC 2	23/09/2026	12:50	12:50		NEW JERSEY (TEB)	International	Active	 Detail
+PC 2185	PC 2185	23/09/2026	12:50	12:50		IZMIR (ADB)	Domestic	Scheduled	 Detail
+TK 2653	TK 2653	23/09/2026	12:50	12:50		ERZINCAN (ERC)	Domestic	Scheduled	 Detail
+TK 3167	TK 3167	23/09/2026	12:50	12:50		AGRI (AJI)	Domestic	Scheduled	 Detail
+PC 859	PC 859	23/09/2026	12:55	12:55		AL FARWANIYAH (KWI)	International	Scheduled	 Detail
+TK 1054	TK 1054	23/09/2026	12:55	12:55		ZAGREBACKA (ZAG)	International	Scheduled	 Detail
+TK 1272	TK 1272	23/09/2026	12:55	12:55		LESSER POLAND VOIVODESHIP (KRK)	International	Scheduled	 Detail
+TK 1454	TK 1454	23/09/2026	12:55	12:55		CAMPANIA (NAP)	International	Scheduled	 Detail
+TK 2223	TK 2223	23/09/2026	12:55	12:55		GAZIANTEP (GZT)	Domestic	Scheduled	 Detail
+TK 2411	TK 2411	23/09/2026	12:55	12:55		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+TK 707	TK 707	23/09/2026	12:55	12:58		KABUL (KBL)	International	Active	 Detail
+TK 1394	TK 1394	23/09/2026	12:55	13:00		SICILY (CTA)	International	Scheduled	 Detail
+FQ 750	FQ 750	23/09/2026	13:00	13:00		TRIPOLI (MJI)	International	Scheduled	 Detail
+LH 1298	LH 1298	23/09/2026	13:00	13:00		HESSE (FRA)	International	Scheduled	 Detail
+MS 737	MS 737	23/09/2026	13:00	13:00		CAIRO (CAI)	International	Scheduled	 Detail
+PC 1026	PC 1026	23/09/2026	13:00	13:00		BAVARIA (MUC)	International	Scheduled	 Detail
+TK 1768	TK 1768	23/09/2026	13:00	13:00		CENTRAL BOHEMIA (PRG)	International	Scheduled	 Detail
+TK 2821	TK 2821	23/09/2026	13:00	13:00		TRABZON (TZX)	Domestic	Scheduled	 Detail
+TK 3243	TK 3243	23/09/2026	13:00	13:00		HATAY (HTY)	Domestic	Scheduled	 Detail
+YL 102	YL 102	23/09/2026	13:00	13:00		TRIPOLI (MJI)	International	Scheduled	 Detail
+TK 369	TK 369	23/09/2026	12:55	13:05		TOSHKENT SHAHRI (TAS)	International	Active	 Detail
+B2 783	B2 783	23/09/2026	13:05	13:05		MINSK (MSQ)	International	Scheduled	 Detail
+LO 133	LO 133	23/09/2026	13:05	13:05		MASOVIAN VOIVODESHIP (WAW)	International	Scheduled	 Detail
+PC 2761	PC 2761	23/09/2026	13:05	13:05		IGDIR (IGD)	Domestic	Scheduled	 Detail
+TK 3003	TK 3003	23/09/2026	13:05	13:05		ANKARA (ESB)	Domestic	Scheduled	 Detail
+TK 59	TK 59	23/09/2026	12:40	13:06		BANGKOK (BKK)	International	Active	 Detail
+TK 2	TK 2	23/09/2026	13:00	13:09		NEW YORK (JFK)	International	Active	 Detail
+B9 9709	B9 9709	23/09/2026	13:10	13:10		EAST AZERBAIJAN (TBZ)	International	Scheduled	 Detail
+PC 1016	PC 1016	23/09/2026	13:10	13:10		NORTH RHINE-WESTPHALIA (CGN)	International	Scheduled	 Detail
+PC 631	PC 631	23/09/2026	13:10	13:10		SOUTH SINAI (SSH)	International	Scheduled	 Detail
+TK 2135	TK 2135	23/09/2026	13:10	13:10		ANKARA (ESB)	Domestic	Scheduled	 Detail
+TK 1930	TK 1930	23/09/2026	13:15	13:15		ENGLAND (LGW)	International	Scheduled	 Detail
+TK 2607	TK 2607	23/09/2026	13:15	13:15		DIYARBAKIR (DIY)	Domestic	Scheduled	 Detail
+TK 345	TK 345	23/09/2026	13:10	13:17		BARTLETTS (BSZ)	International	Active	 Detail
+TK 1062	TK 1062	23/09/2026	13:10	13:18		SENCUR (LJU)	International	Scheduled	 Detail
+6E 17	6E 17	23/09/2026	13:50	13:18		MAHARASHTRA (BOM)	International	Active	 Detail
+G9 321	G9 321	23/09/2026	13:20	13:20		SHARJAH (SHJ)	International	Active	 Detail
+TK 1848	TK 1848	23/09/2026	13:20	13:20		ATTICA (ATH)	International	Scheduled	 Detail
+TK 2319	TK 2319	23/09/2026	13:20	13:20		IZMIR (ADB)	Domestic	Scheduled	 Detail
+TK 2675	TK 2675	23/09/2026	13:20	13:20		MARDIN (MQM)	Domestic	Scheduled	 Detail
+TK 3251	TK 3251	23/09/2026	13:20	13:20		KARS (KSY)	Domestic	Scheduled	 Detail
+TK 3325	TK 3325	23/09/2026	13:20	13:20		TRABZON (TZX)	Domestic	Scheduled	 Detail
+TK 642	TK 642	23/09/2026	13:20	13:20		BANGHAZI (BEN)	International	Scheduled	 Detail
+TK 691	TK 691	23/09/2026	13:20	13:20		CAIRO (CAI)	International	Scheduled	 Detail
+PC 2011	PC 2011	23/09/2026	13:25	13:25		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+PC 292	PC 292	23/09/2026	13:25	13:25		FEDERATION OF BOSNIA AND HERZEGOVINA (SJJ)	International	Scheduled	 Detail
+TK 1884	TK 1884	23/09/2026	13:25	13:25		LOWER AUSTRIA (VIE)	International	Scheduled	 Detail
+TK 2683	TK 2683	23/09/2026	13:25	13:25		BATMAN (BAL)	Domestic	Scheduled	 Detail
+TK 2693	TK 2693	23/09/2026	13:25	13:25		MUS (MSR)	Domestic	Scheduled	 Detail
+TK 845	TK 845	23/09/2026	13:25	13:25		ALEPPO (ALP)	International	Scheduled	 Detail
+J2 175	J2 175	23/09/2026	13:30	13:30		BAKI (GYD)	International	Scheduled	 Detail
+KU 157	KU 157	23/09/2026	13:30	13:30		AL FARWANIYAH (KWI)	International	Scheduled	 Detail
+TK 2413	TK 2413	23/09/2026	13:30	13:30		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+TK 2507	TK 2507	23/09/2026	13:30	13:30		MUGLA (BJV)	Domestic	Scheduled	 Detail
+TK 2667	TK 2667	23/09/2026	13:30	13:30		SIRNAK (NKT)	Domestic	Scheduled	 Detail
+TK 847	TK 847	23/09/2026	13:30	13:30		RIF-DIMASHQ (DAM)	International	Scheduled	 Detail
+TK 1868	TK 1868	23/09/2026	13:30	13:33		VENETO (VCE)	International	Scheduled	 Detail
+TK 206	TK 206	23/09/2026	14:00	13:33		MICHIGAN (DTW)	International	Active	 Detail
+TK 2557	TK 2557	23/09/2026	13:35	13:35		MUGLA (DLM)	Domestic	Scheduled	 Detail
+TK 2731	TK 2731	23/09/2026	13:35	13:35		AGRI (AJI)	Domestic	Scheduled	 Detail
+TK 751	TK 751	23/09/2026	13:20	13:39		PUNJAB (ISB)	International	Active	 Detail
+TK 2715	TK 2715	23/09/2026	13:40	13:40		KARS (KSY)	Domestic	Scheduled	 Detail
+DP 993	DP 993	23/09/2026	11:55	13:41		MOSKOVSKAYA (VKO)	International	Active	 Detail
+TK 353	TK 353	23/09/2026	13:10	13:42		ALMATY OBLYSY (ALA)	International	Active	 Detail
+TK 843	TK 843	23/09/2026	13:30	13:45		MAYORALITY OF BAGHDAD (BGW)	International	Scheduled	 Detail
+SV 257	SV 257	23/09/2026	13:45	13:45		MAKKAH (JED)	International	Scheduled	 Detail
+TK 1266	TK 1266	23/09/2026	13:45	13:45		MASOVIAN VOIVODESHIP (WAW)	International	Scheduled	 Detail
+TK 1370	TK 1370	23/09/2026	13:45	13:45		LUQA (MLA)	International	Scheduled	 Detail
+TK 333	TK 333	23/09/2026	13:45	13:45		BAKI (GYD)	International	Scheduled	 Detail
+6E 11	6E 11	23/09/2026	14:00	13:48		HARYANA (DEL)	International	Active	 Detail
+HH 575	HH 575	23/09/2026	13:50	13:50		TOSHKENT SHAHRI (TAS)	International	Active	 Detail
+PC 2245	PC 2245	23/09/2026	13:50	13:50		MUGLA (BJV)	Domestic	Scheduled	 Detail
+PC 906	PC 906	23/09/2026	13:50	13:50		LOWER AUSTRIA (VIE)	International	Scheduled	 Detail
+TK 2747	TK 2747	23/09/2026	13:35	13:51		VAN (VAN)	Domestic	Scheduled	 Detail
+FZ 751	FZ 751	23/09/2026	13:05	13:52		DUBAI (DXB)	International	Scheduled	 Detail
+TK 82	TK 82	23/09/2026	14:10	13:53		MASSACHUSETTS (BOS)	International	Active	 Detail
+UX 1683	UX 1683	23/09/2026	13:55	13:54		MADRID (MAD)	International	Scheduled	 Detail
+TK 701	TK 701	23/09/2026	13:55	13:55		SOUTH SINAI (SSH)	International	Scheduled	 Detail
+TK 743	TK 743	23/09/2026	13:55	13:59		DHAKA (DAC)	International	Active	 Detail
+F3 811	F3 811	23/09/2026	14:00	14:00		AL MADINAH AL MUNAWWARAH (MED)	International	Scheduled	 Detail
+NB 301	NB 301	23/09/2026	14:00	14:00		BANGHAZI (BEN)	International	Scheduled	 Detail
+TS 214	TS 214	23/09/2026	14:00	14:00		ONTARIO (YYZ)	International	Active	 Detail
+TK 2435	TK 2435	23/09/2026	14:10	14:00		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+4O 400	4O 400	23/09/2026	14:05	14:05		TIVAT (TIV)	International	Scheduled	 Detail
+PC 2815	PC 2815	23/09/2026	14:05	14:05		TRABZON (TZX)	Domestic	Scheduled	 Detail
+PC 619	PC 619	23/09/2026	14:05	14:05		RED SEA (HRG)	International	Scheduled	 Detail
+PC 2421	PC 2421	23/09/2026	14:10	14:10		SANLIURFA (GNY)	Domestic	Scheduled	 Detail
+TK 102	TK 102	23/09/2026	14:10	14:10		PRISTINA (PRN)	International	Scheduled	 Detail
+TK 1322	TK 1322	23/09/2026	14:10	14:10		EMILIA-ROMAGNA (BLQ)	International	Scheduled	 Detail
+TK 2139	TK 2139	23/09/2026	14:10	14:10		ANKARA (ESB)	Domestic	Scheduled	 Detail
+VF 336	VF 336	23/09/2026	14:10	14:10		CENTRAL BOHEMIA (PRG)	International	Scheduled	 Detail
+TK 1852	TK 1852	23/09/2026	12:10	14:14		CATALONIA (BCN)	International	Scheduled	 Detail
+PC 1921	PC 1921	23/09/2026	14:15	14:15		LEFKOSIA (ECN)	International	Scheduled	 Detail
+PC 2281	PC 2281	23/09/2026	14:15	14:15		MUGLA (DLM)	Domestic	Scheduled	 Detail
+SU 2136	SU 2136	23/09/2026	14:15	14:15		MOSCOW (SVO)	International	Active	 Detail
+TK 2321	TK 2321	23/09/2026	14:15	14:15		IZMIR (ADB)	Domestic	Scheduled	 Detail
+XY 555	XY 555	23/09/2026	14:15	14:15		MAKKAH (JED)	International	Scheduled	 Detail
+EK 123	EK 123	23/09/2026	14:25	14:15		DUBAI (DXB)	International	Scheduled	 Detail
+TK 745	TK 745	23/09/2026	13:50	14:19		PUNJAB (LHE)	International	Active	 Detail
+PC 262	PC 262	23/09/2026	14:20	14:20		MOJANOVICI (TGD)	International	Scheduled	 Detail
+TK 1504	TK 1504	23/09/2026	14:20	14:20		BAVARIA (NUE)	International	Scheduled	 Detail
+TK 1758	TK 1758	23/09/2026	14:20	14:20		BABITE (RIX)	International	Scheduled	 Detail
+TK 2225	TK 2225	23/09/2026	14:20	14:20		GAZIANTEP (GZT)	Domestic	Scheduled	 Detail
+TK 2461	TK 2461	23/09/2026	14:20	14:20		CASTELO BRANCO (COV)	International	Scheduled	 Detail
+TK 977	TK 977	23/09/2026	14:20	14:20		LEFKOSIA (ECN)	International	Scheduled	 Detail
+TK 1131	TK 1131	23/09/2026	14:25	14:22		CMB (CMB)	International	Active	 Detail
+TK 8	TK 8	23/09/2026	14:50	14:24		VIRGINIA (IAD)	International	Active	 Detail
+PC 2009	PC 2009	23/09/2026	14:25	14:25		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+TK 1630	TK 1630	23/09/2026	14:30	14:30		BAVARIA (MUC)	International	Scheduled	 Detail
+TK 2415	TK 2415	23/09/2026	14:30	14:30		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+TK 180	TK 180	23/09/2026	12:35	14:31		LOS ANGELES (LAX)	International	Active	 Detail
+A3 992	A3 992	23/09/2026	14:35	14:35		ATTICA (ATH)	International	Scheduled	 Detail
+BT 711	BT 711	23/09/2026	14:35	14:35		BABITE (RIX)	International	Scheduled	 Detail
+TK 2581	TK 2581	23/09/2026	14:35	14:35		DENIZLI (DNZ)	Domestic	Canceled	 Detail
+TK 379	TK 379	23/09/2026	14:35	14:35		DIDI LILO (TBS)	International	Scheduled	 Detail
+TK 381	TK 381	23/09/2026	14:35	14:35		DIDI LILO (TBS)	International	Scheduled	 Detail
+DP 995	DP 995	23/09/2026	14:40	14:39		MOSKOVSKAYA (VKO)	International	Scheduled	 Detail
+TK 1672	TK 1672	23/09/2026	14:40	14:40		NORTH RHINE-WESTPHALIA (CGN)	International	Scheduled	 Detail
+TK 1722	TK 1722	23/09/2026	14:40	14:40		BERLIN (BER)	International	Scheduled	 Detail
+TK 1862	TK 1862	23/09/2026	14:40	14:40		LATIUM (FCO)	International	Scheduled	 Detail
+TK 1874	TK 1874	23/09/2026	14:40	14:40		LOMBARDY (MXP)	International	Scheduled	 Detail
+GF 43	GF 43	23/09/2026	14:45	14:45	 204	MUHARRAQ (BAH)	International	Scheduled	 Detail
+TK 1354	TK 1354	23/09/2026	14:45	14:45		LUXEMBOURG (LUX)	International	Scheduled	 Detail
+TK 1366	TK 1366	23/09/2026	14:45	14:45		PROVENCE-ALPES-COTE D'AZUR (MRS)	International	Scheduled	 Detail
+TK 1408	TK 1408	23/09/2026	14:45	14:45		VILNIUS COUNTY (VNO)	International	Scheduled	 Detail
+TK 1554	TK 1554	23/09/2026	14:45	14:45		LOWER SAXONY (HAJ)	International	Scheduled	 Detail
+TK 1662	TK 1662	23/09/2026	14:45	14:45		HAMBURG (HAM)	International	Scheduled	 Detail
+TK 1784	TK 1784	23/09/2026	14:45	14:45		CAPITAL REGION (CPH)	International	Scheduled	 Detail
+TK 1808	TK 1808	23/09/2026	14:45	14:45		RHONE-ALPES (LYS)	International	Scheduled	 Detail
+TK 1918	TK 1918	23/09/2026	14:45	14:45		GENEVA (GVA)	International	Scheduled	 Detail
+TK 281	TK 281	23/09/2026	14:50	14:48		SHANGHAI SHI (PVG)	International	Active	 Detail
+B9 9710	B9 9710	23/09/2026	14:50	14:50		TEHRAN (IKA)	International	Scheduled	 Detail
+BA 718	BA 718	23/09/2026	14:50	14:50		ENGLAND (LHR)	International	Scheduled	 Detail
+PC 1008	PC 1008	23/09/2026	14:50	14:50		DUSSELDORF (DUS)	International	Scheduled	 Detail
+PC 2735	PC 2735	23/09/2026	14:50	14:50		KAYSERI (ASR)	Domestic	Scheduled	 Detail
+SV 263	SV 263	23/09/2026	14:50	14:50		AR RIYAD (RUH)	International	Scheduled	 Detail
+TK 1422	TK 1422	23/09/2026	14:50	14:50		HARJU (TLL)	International	Scheduled	 Detail
+TK 1524	TK 1524	23/09/2026	14:50	14:50		DUSSELDORF (DUS)	International	Scheduled	 Detail
+TK 1702	TK 1702	23/09/2026	14:50	14:50		BADEN-WUERTTEMBERG (STR)	International	Scheduled	 Detail
+TK 1814	TK 1814	23/09/2026	14:50	14:50		PROVENCE-ALPES-COTE D'AZUR (NCE)	International	Scheduled	 Detail
+TK 1908	TK 1908	23/09/2026	14:50	14:50		ZURICH (ZRH)	International	Scheduled	 Detail
+TK 1924	TK 1924	23/09/2026	14:50	14:50		BASEL (BSL)	International	Scheduled	 Detail
+TK 662	TK 662	23/09/2026	14:50	14:50		ARIANA (TUN)	International	Scheduled	 Detail
+J2 8105	J2 8105	23/09/2026	14:55	14:55		BAKI (GYD)	International	Scheduled	 Detail
+TK 2015	TK 2015	23/09/2026	14:55	14:55		KAYSERI (ASR)	Domestic	Scheduled	 Detail
+XY 2985	XY 2985	23/09/2026	14:55	14:55		AL-QASSIM (ELQ)	International	Scheduled	 Detail
+BT 422	BT 422	23/09/2026	15:00	15:00		CENTRAL SERBIA (BEG)	International	Scheduled	 Detail
+PC 272	PC 272	23/09/2026	15:00	15:00		SOFIA-CAPITAL (SOF)	International	Scheduled	 Detail
+TK 1798	TK 1798	23/09/2026	15:00	15:00		VAESTRA GOETALAND (GOT)	International	Scheduled	 Detail
+TK 3101	TK 3101	23/09/2026	15:00	15:00		MUGLA (BJV)	Domestic	Scheduled	 Detail
+VF 3135	VF 3135	23/09/2026	15:00	15:00		MUGLA (DLM)	Domestic	Scheduled	 Detail
+NP 191	NP 191	23/09/2026	15:05	15:05		CAIRO (CAI)	International	Scheduled	 Detail
+PC 2087	PC 2087	23/09/2026	15:05	15:05		CASTELO BRANCO (COV)	International	Scheduled	 Detail
+TK 2005	TK 2005	23/09/2026	15:05	15:05		NEVSEHIR (NAV)	Domestic	Scheduled	 Detail
+TK 32	TK 32	23/09/2026	15:40	15:05		ATLANTA (ATL)	International	Active	 Detail
+S7 3749	S7 3749	23/09/2026	15:10	15:10		MOSKOVSKAYA (DME)	International	Scheduled	 Detail
+TK 3035	TK 3035	23/09/2026	15:10	15:10		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+TO 3288	TO 3288	23/09/2026	15:10	15:10		ILE-DE-FRANCE (ORY)	International	Scheduled	 Detail
+TK 18	TK 18	23/09/2026	14:50	15:15		ONTARIO (YYZ)	International	Active	 Detail
+AH 3016	AH 3016	23/09/2026	15:15	15:15		ALGER (ALG)	International	Scheduled	 Detail
+PC 2405	PC 2405	23/09/2026	15:15	15:15		GAZIANTEP (GZT)	Domestic	Scheduled	 Detail
+A4 6075	A4 6075	23/09/2026	15:20	15:20		STAVROPOL'SKIY (MRV)	International	Scheduled	 Detail
+VF 156	VF 156	23/09/2026	15:20	15:20		LEFKOSIA (ECN)	International	Scheduled	 Detail
+PC 1222	PC 1222	23/09/2026	15:25	15:25		LATIUM (FCO)	International	Scheduled	 Detail
+PC 2667	PC 2667	23/09/2026	15:25	15:25		ANKARA (ESB)	Domestic	Scheduled	 Detail
+PC 948	PC 948	23/09/2026	15:25	15:25		ZURICH (ZRH)	International	Scheduled	 Detail
+PC 968	PC 968	23/09/2026	15:25	15:25		BADEN-WUERTTEMBERG (STR)	International	Scheduled	 Detail
+TK 2417	TK 2417	23/09/2026	15:25	15:25		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+TK 852	TK 852	23/09/2026	15:25	15:25		ALGER (ALG)	International	Scheduled	 Detail
+DP 769	DP 769	23/09/2026	15:30	15:27		KRASNODARSKIY (KRR)	International	Scheduled	 Detail
+TK 640	TK 640	23/09/2026	15:30	15:30		TRIPOLI (MJI)	International	Scheduled	 Detail
+NH 219	NH 219	23/09/2026	15:35	15:35		KANAGAWA (HND)	International	Active	 Detail
+PC 2249	PC 2249	23/09/2026	15:35	15:35		MUGLA (BJV)	Domestic	Scheduled	 Detail
+PC 304	PC 304	23/09/2026	15:35	15:35		CENTRAL BOHEMIA (PRG)	International	Scheduled	 Detail
+VF 54	VF 54	23/09/2026	15:35	15:35		ZURICH (ZRH)	International	Scheduled	 Detail
+TK 171	TK 171	23/09/2026	15:10	15:38		TUEN MUN (HKG)	International	Active	 Detail
+TK 63	TK 63	23/09/2026	15:35	15:39		NEGERI SEMBILAN (KUL)	International	Active	 Detail
+PC 352	PC 352	23/09/2026	15:40	15:40		PETROVEC (SKP)	International	Scheduled	 Detail
+TK 1588	TK 1588	23/09/2026	15:40	15:40		HESSE (FRA)	International	Scheduled	 Detail
+TK 1938	TK 1938	23/09/2026	15:40	15:40		FLANDERS (BRU)	International	Scheduled	 Detail
+TK 2215	TK 2215	23/09/2026	15:40	15:40		ADIYAMAN (ADF)	Domestic	Scheduled	 Detail
+TK 513	TK 513	23/09/2026	15:40	15:40		RED SEA (PZU)	International	Scheduled	 Detail
+C6 301	C6 301	23/09/2026	15:45	15:45		TOSHKENT SHAHRI (TAS)	International	Scheduled	 Detail
+TK 106	TK 106	23/09/2026	15:45	15:45		BASEL (BSL)	International	Scheduled	 Detail
+TK 1794	TK 1794	23/09/2026	15:45	15:45		STOCKHOLM (ARN)	International	Scheduled	 Detail
+TK 1952	TK 1952	23/09/2026	15:45	15:45		NORTH HOLLAND (AMS)	International	Scheduled	 Detail
+TK 2055	TK 2055	23/09/2026	15:45	15:45		KUTAHYA (KZR)	Domestic	Scheduled	 Detail
+TK 3365	TK 3365	23/09/2026	15:45	15:45		BALIKESIR (EDO)	Domestic	Scheduled	 Detail
+TK 6	TK 6	23/09/2026	14:50	15:47		ILLINOIS (ORD)	International	Active	 Detail
+PC 2191	PC 2191	23/09/2026	15:50	15:50		IZMIR (ADB)	Domestic	Scheduled	 Detail
+SU 656	SU 656	23/09/2026	15:50	15:50		KRASNODARSKIY (KRR)	International	Scheduled	 Detail
+TK 1302	TK 1302	23/09/2026	15:50	15:50		MANISES (VLC)	International	Scheduled	 Detail
+TK 1752	TK 1752	23/09/2026	15:50	15:50		AKERSHUS (OSL)	International	Scheduled	 Detail
+TK 1762	TK 1762	23/09/2026	15:50	15:50		HELSINKI (HEL)	International	Scheduled	 Detail
+TK 1804	TK 1804	23/09/2026	15:50	15:50		MIDI-PYRENEES (TLS)	International	Scheduled	 Detail
+TK 3077	TK 3077	23/09/2026	15:50	15:50		IZMIR (ADB)	Domestic	Scheduled	 Detail
+AH 3024	AH 3024	23/09/2026	15:55	15:55		VAHRAN (ORN)	International	Scheduled	 Detail
+SU 2130	SU 2130	23/09/2026	15:55	15:55		MOSCOW (SVO)	International	Scheduled	 Detail
+TK 2511	TK 2511	23/09/2026	15:55	15:55		MUGLA (BJV)	Domestic	Scheduled	 Detail
+FV 6963	FV 6963	23/09/2026	16:00	16:00		ST. PETERSBURG (LED)	International	Scheduled	 Detail
+TK 3145	TK 3145	23/09/2026	16:05	16:05		CASTELO BRANCO (COV)	International	Scheduled	 Detail
+W4 3717	W4 3717	23/09/2026	16:05	16:05		IASI (IAS)	International	Scheduled	 Detail
+TK 1968	TK 1968	23/09/2026	16:00	16:08		ENGLAND (BHX)	International	Scheduled	 Detail
+OZ 551	OZ 551	23/09/2026	16:10	16:10		SEUL (ICN)	International	Active	 Detail
+PC 286	PC 286	23/09/2026	16:10	16:10		TIRANE (TIA)	International	Scheduled	 Detail
+PC 412	PC 412	23/09/2026	16:10	16:10		BRATISLAVA (BTS)	International	Scheduled	 Detail
+TK 1822	TK 1822	23/09/2026	16:10	16:10		PARIS (CDG)	International	Scheduled	 Detail
+TK 2151	TK 2151	23/09/2026	16:10	16:10		ANKARA (ESB)	Domestic	Scheduled	 Detail
+TK 2559	TK 2559	23/09/2026	16:10	16:10		MUGLA (DLM)	Domestic	Scheduled	 Detail
+TK 2677	TK 2677	23/09/2026	16:10	16:10		MARDIN (MQM)	Domestic	Scheduled	 Detail
+VF 3015	VF 3015	23/09/2026	16:10	16:10		ANKARA (ESB)	Domestic	Scheduled	 Detail
+VF 74	VF 74	23/09/2026	16:10	16:10		LATIUM (FCO)	International	Scheduled	 Detail
+TK 21	TK 21	23/09/2026	15:45	16:15		SEUL (ICN)	International	Active	 Detail
+PC 1020	PC 1020	23/09/2026	16:15	16:15		BAVARIA (MUC)	International	Scheduled	 Detail
+PC 311	PC 311	23/09/2026	16:15	16:15		AJARIA (BUS)	International	Scheduled	 Detail
+TK 2463	TK 2463	23/09/2026	16:15	16:15		CASTELO BRANCO (COV)	International	Scheduled	 Detail
+VF 90	VF 90	23/09/2026	16:15	16:15		NORTH RHINE-WESTPHALIA (CGN)	International	Scheduled	 Detail
+TK 34	TK 34	23/09/2026	17:10	16:17		GEORGE BUSH INTERCONTINENTAL AIRPORT (IAH)	International	Active	 Detail
+KL 1959	KL 1959	23/09/2026	16:20	16:20		NORTH HOLLAND (AMS)	International	Scheduled	 Detail
+PC 1917	PC 1917	23/09/2026	16:20	16:20		LEFKOSIA (ECN)	International	Scheduled	 Detail
+TK 2325	TK 2325	23/09/2026	16:20	16:20		IZMIR (ADB)	Domestic	Scheduled	 Detail
+TK 86	TK 86	23/09/2026	16:20	16:20		LOWER SAXONY (HAJ)	International	Scheduled	 Detail
+VF 3037	VF 3037	23/09/2026	16:20	16:20		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+N4 1015	N4 1015	23/09/2026	16:25	16:25		TATARSTAN (KZN)	International	Scheduled	 Detail
+TK 143	TK 143	23/09/2026	16:25	16:25		AR RIYAD (RUH)	International	Scheduled	 Detail
+TK 414	TK 414	23/09/2026	16:25	16:25		MOSKOVSKAYA (VKO)	International	Scheduled	 Detail
+TK 58	TK 58	23/09/2026	16:25	16:25		BERLIN (BER)	International	Scheduled	 Detail
+TK 145	TK 145	23/09/2026	10:30	16:28		AR RIYAD (RUH)	International	Scheduled	 Detail
+TK 2419	TK 2419	23/09/2026	16:30	16:30		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+VF 62	VF 62	23/09/2026	16:30	16:30		LOMBARDY (BGY)	International	Scheduled	 Detail
+TK 2523	TK 2523	23/09/2026	16:35	16:35		MUGLA (BJV)	Domestic	Scheduled	 Detail
+TK 2541	TK 2541	23/09/2026	16:35	16:35		RIZE–ARTVIN AIRPORT (RZV)	Domestic	Scheduled	 Detail
+VF 42	VF 42	23/09/2026	16:35	16:35		BAVARIA (MUC)	International	Scheduled	 Detail
+AT 910	AT 910	23/09/2026	16:40	16:40		CHAOUIA-OUARDIGHA (CMN)	International	Scheduled	 Detail
+LO 135	LO 135	23/09/2026	16:40	16:40		MASOVIAN VOIVODESHIP (WAW)	International	Scheduled	 Detail
+PC 916	PC 916	23/09/2026	16:40	16:40		STYRIA (GRZ)	International	Scheduled	 Detail
+TK 1642	TK 1642	23/09/2026	16:40	16:40		BAVARIA (MUC)	International	Scheduled	 Detail
+TK 1854	TK 1854	23/09/2026	16:40	16:40		CATALONIA (BCN)	International	Scheduled	 Detail
+TK 3297	TK 3297	23/09/2026	16:40	16:40		RIZE–ARTVIN AIRPORT (RZV)	Domestic	Scheduled	 Detail
+TK 402	TK 402	23/09/2026	16:40	16:40		ST. PETERSBURG (LED)	International	Scheduled	 Detail
+TK 12	TK 12	23/09/2026	17:10	16:40		NEW YORK (JFK)	International	Active	 Detail
+D7 604	D7 604	23/09/2026	16:05	16:41		NEGERI SEMBILAN (KUL)	International	Active	 Detail
+TK 1994	TK 1994	23/09/2026	16:50	16:42		ENGLAND (MAN)	International	Scheduled	 Detail
+PC 1280	PC 1280	23/09/2026	16:45	16:45		STOCKHOLM (ARN)	International	Scheduled	 Detail
+PC 2283	PC 2283	23/09/2026	16:45	16:45		MUGLA (DLM)	Domestic	Scheduled	 Detail
+PC 332	PC 332	23/09/2026	16:45	16:45		PEST (BUD)	International	Scheduled	 Detail
+TK 1242	TK 1242	23/09/2026	16:45	16:45		ENGLAND (STN)	International	Scheduled	 Detail
+TK 2017	TK 2017	23/09/2026	16:45	16:45		KAYSERI (ASR)	Domestic	Scheduled	 Detail
+TK 2203	TK 2203	23/09/2026	16:45	16:45		KAHRAMANMARAS (KCM)	Domestic	Canceled	 Detail
+TK 2633	TK 2633	23/09/2026	16:45	16:45		MALATYA (MLX)	Domestic	Canceled	 Detail
+TK 3125	TK 3125	23/09/2026	16:45	16:45		MUGLA (DLM)	Domestic	Scheduled	 Detail
+TK 647	TK 647	23/09/2026	16:45	16:45		BANAADIR (MGQ)	International	Scheduled	 Detail
+TK 652	TK 652	23/09/2026	16:35	16:48		ALGER (ALG)	International	Scheduled	 Detail
+TK 1982	TK 1982	23/09/2026	16:50	16:50		ENGLAND (LGW)	International	Scheduled	 Detail
+TK 264	TK 264	23/09/2026	16:50	16:50		PETROVEC (SKP)	International	Scheduled	 Detail
+TK 78	TK 78	23/09/2026	16:50	16:50		HAMBURG (HAM)	International	Scheduled	 Detail
+TK 30	TK 30	23/09/2026	17:05	16:50		NEW JERSEY (EWR)	International	Active	 Detail
+LH 1300	LH 1300	23/09/2026	16:55	16:55		HESSE (FRA)	International	Scheduled	 Detail
+PC 902	PC 902	23/09/2026	16:55	16:55		LOWER AUSTRIA (VIE)	International	Scheduled	 Detail
+TK 2749	TK 2749	23/09/2026	16:55	16:55		VAN (VAN)	Domestic	Scheduled	 Detail
+TK 2861	TK 2861	23/09/2026	16:55	16:55		ISPARTA (ISE)	Domestic	Scheduled	 Detail
+VF 266	VF 266	23/09/2026	16:55	16:55		STOCKHOLM (ARN)	International	Scheduled	 Detail
+TK 1730	TK 1730	23/09/2026	17:00	17:00		BERLIN (BER)	International	Scheduled	 Detail
+TK 2227	TK 2227	23/09/2026	17:00	17:00		GAZIANTEP (GZT)	Domestic	Scheduled	 Detail
+TK 26	TK 26	23/09/2026	17:00	17:00		DUSSELDORF (DUS)	International	Scheduled	 Detail
+VF 66	VF 66	23/09/2026	17:00	17:00		FLANDERS (BRU)	International	Scheduled	 Detail
+PC 1252	PC 1252	23/09/2026	17:05	17:05		NORTH HOLLAND (AMS)	International	Scheduled	 Detail
+TK 1344	TK 1344	23/09/2026	17:05	17:05		SCOTLAND (EDI)	International	Scheduled	 Detail
+VF 2	VF 2	23/09/2026	17:05	17:05		NORTH HOLLAND (AMS)	International	Scheduled	 Detail
+PC 1072	PC 1072	23/09/2026	17:10	17:10		CAPITAL REGION (CPH)	International	Scheduled	 Detail
+PC 2017	PC 2017	23/09/2026	17:10	17:10		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+SV 275	SV 275	23/09/2026	17:10	17:10		MAKKAH (JED)	International	Scheduled	 Detail
+TK 1976	TK 1976	23/09/2026	17:10	17:10		LEINSTER (DUB)	International	Scheduled	 Detail
+TK 65	TK 65	23/09/2026	17:10	17:10		BANGKOK (BKK)	International	Active	 Detail
+VF 12	VF 12	23/09/2026	17:10	17:10		PARIS (CDG)	International	Scheduled	 Detail
+VF 70	VF 70	23/09/2026	17:10	17:10		CAPITAL REGION (CPH)	International	Scheduled	 Detail
+TK 125	TK 125	23/09/2026	17:10	17:12		TAIWAN (TPE)	International	Active	 Detail
+TK 1298	TK 1298	23/09/2026	17:15	17:15		SEVILLA (SVQ)	International	Scheduled	 Detail
+TK 1304	TK 1304	23/09/2026	17:15	17:15		MALAGA (AGP)	International	Scheduled	 Detail
+TK 1858	TK 1858	23/09/2026	17:15	17:15		MADRID (MAD)	International	Scheduled	 Detail
+TK 1886	TK 1886	23/09/2026	17:15	17:15		LOWER AUSTRIA (VIE)	International	Scheduled	 Detail
+TK 1980	TK 1980	23/09/2026	17:15	17:15		ENGLAND (LHR)	International	Scheduled	 Detail
+TK 502	TK 502	23/09/2026	17:15	17:15		THIES (DSS)	International	Scheduled	 Detail
+TK 900	TK 900	23/09/2026	17:00	17:18		PANAMA (PTY)	International	Active	 Detail
+PC 1134	PC 1134	23/09/2026	17:20	17:20		ILE-DE-FRANCE (ORY)	International	Scheduled	 Detail
+PC 980	PC 980	23/09/2026	17:20	17:20		BERLIN (BER)	International	Scheduled	 Detail
+TK 1032	TK 1032	23/09/2026	17:20	17:20		SOFIA-CAPITAL (SOF)	International	Scheduled	 Detail
+TK 1034	TK 1034	23/09/2026	17:20	17:20		PEST (BUD)	International	Scheduled	 Detail
+TK 1450	TK 1450	23/09/2026	17:20	17:20		PORTO (OPO)	International	Scheduled	 Detail
+TK 1850	TK 1850	23/09/2026	17:20	17:20		ATTICA (ATH)	International	Scheduled	 Detail
+TK 2155	TK 2155	23/09/2026	17:20	17:20		ANKARA (ESB)	Domestic	Scheduled	 Detail
+TK 2327	TK 2327	23/09/2026	17:20	17:20		IZMIR (ADB)	Domestic	Scheduled	 Detail
+TK 204	TK 204	23/09/2026	17:05	17:21		WASHINGTON (SEA)	International	Active	 Detail
+FZ 727	FZ 727	23/09/2026	17:25	17:25		DUBAI (DXB)	International	Scheduled	 Detail
+IS 7359	IS 7359	23/09/2026	17:25	17:25		EAST AZERBAIJAN (TBZ)	International	Scheduled	 Detail
+TK 1040	TK 1040	23/09/2026	17:25	17:25		ILFOV (OTP)	International	Scheduled	 Detail
+TK 1052	TK 1052	23/09/2026	17:25	17:25		SENCUR (LJU)	International	Canceled	 Detail
+TK 158	TK 158	23/09/2026	17:25	17:25		LEFKOSIA (ECN)	International	Scheduled	 Detail
+TK 2007	TK 2007	23/09/2026	17:25	17:25		NEVSEHIR (NAV)	Domestic	Scheduled	 Detail
+TK 2561	TK 2561	23/09/2026	17:25	17:25		MUGLA (DLM)	Domestic	Scheduled	 Detail
+TK 202	TK 202	23/09/2026	17:05	17:30		COLORADO (DEN)	International	Active	 Detail
+PC 1012	PC 1012	23/09/2026	17:30	17:30		NORTH RHINE-WESTPHALIA (CGN)	International	Scheduled	 Detail
+TK 1670	TK 1670	23/09/2026	17:30	17:30		HAMBURG (HAM)	International	Scheduled	 Detail
+TK 1872	TK 1872	23/09/2026	17:30	17:30		VENETO (VCE)	International	Scheduled	 Detail
+TK 2255	TK 2255	23/09/2026	17:30	17:30		HATAY (HTY)	Domestic	Scheduled	 Detail
+TK 2809	TK 2809	23/09/2026	17:30	17:30		SAMSUN (SZF)	Domestic	Scheduled	 Detail
+TK 969	TK 969	23/09/2026	17:30	17:30		LEFKOSIA (ECN)	International	Scheduled	 Detail
+VF 114	VF 114	23/09/2026	17:30	17:30		CENTRAL SERBIA (BEG)	International	Scheduled	 Detail
+TK 80	TK 80	23/09/2026	17:40	17:30		CALIFORNIA (SFO)	International	Active	 Detail
+TK 78	TK 78	23/09/2026	17:10	17:33		FLORIDA (MIA)	International	Active	 Detail
+PC 922	PC 922	23/09/2026	17:35	17:35		WALLONIA (CRL)	International	Scheduled	 Detail
+TK 2743	TK 2743	23/09/2026	17:35	17:35		ZONGULDAK (ONQ)	Domestic	Scheduled	 Detail
+RO 263	RO 263	23/09/2026	17:40	17:40		ILFOV (OTP)	International	Scheduled	 Detail
+TK 1208	TK 1208	23/09/2026	17:40	17:40		ZURICH (ZRH)	International	Scheduled	 Detail
+TK 1756	TK 1756	23/09/2026	17:40	17:40		LISBON (LIS)	International	Scheduled	 Detail
+TK 395	TK 395	23/09/2026	17:40	17:40		AJARIA (BUS)	International	Scheduled	 Detail
+TK 765	TK 765	23/09/2026	17:40	17:40		DUBAI (DXB)	International	Scheduled	 Detail
+VF 1988	VF 1988	23/09/2026	17:40	17:40		ENGLAND (STN)	International	Scheduled	 Detail
+TK 51	TK 51	23/09/2026	17:40	17:43		CHIBA (NRT)	International	Active	 Detail
+TK 2035	TK 2035	23/09/2026	17:45	17:45		KONYA (KYA)	Domestic	Scheduled	 Detail
+TK 6910	TK 6910	23/09/2026	17:45	17:45		DUBROVACKO-NERETVANSKA (DBV)	International	Scheduled	 Detail
+PC 940	PC 940	23/09/2026	17:50	17:50		BASEL (BSL)	International	Scheduled	 Detail
+TK 302	TK 302	23/09/2026	17:50	17:50		SOUTH HOLLAND (RTM)	International	Scheduled	 Detail
+TK 825	TK 825	23/09/2026	17:50	17:50		MONT-LIBAN (BEY)	International	Scheduled	 Detail
+VF 274	VF 274	23/09/2026	17:50	17:50		ALGER (ALG)	International	Scheduled	 Detail
+TK 192	TK 192	23/09/2026	17:25	17:51		TEXAS (DFW)	International	Active	 Detail
+MS 735	MS 735	23/09/2026	17:55	17:55		CAIRO (CAI)	International	Scheduled	 Detail
+PC 1002	PC 1002	23/09/2026	17:55	17:55		DUSSELDORF (DUS)	International	Scheduled	 Detail
+PC 1044	PC 1044	23/09/2026	17:55	17:55		HAMBURG (HAM)	International	Scheduled	 Detail
+TK 2467	TK 2467	23/09/2026	17:55	17:55		CASTELO BRANCO (COV)	International	Scheduled	 Detail
+TK 3071	TK 3071	23/09/2026	17:55	17:55		IZMIR (ADB)	Domestic	Scheduled	 Detail
+PC 1170	PC 1170	23/09/2026	18:00	18:00		ENGLAND (STN)	International	Scheduled	 Detail
+PC 1180	PC 1180	23/09/2026	18:00	18:00		ENGLAND (MAN)	International	Scheduled	 Detail
+PC 2013	PC 2013	23/09/2026	18:00	18:00		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+SV 267	SV 267	23/09/2026	18:00	18:00		AR RIYAD (RUH)	International	Scheduled	 Detail
+EK 121	EK 121	23/09/2026	18:05	18:05		DUBAI (DXB)	International	Scheduled	 Detail
+TK 2159	TK 2159	23/09/2026	18:05	18:05		ANKARA (ESB)	Domestic	Scheduled	 Detail
+RJ 860	RJ 860	23/09/2026	18:10	18:10		AMMAN (ADJ)	International	Scheduled	 Detail
+U6 783	U6 783	23/09/2026	18:15	18:12		MOSKOVSKAYA (DME)	International	Scheduled	 Detail
+DP 941	DP 941	23/09/2026	18:15	18:15		DAGESTAN (MCX)	International	Scheduled	 Detail
+PC 2251	PC 2251	23/09/2026	18:15	18:15		MUGLA (BJV)	Domestic	Scheduled	 Detail
+TK 2329	TK 2329	23/09/2026	18:15	18:15		IZMIR (ADB)	Domestic	Scheduled	 Detail
+TK 2423	TK 2423	23/09/2026	18:15	18:15		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+PC 1092	PC 1092	23/09/2026	18:20	18:20		CATALONIA (BCN)	International	Scheduled	 Detail
+PC 1224	PC 1224	23/09/2026	18:20	18:20		LATIUM (FCO)	International	Scheduled	 Detail
+PC 1236	PC 1236	23/09/2026	18:20	18:20		VENETO (VCE)	International	Scheduled	 Detail
+PC 954	PC 954	23/09/2026	18:20	18:20		GENEVA (GVA)	International	Scheduled	 Detail
+TK 2025	TK 2025	23/09/2026	18:20	18:20		KAYSERI (ASR)	Domestic	Scheduled	 Detail
+BA 716	BA 716	23/09/2026	18:25	18:25		ENGLAND (LHR)	International	Scheduled	 Detail
+TK 98	TK 98	23/09/2026	18:25	18:25		FEDERATION OF BOSNIA AND HERZEGOVINA (SJJ)	International	Scheduled	 Detail
+TK 418	TK 418	23/09/2026	18:30	18:30		MOSKOVSKAYA (VKO)	International	Scheduled	 Detail
+A4 5071	A4 5071	23/09/2026	18:35	18:35		KRASNODARSKIY (AER)	International	Scheduled	 Detail
+PC 1983	PC 1983	23/09/2026	18:35	18:35		LEFKOSIA (ECN)	International	Scheduled	 Detail
+QR 245	QR 245	23/09/2026	18:35	18:35		BALADIYAT AD DAWHAH (DOH)	International	Scheduled	 Detail
+TK 1324	TK 1324	23/09/2026	18:35	18:35		EMILIA-ROMAGNA (BLQ)	International	Scheduled	 Detail
+PC 1040	PC 1040	23/09/2026	18:40	18:40		BREMEN (BRE)	International	Scheduled	 Detail
+PC 1184	PC 1184	23/09/2026	18:40	18:40		ENGLAND (BHX)	International	Scheduled	 Detail
+TK 2721	TK 2721	23/09/2026	18:40	18:40		IGDIR (IGD)	Domestic	Scheduled	 Detail
+TK 367	TK 367	23/09/2026	18:40	18:40		TOSHKENT SHAHRI (TAS)	International	Scheduled	 Detail
+TK 979	TK 979	23/09/2026	18:40	18:40		LEFKOSIA (ECN)	International	Scheduled	 Detail
+PC 1028	PC 1028	23/09/2026	18:45	18:45		BAVARIA (NUE)	International	Scheduled	 Detail
+PC 1034	PC 1034	23/09/2026	18:45	18:45		LOWER SAXONY (HAJ)	International	Scheduled	 Detail
+PC 1142	PC 1142	23/09/2026	18:45	18:45		RHONE-ALPES (LYS)	International	Scheduled	 Detail
+2S 86	2S 86	23/09/2026	18:50	18:50		MOSCOW (SVO)	International	Scheduled	 Detail
+PC 397	PC 397	23/09/2026	18:50	18:50		ST. PETERSBURG (LED)	International	Scheduled	 Detail
+PC 970	PC 970	23/09/2026	18:50	18:50		BADEN-WUERTTEMBERG (STR)	International	Scheduled	 Detail
+PC 994	PC 994	23/09/2026	18:50	18:50		HESSE (FRA)	International	Scheduled	 Detail
+TK 1080	TK 1080	23/09/2026	18:50	18:50		CENTRAL SERBIA (BEG)	International	Scheduled	 Detail
+TK 3357	TK 3357	23/09/2026	18:50	18:50		SIVAS (VAS)	Domestic	Scheduled	 Detail
+JU 8281	JU 8281	23/09/2026	17:10	18:54		BRITISH COLUMBIA (YVR)	International	Active	 Detail
+TS 8004	TS 8004	23/09/2026	17:10	18:54		BRITISH COLUMBIA (YVR)	International	Active	 Detail
+PC 1218	PC 1218	23/09/2026	18:55	18:55		EMILIA-ROMAGNA (BLQ)	International	Scheduled	 Detail
+TK 3199	TK 3199	23/09/2026	19:00	19:00		ERZINCAN (ERC)	Domestic	Scheduled	 Detail
+VF 3327	VF 3327	23/09/2026	19:00	19:00		TRABZON (TZX)	Domestic	Scheduled	 Detail
+PC 4673	PC 4673	23/09/2026	19:05	19:05		MUS (MSR)	Domestic	Scheduled	 Detail
+PC 2089	PC 2089	23/09/2026	19:10	19:10		CASTELO BRANCO (COV)	International	Scheduled	 Detail
+VF 318	VF 318	23/09/2026	19:10	19:10		RIF-DIMASHQ (DAM)	International	Scheduled	 Detail
+PC 389	PC 389	23/09/2026	19:15	19:15		MOSKOVSKAYA (VKO)	International	Scheduled	 Detail
+TK 3041	TK 3041	23/09/2026	19:15	19:15		ANTALYA (AYT)	Domestic	Scheduled	 Detail
+PC 1312	PC 1312	23/09/2026	19:25	19:25		HELSINKI (HEL)	International	Scheduled	 Detail
+PC 2253	PC 2253	23/09/2026	19:25	19:25		MUGLA (BJV)	Domestic	Scheduled	 Detail
+PC 302	PC 302	23/09/2026	19:25	19:25		CENTRAL BOHEMIA (PRG)	International	Scheduled	 Detail
+PC 317	PC 317	23/09/2026	19:25	19:25		DIDI LILO (TBS)	International	Scheduled

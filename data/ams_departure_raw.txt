@@ -1,0 +1,223 @@
+EC 7897	EC 7897	23/09/2026	07:35	07:31	 M7	CANARY ISLANDS (TFS)	International	Active	 Detail
+WA 1797	WA 1797	23/09/2026	06:55	07:36	 B3	DUSSELDORF (DUS)	International	Landed	 Detail
+BA 445	BA 445	23/09/2026	07:45	07:36	 D24	ENGLAND (LHR)	International	Landed	 Detail
+HV 6411	HV 6411	23/09/2026	07:30	07:38	 C18	CAMPANIA (NAP)	International	Active	 Detail
+WA 1135	WA 1135	23/09/2026	07:40	07:38	 D16	LEINSTER (DUB)	International	Landed	 Detail
+OR 3055	OR 3055	23/09/2026	07:35	07:39	 D41	MUGLA (DLM)	International	Active	 Detail
+CJ 8450	CJ 8450	23/09/2026	07:45	07:43	 D26	LONDON CITY AIRPORT (LCY)	International	Landed	 Detail
+AF 1427	AF 1427	23/09/2026	07:45	07:50	 B24	RHONE-ALPES (LYS)	International	Landed	 Detail
+WA 1229	WA 1229	23/09/2026	07:45	07:55	 B26	VAESTRA GOETALAND (GOT)	International	Landed	 Detail
+WA 1827	WA 1827	23/09/2026	08:00	08:01	 B3	BADEN-WUERTTEMBERG (STR)	International	Landed	 Detail
+LH 1003	LH 1003	23/09/2026	08:00	08:02	 B35	HESSE (FRA)	International	Landed	 Detail
+WA 1029	WA 1029	23/09/2026	08:00	08:04	 D6	ENGLAND (MAN)	International	Landed	 Detail
+KL 1511	KL 1511	23/09/2026	08:05	08:07	 D86	CATALONIA (BCN)	International	Active	 Detail
+WA 979	WA 979	23/09/2026	07:50	08:08	 D42	LONDON CITY AIRPORT (LCY)	International	Landed	 Detail
+WA 935	WA 935	23/09/2026	07:55	08:09	 D6	SCOTLAND (GLA)	International	Active	 Detail
+KL 1405	KL 1405	23/09/2026	08:10	08:11	 C9	PARIS (CDG)	International	Landed	 Detail
+LH 2311	LH 2311	23/09/2026	08:15	08:13	 B31	BAVARIA (MUC)	International	Landed	 Detail
+ZQ 1173	ZQ 1173	23/09/2026	08:20	08:20	 B20	ROGALAND (SVG)	International	Active	 Detail
+WA 1291	WA 1291	23/09/2026	08:30	08:29	 B30	SOUTH DENMARK (BLL)	International	Active	 Detail
+KL 1613	KL 1613	23/09/2026	08:25	08:30	 C6	LOMBARDY (LIN)	International	Canceled	 Detail
+WA 1839	WA 1839	23/09/2026	08:30	08:31	 B3	BAVARIA (NUE)	International	Active	 Detail
+WA 1943	WA 1943	23/09/2026	08:30	08:32	 B32	BASEL (BSL)	International	Active	 Detail
+KL 1041	KL 1041	23/09/2026	08:20	08:33	 D44	ENGLAND (BHX)	International	Active	 Detail
+ZQ 911	ZQ 911	23/09/2026	08:10	08:36	 D6	SCOTLAND (ABZ)	International	Active	 Detail
+WA 1815	WA 1815	23/09/2026	08:25	08:36	 B28	HESSE (FRA)	International	Landed	 Detail
+KL 1003	KL 1003	23/09/2026	08:35	08:38	 D22	ENGLAND (LHR)	International	Active	 Detail
+WA 953	WA 953	23/09/2026	08:25	08:39	 D6	ENGLAND (NCL)	International	Active	 Detail
+KL 1363	KL 1363	23/09/2026	08:40	08:41	 C6	PEST (BUD)	International	Active	 Detail
+WA 1283	WA 1283	23/09/2026	08:40	08:44	 B16	NORTH DENMARK (AAL)	International	Active	 Detail
+KL 1953	KL 1953	23/09/2026	08:35	08:46	 C13	ATTICA (ATH)	International	Active	 Detail
+WA 1075	WA 1075	23/09/2026	08:35	08:47	 D6	ENGLAND (BRS)	International	Active	 Detail
+KL 1217	KL 1217	23/09/2026	08:45	08:51	 B27	STOCKHOLM (ARN)	International	Active	 Detail
+EC 7887	EC 7887	23/09/2026	07:10	08:56	 M5	BALEARIC ISLANDS (PMI)	International	Active	 Detail
+HV 6147	HV 6147	23/09/2026	09:00	09:00	 C23	ALICANTE (ALC)	International	Scheduled	 Detail
+WA 1709	WA 1709	23/09/2026	09:00	09:00	 B7	LUXEMBOURG (LUX)	International	Active	 Detail
+WA 947	WA 947	23/09/2026	08:45	09:01	 D6	NORTHERN IRELAND (BHD)	International	Active	 Detail
+KL 1579	KL 1579	23/09/2026	08:55	09:01	 C7	LISBON (LIS)	International	Active	 Detail
+UA 71	UA 71	23/09/2026	09:10	09:03	 E2	NEW JERSEY (EWR)	International	Active	 Detail
+WA 1087	WA 1087	23/09/2026	09:00	09:04	 D6	WALES (CWL)	International	Active	 Detail
+WA 1703	WA 1703	23/09/2026	08:55	09:05	 B26	FLANDERS (BRU)	International	Active	 Detail
+EC 7805	EC 7805	23/09/2026	08:15	09:06	 M4	LOMBARDY (LIN)	International	Active	 Detail
+KL 1353	KL 1353	23/09/2026	09:05	09:06	 C14	CENTRAL BOHEMIA (PRG)	International	Active	 Detail
+WA 981	WA 981	23/09/2026	08:45	09:07	 D42	LONDON CITY AIRPORT (LCY)	International	Active	 Detail
+WA 1651	WA 1651	23/09/2026	08:40	09:09	 B30	TUSCANY (FLR)	International	Active	 Detail
+EC 7877	EC 7877	23/09/2026	08:35	09:10	 M3	MALAGA (AGP)	International	Active	 Detail
+U2 2512	U2 2512	23/09/2026	08:45	09:10	 H1	ENGLAND (LTN)	International	Active	 Detail
+DL 71	DL 71	23/09/2026	09:15	09:10	 F8	ATLANTA (ATL)	International	Active	 Detail
+KL 713	KL 713	23/09/2026	09:00	09:13	 E5	PARA (PBM)	International	Active	 Detail
+WA 1523	WA 1523	23/09/2026	09:10	09:13	 B34	BASQUE COUNTRY (BIO)	International	Active	 Detail
+WA 1449	WA 1449	23/09/2026	09:05	09:15	 B36	MIDI-PYRENEES (TLS)	International	Active	 Detail
+EC 8671	EC 8671	23/09/2026	07:00	09:17	 H6	ENGLAND (LGW)	International	Scheduled	 Detail
+KL 1629	KL 1629	23/09/2026	09:10	09:17	 D84	VENETO (VCE)	International	Active	 Detail
+WA 1069	WA 1069	23/09/2026	08:35	09:19	 D6	ENGLAND (SOU)	International	Active	 Detail
+WA 971	WA 971	23/09/2026	09:20	09:20	 D6	ENGLAND (HUY)	International	Scheduled	 Detail
+KL 1571	KL 1571	23/09/2026	09:10	09:21	 C8	PORTO (OPO)	International	Active	 Detail
+KL 1323	KL 1323	23/09/2026	09:15	09:21	 C15	LESSER POLAND VOIVODESHIP (KRK)	International	Active	 Detail
+WA 1829	WA 1829	23/09/2026	09:20	09:22	 B22	BADEN-WUERTTEMBERG (STR)	International	Scheduled	 Detail
+DL 133	DL 133	23/09/2026	09:20	09:23	 F4	MICHIGAN (DTW)	International	Active	 Detail
+WA 1019	WA 1019	23/09/2026	09:20	09:24	 D6	ENGLAND (LBA)	International	Active	 Detail
+WA 1055	WA 1055	23/09/2026	09:20	09:24	 D6	ENGLAND (NWI)	International	Active	 Detail
+WA 1151	WA 1151	23/09/2026	09:25	09:25	 B30	NORD-TRONDELAG (TRD)	International	Scheduled	 Detail
+KL 1199	KL 1199	23/09/2026	09:20	09:30	 B3	AKERSHUS (OSL)	International	Scheduled	 Detail
+WA 983	WA 983	23/09/2026	09:30	09:30	 D6	LONDON CITY AIRPORT (LCY)	International	Scheduled	 Detail
+WA 1787	WA 1787	23/09/2026	09:25	09:31	 B24	LOWER SAXONY (HAJ)	International	Scheduled	 Detail
+WA 1983	WA 1983	23/09/2026	09:30	09:31	 D42	CENTRAL SERBIA (BEG)	International	Scheduled	 Detail
+KL 1441	KL 1441	23/09/2026	09:25	09:33	 C22	AQUITAINE (BOD)	International	Scheduled	 Detail
+EC 3854	EC 3854	23/09/2026	08:45	09:35	 M2	LOMBARDY (MXP)	International	Scheduled	 Detail
+KL 1773	KL 1773	23/09/2026	08:50	09:35	 B8	BERLIN (BER)	International	Scheduled	 Detail
+WA 913	WA 913	23/09/2026	09:30	09:35	 D6	SCOTLAND (ABZ)	International	Scheduled	 Detail
+AF 1241	AF 1241	23/09/2026	09:35	09:35	 C9	PARIS (CDG)	International	Scheduled	 Detail
+EC 5406	EC 5406	23/09/2026	09:35	09:35	 M5	LOMBARDY (LIN)	International	Scheduled	 Detail
+EI 603	EI 603	23/09/2026	09:35	09:35	 D16	LEINSTER (DUB)	International	Scheduled	 Detail
+KL 1919	KL 1919	23/09/2026	09:35	09:35	 D68	ZURICH (ZRH)	International	Scheduled	 Detail
+WA 1123	WA 1123	23/09/2026	09:35	09:35	 D6	MUNSTER (ORK)	International	Scheduled	 Detail
+WA 1761	WA 1761	23/09/2026	09:35	09:35	 B20	BREMEN (BRE)	International	Scheduled	 Detail
+KL 1465	KL 1465	23/09/2026	09:30	09:40	 C10	PROVENCE-ALPES-COTE D'AZUR (MRS)	International	Scheduled	 Detail
+HV 5807	HV 5807	23/09/2026	09:40	09:40	 B5	CENTRAL MACEDONIA (SKG)	International	Scheduled	 Detail
+KL 1851	KL 1851	23/09/2026	09:40	09:40	 C11	BAVARIA (MUC)	International	Scheduled	 Detail
+WA 1303	WA 1303	23/09/2026	09:40	09:40	 B26	POMERANIAN VOIVODESHIP (GDN)	International	Scheduled	 Detail
+KL 601	KL 601	23/09/2026	09:50	09:41	 E6	LOS ANGELES (LAX)	International	Scheduled	 Detail
+KL 1603	KL 1603	23/09/2026	09:30	09:45	 D61	LATIUM (FCO)	International	Scheduled	 Detail
+AF 1419	AF 1419	23/09/2026	09:45	09:45	 B6	PAYS DE LA LOIRE (NTE)	International	Scheduled	 Detail
+KL 1031	KL 1031	23/09/2026	09:45	09:45	 D41	ENGLAND (MAN)	International	Scheduled	 Detail
+KL 1231	KL 1231	23/09/2026	09:45	09:45		VAESTRA GOETALAND (GOT)	International	Canceled	 Detail
+KL 1251	KL 1251	23/09/2026	09:45	09:45	 D82	HELSINKI (HEL)	International	Scheduled	 Detail
+KL 1269	KL 1269	23/09/2026	09:45	09:45	 B35	CAPITAL REGION (CPH)	International	Scheduled	 Detail
+KL 789	KL 789	23/09/2026	09:45	09:45	 E18	MARIGOT (SXM)	International	Scheduled	 Detail
+KL 1137	KL 1137	23/09/2026	09:45	09:50	 D28	LEINSTER (DUB)	International	Scheduled	 Detail
+WA 1931	WA 1931	23/09/2026	09:45	09:50	 B18	GENEVA (GVA)	International	Scheduled	 Detail
+BT 725	BT 725	23/09/2026	09:50	09:50	 B3	ZURICH (ZRH)	International	Scheduled	 Detail
+KL 1293	KL 1293	23/09/2026	09:50	09:50	 C12	SOUTH DENMARK (BLL)	International	Scheduled	 Detail
+KL 605	KL 605	23/09/2026	09:50	09:50	 D43	CALIFORNIA (SFO)	International	Scheduled	 Detail
+KL 741	KL 741	23/09/2026	09:50	09:50	 D2	CUNDINAMARCA (BOG)	International	Scheduled	 Detail
+KL 1503	KL 1503	23/09/2026	09:35	09:51	 C5	MADRID (MAD)	International	Scheduled	 Detail
+KL 1373	KL 1373	23/09/2026	09:25	09:54	 C13	ILFOV (OTP)	International	Scheduled	 Detail
+BT 312	BT 312	23/09/2026	09:55	09:55	 B27	LOWER AUSTRIA (VIE)	International	Scheduled	 Detail
+BT 858	BT 858	23/09/2026	09:55	09:55	 C21	HARJU (TLL)	International	Scheduled	 Detail
+KL 1313	KL 1313	23/09/2026	09:55	09:55	 B7	MASOVIAN VOIVODESHIP (WAW)	International	Scheduled	 Detail
+KL 743	KL 743	23/09/2026	09:55	09:55	 G7	CALLAO (LIM)	International	Scheduled	 Detail
+WA 1653	WA 1653	23/09/2026	09:55	09:55	 B34	TUSCANY (FLR)	International	Scheduled	 Detail
+WA 1175	WA 1175	23/09/2026	09:55	09:59	 B30	ROGALAND (SVG)	International	Scheduled	 Detail
+WA 1639	WA 1639	23/09/2026	09:35	10:00	 B28	PIEDMONT (TRN)	International	Scheduled	 Detail
+DL 161	DL 161	23/09/2026	09:40	10:00	 F8	MINNESOTA (MSP)	International	Scheduled	 Detail
+BT 618	BT 618	23/09/2026	10:00	10:00	 C23	BABITE (RIX)	International	Scheduled	 Detail
+CJ 8496	CJ 8496	23/09/2026	10:00	10:00	 D18	LONDON CITY AIRPORT (LCY)	International	Scheduled	 Detail
+KL 1775	KL 1775	23/09/2026	10:00	10:00	 D74	BERLIN (BER)	International	Scheduled	 Detail
+KL 1971	KL 1971	23/09/2026	10:00	10:00	 D86	SPLITSKO-DALMATINSKA (SPU)	International	Scheduled	 Detail
+KL 661	KL 661	23/09/2026	10:00	10:00	 F6	GEORGE BUSH INTERCONTINENTAL AIRPORT (IAH)	International	Scheduled	 Detail
+LH 987	LH 987	23/09/2026	10:00	10:00	 B31	HESSE (FRA)	International	Scheduled	 Detail
+VY 8364	VY 8364	23/09/2026	10:00	10:01	 C16	MALAGA (AGP)	International	Scheduled	 Detail
+KL 1475	KL 1475	23/09/2026	09:35	10:05	 D78	PROVENCE-ALPES-COTE D'AZUR (NCE)	International	Scheduled	 Detail
+HV 6111	HV 6111	23/09/2026	10:05	10:05	 C22	MALAGA (AGP)	International	Scheduled	 Detail
+BT 962	BT 962	23/09/2026	10:10	10:10	 B8	VILNIUS COUNTY (VNO)	International	Scheduled	 Detail
+KL 569	KL 569	23/09/2026	10:10	10:10	 E9	ARUSHA (JRO)	International	Scheduled	 Detail
+KL 597	KL 597	23/09/2026	10:10	10:10	 E24	WESTERN CAPE (CPT)	International	Scheduled	 Detail
+U2 2162	U2 2162	23/09/2026	09:55	10:14		ENGLAND (MAN)	International	Scheduled	 Detail
+BA 429	BA 429	23/09/2026	10:15	10:15	 D22	ENGLAND (LHR)	International	Scheduled	 Detail
+FB 462	FB 462	23/09/2026	10:15	10:15	 B2	SOFIA-CAPITAL (SOF)	International	Scheduled	 Detail
+FR 421	FR 421	23/09/2026	10:15	10:15	 H4	LEINSTER (DUB)	International	Scheduled	 Detail
+KL 1005	KL 1005	23/09/2026	10:15	10:15	 D27	ENGLAND (LHR)	International	Scheduled	 Detail
+KL 1365	KL 1365	23/09/2026	10:15	10:15	 B26	PEST (BUD)	International	Scheduled	 Detail
+KL 755	KL 755	23/09/2026	10:15	10:15		PICHINCHA (UIO)	International	Scheduled	 Detail
+U2 5606	U2 5606	23/09/2026	10:15	10:15		ENGLAND (NCL)	International	Scheduled	 Detail
+VY 8352	VY 8352	23/09/2026	10:15	10:15	 C18	MANISES (VLC)	International	Scheduled	 Detail
+WA 1977	WA 1977	23/09/2026	10:15	10:15	 B22	DUBROVACKO-NERETVANSKA (DBV)	International	Scheduled	 Detail
+DL 47	DL 47	23/09/2026	10:10	10:20	 D3	NEW YORK (JFK)	International	Scheduled	 Detail
+EC 1758	EC 1758	23/09/2026	10:20	10:20		PROVENCE-ALPES-COTE D'AZUR (NCE)	International	Scheduled	 Detail
+KL 1513	KL 1513	23/09/2026	10:20	10:20	 C6	CATALONIA (BCN)	International	Scheduled	 Detail
+PY 993	PY 993	23/09/2026	10:20	10:20	 G5	PARA (PBM)	International	Scheduled	 Detail
+SQ 323	SQ 323	23/09/2026	10:20	10:20	 G9	SINGAPORE (SIN)	International	Scheduled	 Detail
+WA 1753	WA 1753	23/09/2026	10:10	10:21	 B36	HAMBURG (HAM)	International	Scheduled	 Detail
+KL 1615	KL 1615	23/09/2026	10:20	10:24	 C7	LOMBARDY (LIN)	International	Scheduled	 Detail
+DL 73	DL 73	23/09/2026	10:25	10:25	 D47	ATLANTA (ATL)	International	Scheduled	 Detail
+EY 44	EY 44	23/09/2026	10:25	10:25	 E4	ABU DHABI (AUH)	International	Scheduled	 Detail
+KL 615	KL 615	23/09/2026	10:25	10:25	 E17	WASHINGTON (PDX)	International	Scheduled	 Detail
+SK 552	SK 552	23/09/2026	10:25	10:25	 C8	CAPITAL REGION (CPH)	International	Scheduled	 Detail
+VY 8301	VY 8301	23/09/2026	10:20	10:27	 C15	CATALONIA (BCN)	International	Scheduled	 Detail
+LO 266	LO 266	23/09/2026	10:30	10:30	 B16	MASOVIAN VOIVODESHIP (WAW)	International	Scheduled	 Detail
+KL 591	KL 591	23/09/2026	10:35	10:35	 E19	GAUTENG (JNB)	International	Scheduled	 Detail
+VY 1376	VY 1376	23/09/2026	10:20	10:36	 C14	ALICANTE (ALC)	International	Scheduled	 Detail
+AF 1341	AF 1341	23/09/2026	10:40	10:40	 C9	PARIS (CDG)	International	Scheduled	 Detail
+KL 655	KL 655	23/09/2026	10:45	10:45		MINNESOTA (MSP)	International	Scheduled	 Detail
+PC 1640	PC 1640	23/09/2026	10:45	10:45	 D24	KAYSERI (ASR)	International	Scheduled	 Detail
+SL 822	SL 822	23/09/2026	10:45	10:45	 C10	AKERSHUS (OSL)	International	Scheduled	 Detail
+DL 143	DL 143	23/09/2026	10:20	10:50	 D57	WASHINGTON (SEA)	International	Scheduled	 Detail
+DL 57	DL 57	23/09/2026	10:50	10:50	 E20	UTAH (SLC)	International	Scheduled	 Detail
+AA 203	AA 203	23/09/2026	10:55	10:55	 G1	PENNSYLVANIA (PHL)	International	Scheduled	 Detail
+CI 74	CI 74	23/09/2026	11:00	11:00	 E8	TAIWAN (TPE)	International	Scheduled	 Detail
+OR 367	OR 367	23/09/2026	11:00	11:00		SINT MICHIEL LIBER (CUR)	International	Scheduled	 Detail
+UA 21	UA 21	23/09/2026	11:00	11:00	 G1	GEORGE BUSH INTERCONTINENTAL AIRPORT (IAH)	International	Scheduled	 Detail
+UX 1098	UX 1098	23/09/2026	11:00	11:00	 D79	MADRID (MAD)	International	Scheduled	 Detail
+DL 135	DL 135	23/09/2026	10:55	11:05	 D43	MICHIGAN (DTW)	International	Scheduled	 Detail
+KL 1219	KL 1219	23/09/2026	11:05	11:05	 C23	STOCKHOLM (ARN)	International	Canceled	 Detail
+SK 556	SK 556	23/09/2026	11:05	11:05	 C12	STOCKHOLM (ARN)	International	Scheduled	 Detail
+U2 8673	U2 8673	23/09/2026	08:55	11:08		ENGLAND (LGW)	International	Scheduled	 Detail
+WA 1799	WA 1799	23/09/2026	11:00	11:10	 B24	DUSSELDORF (DUS)	International	Scheduled	 Detail
+LH 2303	LH 2303	23/09/2026	11:10	11:10	 B31	BAVARIA (MUC)	International	Scheduled	 Detail
+LH 989	LH 989	23/09/2026	11:15	11:15	 B27	HESSE (FRA)	International	Scheduled	 Detail
+TK 1952	TK 1952	23/09/2026	11:15	11:15	 E6	ISTANBUL (IST)	International	Scheduled	 Detail
+UA 947	UA 947	23/09/2026	11:15	11:15	 G1	VIRGINIA (IAD)	International	Scheduled	 Detail
+B6 32	B6 32	23/09/2026	11:20	11:20	 D25	MASSACHUSETTS (BOS)	International	Scheduled	 Detail
+KL 691	KL 691	23/09/2026	11:20	11:20	 D4	ONTARIO (YYZ)	International	Scheduled	 Detail
+OU 451	OU 451	23/09/2026	11:20	11:20	 C16	ZAGREBACKA (ZAG)	International	Scheduled	 Detail
+EK 146	EK 146	23/09/2026	11:25	11:25	 G1	DUBAI (DXB)	International	Scheduled	 Detail
+WA 1663	WA 1663	23/09/2026	11:25	11:25	 B32	EMILIA-ROMAGNA (BLQ)	International	Scheduled	 Detail
+DL 243	DL 243	23/09/2026	11:25	11:35	 D43	MASSACHUSETTS (BOS)	International	Scheduled	 Detail
+BA 431	BA 431	23/09/2026	11:35	11:35	 D16	ENGLAND (LHR)	International	Canceled	 Detail
+CJ 8452	CJ 8452	23/09/2026	11:25	11:36	 D16	LONDON CITY AIRPORT (LCY)	International	Scheduled	 Detail
+A9 652	A9 652	23/09/2026	11:40	11:40	 D23	DIDI LILO (TBS)	International	Scheduled	 Detail
+RO 362	RO 362	23/09/2026	11:40	11:40	 C14	ILFOV (OTP)	International	Scheduled	 Detail
+WA 1325	WA 1325	23/09/2026	11:40	11:40	 B6	LESSER POLAND VOIVODESHIP (KRK)	International	Scheduled	 Detail
+WA 1989	WA 1989	23/09/2026	11:40	11:40	 B3	SENCUR (LJU)	International	Scheduled	 Detail
+KL 1167	KL 1167	23/09/2026	11:45	11:45	 D82	HORDALAND (BGO)	International	Scheduled	 Detail
+KL 877	KL 877	23/09/2026	11:45	11:45	 E7	MAHARASHTRA (BOM)	International	Scheduled	 Detail
+AF 1431	AF 1431	23/09/2026	11:50	11:50	 B20	RHONE-ALPES (LYS)	International	Scheduled	 Detail
+AZ 121	AZ 121	23/09/2026	11:50	11:50	 C15	LOMBARDY (LIN)	International	Scheduled	 Detail
+KL 1903	KL 1903	23/09/2026	11:50	11:50	 D84	LOWER AUSTRIA (VIE)	International	Scheduled	 Detail
+KL 927	KL 927	23/09/2026	11:50	11:50	 D41	SCOTLAND (EDI)	International	Scheduled	 Detail
+KM 395	KM 395	23/09/2026	11:50	11:50	 B35	LUQA (MLA)	International	Scheduled	 Detail
+WA 1645	WA 1645	23/09/2026	11:50	11:50	 B8	LIGURIA (GOA)	International	Scheduled	 Detail
+WA 915	WA 915	23/09/2026	11:50	11:50	 D6	SCOTLAND (ABZ)	International	Scheduled	 Detail
+AY 1302	AY 1302	23/09/2026	11:55	11:55	 C22	HELSINKI (HEL)	International	Scheduled	 Detail
+AZ 107	AZ 107	23/09/2026	11:55	11:55	 C13	LATIUM (FCO)	International	Scheduled	 Detail
+WA 1201	WA 1201	23/09/2026	11:55	11:55	 B7	AKERSHUS (OSL)	International	Scheduled	 Detail
+WA 1337	WA 1337	23/09/2026	11:55	11:55	 B2	LOWER SILESIAN VOIVODESHIP (WRO)	International	Scheduled	 Detail
+KL 1959	KL 1959	23/09/2026	12:00	12:00	 D14	ISTANBUL (IST)	International	Scheduled	 Detail
+UA 908	UA 908	23/09/2026	12:00	12:00	 E2	ILLINOIS (ORD)	International	Scheduled	 Detail
+WA 1139	WA 1139	23/09/2026	12:00	12:00	 D6	LEINSTER (DUB)	International	Scheduled	 Detail
+WA 1853	WA 1853	23/09/2026	12:00	12:00	 B36	BAVARIA (MUC)	International	Scheduled	 Detail
+WA 1933	WA 1933	23/09/2026	12:05	12:05	 B3	GENEVA (GVA)	International	Scheduled	 Detail
+WA 903	WA 903	23/09/2026	12:05	12:05	 D6	SCOTLAND (INV)	International	Scheduled	 Detail
+EC 5531	EC 5531	23/09/2026	12:10	12:10		ENGLAND (BRS)	International	Scheduled	 Detail
+IB 732	IB 732	23/09/2026	12:10	12:10	 C8	MADRID (MAD)	International	Scheduled	 Detail
+WA 1305	WA 1305	23/09/2026	12:10	12:10	 B16	POMERANIAN VOIVODESHIP (GDN)	International	Scheduled	 Detail
+WA 1333	WA 1333	23/09/2026	12:10	12:10	 B5	GREATER POLAND VOIVODESHIP (POZ)	International	Scheduled	 Detail
+AC 901	AC 901	23/09/2026	12:15	12:15	 E3	QUEBEC (YUL)	International	Scheduled	 Detail
+HV 5625	HV 5625	23/09/2026	12:15	12:15	 C18	BALEARIC ISLANDS (PMI)	International	Scheduled	 Detail
+KL 1955	KL 1955	23/09/2026	12:15	12:15	 D68	ATTICA (ATH)	International	Scheduled	 Detail
+KL 535	KL 535	23/09/2026	12:15	12:15	 E22	KIGALI (KGL)	International	Scheduled	 Detail
+LY 338	LY 338	23/09/2026	12:15	12:15	 G7	CENTRAL DISTRICT (TLV)	International	Scheduled	 Detail
+WA 1177	WA 1177	23/09/2026	12:15	12:15	 B6	ROGALAND (SVG)	International	Scheduled	 Detail
+WA 1233	WA 1233	23/09/2026	12:15	12:15	 B34	VAESTRA GOETALAND (GOT)	International	Scheduled	 Detail
+WA 1777	WA 1777	23/09/2026	12:15	12:15	 B18	BERLIN (BER)	International	Scheduled	 Detail
+WA 1921	WA 1921	23/09/2026	12:15	12:15	 B30	ZURICH (ZRH)	International	Scheduled	 Detail
+A3 625	A3 625	23/09/2026	12:20	12:20	 C10	ATTICA (ATH)	International	Scheduled	 Detail
+AF 1415	AF 1415	23/09/2026	12:20	12:20	 B1	BRITTANY (RNS)	International	Scheduled	 Detail
+CX 270	CX 270	23/09/2026	12:20	12:20	 G9	TUEN MUN (HKG)	International	Scheduled	 Detail
+HV 5135	HV 5135	23/09/2026	12:20	12:20	 C6	CATALONIA (BCN)	International	Scheduled	 Detail
+KL 1355	KL 1355	23/09/2026	12:20	12:20	 C7	CENTRAL BOHEMIA (PRG)	International	Scheduled	 Detail
+KL 565	KL 565	23/09/2026	12:20	12:20	 D10	NAIROBI AREA (NBO)	International	Scheduled	 Detail
+WA 1295	WA 1295	23/09/2026	12:20	12:20	 B26	SOUTH DENMARK (BLL)	International	Scheduled	 Detail
+ZQ 1285	ZQ 1285	23/09/2026	12:20	12:20	 B2	NORTH DENMARK (AAL)	International	Scheduled	 Detail
+BT 314	BT 314	23/09/2026	12:25	12:25	 B27	LOWER AUSTRIA (VIE)	International	Scheduled	 Detail
+KL 1045	KL 1045	23/09/2026	12:25	12:25	 D56	ENGLAND (BHX)	International	Scheduled	 Detail
+KL 677	KL 677	23/09/2026	12:25	12:25	 D7	ALBERTA (YYC)	International	Scheduled	 Detail
+WA 1421	WA 1421	23/09/2026	12:25	12:25	 B8	PAYS DE LA LOIRE (NTE)	International	Scheduled	 Detail
+WA 939	WA 939	23/09/2026	12:25	12:25	 D6	SCOTLAND (GLA)	International	Scheduled	 Detail
+ZQ 1843	ZQ 1843	23/09/2026	12:25	12:25	 B7	BAVARIA (NUE)	International	Scheduled	 Detail
+KL 1407	KL 1407	23/09/2026	12:30	12:30	 C5	PARIS (CDG)	International	Scheduled	 Detail
+KL 1583	KL 1583	23/09/2026	12:30	12:30	 D74	LISBON (LIS)	International	Scheduled	 Detail
+VF 2	VF 2	23/09/2026	12:30	12:30	 D27	ISTANBUL (SAW)	International	Scheduled	 Detail
+WA 1831	WA 1831	23/09/2026	12:30	12:30	 B28	BADEN-WUERTTEMBERG (STR)	International	Scheduled	 Detail
+ZQ 1819	ZQ 1819	23/09/2026	12:30	12:30	 B24	HESSE (FRA)	International	Scheduled

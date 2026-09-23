@@ -1,5 +1,28 @@
 # aircraft-capacity.service
 #
+# ##########################################################################
+# LEGACY / DEPRECATED - DO NOT INSTALL ON A CURRENT PRODUCTION SERVER.
+#
+# This is the pre-`app/worker.py` batch deployment pattern (30-minute
+# systemd-timer-triggered one-shot `python -m app.queue.pipeline` run).
+# It has been SUPERSEDED by airport-queue-worker.service +
+# airport-queue-web.service (see deploy/systemd/README.md), which is
+# now the only current-production pattern:
+#   - airport-queue-worker.service runs continuously with its OWN
+#     internal 5-minute refresh loop (app/worker.py:run_forever()) and
+#     a flock(2) single-instance lock.
+#   - This unit has NEITHER: no lock, no internal loop, and its
+#     `python -m app.queue.pipeline` call runs with BOTH of run()'s 48h
+#     safety filters (re-ingest-horizon, usage-horizon) left OFF, since
+#     pipeline.main() calls run() with no arguments.
+#
+# NEVER enable this unit (or aircraft-capacity.timer) on any server
+# that also runs airport-queue-worker.service - both would write to
+# the same DATABASE_URL independently and uncoordinated (double-refresh
+# risk). This file is kept for reference/history only, not deleted, in
+# case an existing deployment still depends on it during migration.
+# ##########################################################################
+#
 # ADIM 5B - production batch pipeline unit'i. Sürekli çalışan bir servis
 # DEĞİLDİR: her tetiklendiğinde (aircraft-capacity.timer tarafından, 30
 # dakikada bir) TEK bir `python -m app.queue.pipeline` çalıştırır ve

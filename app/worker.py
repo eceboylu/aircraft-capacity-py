@@ -31,6 +31,8 @@ import os
 import time
 from typing import Callable
 
+from .db import get_session
+from .health import record_successful_refresh
 from .queue import pipeline, retention
 from .queue.engine import domain_now
 
@@ -197,6 +199,26 @@ def run_forever(
             summary = run()
             completed += 1
             logger.info("worker refresh #%d ok: %s", iteration, summary)
+
+            # ADIM (Health / Stale-Data Visibility) - refresh'in KENDİSİNDEN
+            # TAMAMEN AYRI bir try/except: heartbeat-yazma hatası (ör. bu
+            # tek DB round-trip'i başarısız olursa) ASLA "refresh başarılı
+            # oldu" sonucunu maskelemez/geri almaz - `completed` sayacı ve
+            # yukarıdaki log zaten kesinleşti. Sadece GET /health'in
+            # göreceği "son başarılı refresh" bilgisi bu turda
+            # güncellenmemiş olur, bir sonraki başarılı turda düzelir.
+            try:
+                status_session = get_session()
+                try:
+                    record_successful_refresh(status_session)
+                finally:
+                    status_session.close()
+            except Exception:
+                logger.exception(
+                    "worker refresh #%d heartbeat yazılamadı (refresh'in KENDİSİ "
+                    "başarılıydı, sadece /health durumu bu turda güncellenmedi)",
+                    iteration,
+                )
         except Exception:
             # BİLİNÇLİ geniş except - bu, worker'ın TEK hata izolasyon
             # sınırıdır (görev Bölüm 7/8): hangi türden bir hata geleceği

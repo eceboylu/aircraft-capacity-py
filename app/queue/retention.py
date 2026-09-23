@@ -8,10 +8,35 @@ prediction akışına HİÇ dokunmaz, sadece worker'ın kendi AYRI, kendi
 try/except'i içindeki bir çağrısıyla (ayrı 48 saatlik cadence)
 tetiklenir (bkz. `worker.py`).
 
-Persistent tablolar (`HistoricalFlightCount`, `BaselineObservation`,
-`Airport`, `AirportOperationalConfig`, `AircraftCapacity`) BU MODÜLDE
-HİÇ SİLİNMEZ - sadece OKUNUR (BaselineObservation, QueuePrediction'ın
-historical katkısının committed olup olmadığını doğrulamak için).
+Persistent tablolar (`Airport`, `AirportOperationalConfig`,
+`AircraftCapacity`) BU MODÜLDE HİÇ SİLİNMEZ.
+
+`HistoricalFlightCount` de HİÇ SİLİNMEZ - ama bunun sebebi "henüz
+retention eklenmedi" DEĞİL, bu tablonun YAPISAL OLARAK zaten sınırsız
+büyüyemiyor olması: UNIQUE constraint'i (airport_iata, process,
+hour_of_day, day_of_week) - yani satır sayısı ZAMANLA değil, SADECE
+(havalimanı x süreç x 24 saat x 7 gün) kombinasyon sayısıyla sınırlı,
+sabit bir HAVUZ (`record_observation()` yeni satır EKLEMEZ, var olan
+satırı running-average ile GÜNCELLER). Bu satırları yaşa göre silmek
+storage kazandırmaz (tablo zaten sabit boyutlu) ama Neden 1
+(clustering) baseline kalitesini GERÇEKTEN bozar - o (havalimanı,
+süreç, saat, gün) dilimi için öğrenilmiş ortalama sıfırlanır. Bu
+yüzden BİLİNÇLİ OLARAK retention dışında bırakıldı.
+
+`BaselineObservation` ise GERÇEKTEN sınırsız büyür - UNIQUE constraint'i
+(airport_iata, process, window_start) - `window_start` gerçek, hep
+ilerleyen bir zaman damgası olduğu için her yeni pencere kalıcı bir
+defter satırı ekler, asla eskisinin yerine geçmez. Bu tablonun TEK işi
+"bu somut pencere HistoricalFlightCount havuzuna daha önce eklendi mi"
+sorusunu yanıtlamak (Bölüm 12) - bir pencerenin katkısı HistoricalFlightCount'a
+committed olduktan SONRA, o BaselineObservation satırının kendisi
+retention açısından güvenle silinebilir: sildiğimiz şey sadece "bu
+zaten sayıldı" bayrağıdır, katkının KENDİSİ (running average içinde)
+HİÇ kaybolmaz. Tek risk: silinen bir pencere bir şekilde YENİDEN
+ingest edilirse (bkz. Re-Ingest Loop Prevention - 48h horizon filtresi
+zaten bunu engelliyor) çift sayılabilir - bu yüzden `BASELINE_
+OBSERVATION_RETENTION_DAYS` varsayılanı (30 gün), 48 saatlik re-ingest
+penceresinin ÇOK ÜSTÜNDE, geniş bir güvenlik payıyla seçildi.
 
 Canonical zaman kuralı `domain/retention_time.py`'den gelir - flight_key
 ile AYNI departure/arrival seçimi (Bölüm 3/13) - burada TEKRAR
@@ -52,6 +77,13 @@ def _env_bool(name: str, default: str) -> bool:
 FLIGHT_RETENTION_DAYS = _env_int("FLIGHT_RETENTION_DAYS", "2")
 FLIGHT_EVENT_RETENTION_DAYS = _env_int("FLIGHT_EVENT_RETENTION_DAYS", "2")
 QUEUE_PREDICTION_RETENTION_DAYS = _env_int("QUEUE_PREDICTION_RETENTION_DAYS", "2")
+# ADIM (Retention Strategy - BaselineObservation) - modül docstring'inin
+# üstteki bölümüne bkz.: bu tablo GERÇEKTEN sınırsız büyüdüğü için
+# (diğer üçünün AKSİNE) retention'a AYRI olarak eklendi. 30 gün, 48
+# saatlik re-ingest-horizon penceresinin çok üstünde bilinçli bir
+# güvenlik payı - çift sayım riski YAPISAL olarak imkansız hale gelene
+# kadar satır silinmez.
+BASELINE_OBSERVATION_RETENTION_DAYS = _env_int("BASELINE_OBSERVATION_RETENTION_DAYS", "30")
 
 # Bölüm 10 - "unsafe destructive production default oluşturma": ikisi de
 # GÜVENLİ tarafta varsayılan alır - retention açıkça enable edilmeden VE
@@ -77,6 +109,7 @@ class RetentionReport:
     flight_cutoff: datetime
     flight_event_cutoff: datetime
     queue_prediction_cutoff: datetime
+    baseline_observation_cutoff: datetime
 
     flight_candidates: int = 0
     flight_deleted: int = 0
@@ -88,6 +121,9 @@ class RetentionReport:
     queue_prediction_deleted: int = 0
     queue_prediction_skipped_uncommitted: int = 0
 
+    baseline_observation_candidates: int = 0
+    baseline_observation_deleted: int = 0
+
     errors: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
@@ -96,6 +132,7 @@ class RetentionReport:
             "flight_cutoff": self.flight_cutoff.isoformat(),
             "flight_event_cutoff": self.flight_event_cutoff.isoformat(),
             "queue_prediction_cutoff": self.queue_prediction_cutoff.isoformat(),
+            "baseline_observation_cutoff": self.baseline_observation_cutoff.isoformat(),
             "flight_candidates": self.flight_candidates,
             "flight_deleted": self.flight_deleted,
             "flight_event_candidates": self.flight_event_candidates,
@@ -103,6 +140,8 @@ class RetentionReport:
             "queue_prediction_candidates": self.queue_prediction_candidates,
             "queue_prediction_deleted": self.queue_prediction_deleted,
             "queue_prediction_skipped_uncommitted": self.queue_prediction_skipped_uncommitted,
+            "baseline_observation_candidates": self.baseline_observation_candidates,
+            "baseline_observation_deleted": self.baseline_observation_deleted,
             "errors": self.errors,
         }
 
@@ -138,6 +177,22 @@ def _expired_queue_prediction_candidates(session, cutoff: datetime) -> list[Queu
     """Bölüm 5 - QueuePrediction retention timestamp'i `window_start` (`calculated_at` DEĞİL)."""
     return list(session.execute(
         select(QueuePrediction).where(QueuePrediction.window_start < cutoff)
+    ).scalars().all())
+
+
+def _expired_baseline_observation_ids(session, cutoff: datetime) -> list[int]:
+    """
+    ADIM (Retention Strategy - BaselineObservation) - retention
+    timestamp'i `window_start` (QueuePrediction ile AYNI alan/ilke -
+    "bu somut pencere ne zamandı", `recorded_at` DEĞİL). `window_start
+    < cutoff` olan bir satır, o pencerenin katkısı HistoricalFlightCount'a
+    ÇOK ÖNCE committed olmuş demektir (aksi halde zaten `record_
+    observation()` bu satırı hiç YARATMAZDI - satır VARLIĞININ KENDİSİ
+    "committed" kanıtıdır, `_historical_contribution_committed()`'ın
+    QueuePrediction için yaptığı ayrı kontrole burada GEREK YOK).
+    """
+    return list(session.execute(
+        select(BaselineObservation.id).where(BaselineObservation.window_start < cutoff)
     ).scalars().all())
 
 
@@ -194,11 +249,16 @@ def cleanup_expired_operational_data(
               calculation").
 
     Sınır (Bölüm 7): `timestamp < cutoff` -> expired; `timestamp ==
-    cutoff` -> KORUNUR (sıkı `<`, `<=` DEĞİL).
+    cutoff` -> KORUNUR (sıkı `<`, `<=` DEĞİL). BaselineObservation için
+    de AYNI sınır kuralı uygulanır.
 
-    HistoricalFlightCount/BaselineObservation'a HİÇ yazılmaz, HİÇ
-    silinmez - sadece QueuePrediction satırlarının committed olup
-    olmadığını doğrulamak için OKUNUR (Bölüm 12).
+    HistoricalFlightCount'a HİÇ yazılmaz, HİÇ silinmez - bu tablo
+    YAPISAL olarak zaten sınırlı boyutlu (bkz. modül docstring'i),
+    silmek storage kazandırmaz ama baseline kalitesini bozar.
+
+    BaselineObservation ARTIK bu fonksiyonda retention'a tabi (bkz.
+    modül docstring'i - "committed" kontrolüne GEREK yok, satırın
+    varlığı zaten committed olduğunun kanıtı).
 
     Persistent tablolara (Airport, AirportOperationalConfig, Aircraft
     reference) bu fonksiyon hiç dokunmaz - import bile etmiyor.
@@ -209,12 +269,25 @@ def cleanup_expired_operational_data(
     flight_cutoff = now - timedelta(days=FLIGHT_RETENTION_DAYS)
     flight_event_cutoff = now - timedelta(days=FLIGHT_EVENT_RETENTION_DAYS)
     queue_prediction_cutoff = now - timedelta(days=QUEUE_PREDICTION_RETENTION_DAYS)
+    baseline_observation_cutoff = now - timedelta(days=BASELINE_OBSERVATION_RETENTION_DAYS)
 
     report = RetentionReport(
         dry_run=dry_run,
         flight_cutoff=flight_cutoff,
         flight_event_cutoff=flight_event_cutoff,
         queue_prediction_cutoff=queue_prediction_cutoff,
+        baseline_observation_cutoff=baseline_observation_cutoff,
+    )
+
+    # ADIM (Health/Retention Audit - Observability) - worker.py zaten
+    # başarı/başarısızlığı loglar (bkz. run_forever() "retention cleanup
+    # #%d ok/BAŞARISIZ") ama cleanup'ın NE ZAMAN BAŞLADIĞI ayrıca
+    # görünür değildi - uzun süren/asılı kalan bir cleanup'ı "hiç
+    # başlamadı" durumundan ayırt etmek için minimal, tek satırlık ek.
+    logger.info(
+        "retention cleanup başladı (dry_run=%s, flight_cutoff=%s, "
+        "baseline_observation_cutoff=%s)",
+        dry_run, flight_cutoff, baseline_observation_cutoff,
     )
 
     try:
@@ -239,6 +312,13 @@ def cleanup_expired_operational_data(
         if not dry_run and eligible_ids:
             report.queue_prediction_deleted = _delete_in_batches(
                 session, QueuePrediction, eligible_ids
+            )
+
+        baseline_observation_ids = _expired_baseline_observation_ids(session, baseline_observation_cutoff)
+        report.baseline_observation_candidates = len(baseline_observation_ids)
+        if not dry_run and baseline_observation_ids:
+            report.baseline_observation_deleted = _delete_in_batches(
+                session, BaselineObservation, baseline_observation_ids
             )
     except Exception as exc:  # noqa: BLE001 - Bölüm 9: cleanup hatası worker'ı/refresh'i ÖLDÜRMEZ
         session.rollback()

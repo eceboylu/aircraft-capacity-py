@@ -1,5 +1,19 @@
 # aircraft-capacity.timer
 #
+# ##########################################################################
+# LEGACY / DEPRECATED - DO NOT INSTALL ON A CURRENT PRODUCTION SERVER.
+#
+# Triggers the legacy aircraft-capacity.service (see that file's own
+# header for full detail). Superseded by airport-queue-worker.service,
+# which manages its own 5-minute refresh cadence internally and needs
+# no systemd timer at all - see deploy/systemd/README.md.
+#
+# NEVER enable this unit (or aircraft-capacity.service) on any server
+# that also runs airport-queue-worker.service - double-refresh risk,
+# same DATABASE_URL written independently and uncoordinated by both.
+# Kept for reference/history only, not deleted.
+# ##########################################################################
+#
 # ADIM 5B - aircraft-capacity.service'i saatin :00 ve :30'unda tetikler
 # (AirLabs verisinin kendisi de ~30 dakikada bir yenilendiği için bu
 # kadence ile hizalı - sürekli polling/worker YOK, sadece batch refresh).

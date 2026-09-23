@@ -22,3 +22,10 @@ PyMySQL==1.2.0
 # adlarını (flight_airports.sql) yorumlayabilmek için gerekli. Uydurma
 # bir offset/mapping DEĞİL - Python'un resmi tzdata paketi.
 tzdata==2026.4
+
+# Database Migration Strategy - schema DEĞİŞİKLİKLERİ artık alembic/versions/
+# altındaki explicit migration dosyalarıyla yönetiliyor (bkz. alembic/README).
+# Çalışan app kodu (worker/web/pipeline) bunu import ETMEZ - bu, `alembic`
+# CLI'ının ayrı, explicit bir deploy adımı olarak (`alembic upgrade head`)
+# çalıştırılması için gereken bir araçtır, runtime dependency değildir.
+alembic==1.20.0

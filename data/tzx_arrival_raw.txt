@@ -1,0 +1,23 @@
+TK 4284	TK 4284	23/09/2026	09:05	09:05		ANKARA (ESB)	Domestic	Landed	 Detail
+XY 841	XY 841	23/09/2026	09:25	09:27		EASTERN PROVINCE (DMM)	International	Landed	 Detail
+J2 8047	J2 8047	23/09/2026	09:50	09:54		BAKI (GYD)	International	Landed	 Detail
+TK 2820	TK 2820	23/09/2026	10:05	10:14		ISTANBUL (IST)	Domestic	Landed	 Detail
+PC 3707	PC 3707	23/09/2026	10:20	10:24		CASTELO BRANCO (COV)	International	Landed	 Detail
+TK 3326	TK 3326	23/09/2026	10:35	10:35		ISTANBUL (SAW)	Domestic	Active	 Detail
+PC 2814	PC 2814	23/09/2026	11:20	11:20		ISTANBUL (SAW)	Domestic	Scheduled	 Detail
+RJ 856	RJ 856	23/09/2026	11:35	11:35		AMMAN (ADJ)	International	Active	 Detail
+TK 5286	TK 5286	23/09/2026	11:45	11:45		MUGLA (BJV)	Domestic	Active	 Detail
+XQ 1341	XQ 1341	23/09/2026	12:45	12:45		DUSSELDORF (DUS)	International	Active	 Detail
+TK 2828	TK 2828	23/09/2026	16:15	16:05		ISTANBUL (IST)	Domestic	Scheduled	 Detail
+XY 359	XY 359	23/09/2026	16:10	16:10		AR RIYAD (RUH)	International	Scheduled	 Detail
+VF 3328	VF 3328	23/09/2026	16:15	16:15		ISTANBUL (SAW)	Domestic	Scheduled	 Detail
+PC 2824	PC 2824	23/09/2026	17:00	17:00		ISTANBUL (SAW)	Domestic	Scheduled	 Detail
+VF 3330	VF 3330	23/09/2026	17:35	17:35		ISTANBUL (SAW)	Domestic	Scheduled	 Detail
+PC 3240	PC 3240	23/09/2026	18:00	18:00		IZMIR (ADB)	Domestic	Scheduled	 Detail
+TK 2832	TK 2832	23/09/2026	18:05	18:05		ISTANBUL (IST)	Domestic	Scheduled	 Detail
+XY 631	XY 631	23/09/2026	18:15	18:15		MAKKAH (JED)	International	Scheduled	 Detail
+XY 305	XY 305	23/09/2026	19:05	19:05		AR RIYAD (RUH)	International	Scheduled	 Detail
+TK 2834	TK 2834	23/09/2026	19:45	19:45		ISTANBUL (IST)	Domestic	Scheduled	 Detail
+VF 4290	VF 4290	23/09/2026	20:00	20:00		ANKARA (ESB)	Domestic	Scheduled	 Detail
+PC 2818	PC 2818	23/09/2026	20:05	20:05		ISTANBUL (SAW)	Domestic	Scheduled	 Detail
+VF 3332	VF 3332	23/09/2026	20:35	20:35		ISTANBUL (SAW)	Domestic	Scheduled

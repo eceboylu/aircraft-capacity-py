@@ -201,6 +201,106 @@ def test_queue_prediction_retention_matrix_when_historical_committed(session, la
         assert remaining is not None, f"{label}: korunması bekleniyordu"
 
 
+BASELINE_OBSERVATION_AGE_CASES = [
+    ("40d", timedelta(days=40), "removed"),
+    ("31d", timedelta(days=31), "removed"),
+    ("30d_exact", timedelta(days=30), "preserved"),
+    ("29d", timedelta(days=29), "preserved"),
+    ("2d", timedelta(days=2), "preserved"),
+    ("future", timedelta(days=-1), "preserved"),
+]
+
+
+@pytest.mark.parametrize("label,age,expected", BASELINE_OBSERVATION_AGE_CASES)
+def test_baseline_observation_retention_matrix(session, label, age, expected):
+    """
+    ADIM (Health/Retention Audit) - önceki ADIM'da BaselineObservation
+    retention'ı eklendi (BASELINE_OBSERVATION_RETENTION_DAYS=30) ama HİÇ
+    test edilmemişti (bu ADIM'da tespit edildi) - bu, Flight/FlightEvent
+    matrix'iyle AYNI desende, sadece 30 günlük sınırla.
+    """
+    airport, process = "AAA", "passport_dep"
+    window_start = NOW - age
+    session.add(BaselineObservation(
+        airport_iata=airport, process=process, window_start=window_start,
+    ))
+    session.commit()
+
+    report = retention.cleanup_expired_operational_data(session, now=NOW, dry_run=False)
+
+    remaining = session.execute(
+        select(BaselineObservation).where(
+            BaselineObservation.airport_iata == airport,
+            BaselineObservation.window_start == window_start,
+        )
+    ).scalar_one_or_none()
+    if expected == "removed":
+        assert remaining is None, f"{label}: silinmesi bekleniyordu"
+        assert report.baseline_observation_deleted >= 1
+    else:
+        assert remaining is not None, f"{label}: korunması bekleniyordu"
+
+
+def test_baseline_observation_retention_does_not_touch_historical_flight_count(session):
+    """BaselineObservation silinse bile HistoricalFlightCount'taki running-average ETKİLENMEZ."""
+    from app.queue.models import HistoricalFlightCount
+
+    airport, process = "AAA", "passport_dep"
+    old_window = NOW - timedelta(days=40)
+    session.add(BaselineObservation(airport_iata=airport, process=process, window_start=old_window))
+    session.add(HistoricalFlightCount(
+        airport_iata=airport, process=process, hour_of_day=8, day_of_week=1,
+        average_flight_count=5.0, sample_size=3,
+    ))
+    session.commit()
+
+    retention.cleanup_expired_operational_data(session, now=NOW, dry_run=False)
+
+    remaining_baseline = session.execute(
+        select(BaselineObservation).where(BaselineObservation.window_start == old_window)
+    ).scalar_one_or_none()
+    assert remaining_baseline is None
+
+    hist = session.execute(
+        select(HistoricalFlightCount).where(
+            HistoricalFlightCount.airport_iata == airport,
+            HistoricalFlightCount.process == process,
+        )
+    ).scalar_one_or_none()
+    assert hist is not None
+    assert hist.sample_size == 3, "BaselineObservation cleanup HistoricalFlightCount'a HİÇ dokunmamalı"
+
+
+# ========================================================================
+# Cleanup re-run idempotency (tüm tablolar tek seferde)
+# ========================================================================
+
+def test_cleanup_rerun_is_idempotent_across_all_tables(session):
+    """İkinci çalıştırma EK bir silme yapmamalı - tüm candidate'lar zaten ilk turda silindi."""
+    airport, process = "AAA", "passport_dep"
+    old_window = NOW - timedelta(days=10)
+    session.add(make_flight("RERUN_FLIGHT", age=timedelta(days=10)))
+    session.add(make_event("RERUN_EVT", age=timedelta(days=10)))
+    session.add(make_prediction(airport, process, timedelta(days=10)))
+    session.add(BaselineObservation(airport_iata=airport, process=process, window_start=old_window))
+    session.add(BaselineObservation(airport_iata=airport, process=process, window_start=NOW - timedelta(days=40)))
+    session.commit()
+
+    first = retention.cleanup_expired_operational_data(session, now=NOW, dry_run=False)
+    assert first.flight_deleted >= 1
+    assert first.flight_event_deleted >= 1
+    assert first.baseline_observation_deleted >= 1
+
+    second = retention.cleanup_expired_operational_data(session, now=NOW, dry_run=False)
+    assert second.flight_candidates == 0
+    assert second.flight_deleted == 0
+    assert second.flight_event_candidates == 0
+    assert second.flight_event_deleted == 0
+    assert second.baseline_observation_candidates == 0
+    assert second.baseline_observation_deleted == 0
+    assert second.errors == []
+
+
 def test_persistent_tables_untouched_by_cleanup(session):
     """Bölüm 11 - HistoricalFlightCount/BaselineObservation/Airport/AirportOperationalConfig/Aircraft reference SİLİNMEZ."""
     from app.models import AircraftCapacity

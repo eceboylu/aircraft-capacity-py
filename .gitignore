@@ -7,5 +7,6 @@ database.sqlite
 *.env
 !*.env.example
 *.log
+backups/
 .vscode/
 .idea/

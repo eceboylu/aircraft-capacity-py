@@ -1,0 +1,272 @@
+FZ 989	FZ 989	23/09/2026	09:35	09:23	 F7	MOSKOVSKAYA (VKO)	International	Active	 Detail
+EK 133	EK 133	23/09/2026	08:30	09:33	 C5	MOSKOVSKAYA (DME)	International	Active	 Detail
+EK 392	EK 392	23/09/2026	09:35	09:33	 A7	HO CHI MINH CITY (SGN)	International	Active	 Detail
+EK 304	EK 304	23/09/2026	09:40	09:34	 C4	SHANGHAI SHI (PVG)	International	Active	 Detail
+EK 55	EK 55	23/09/2026	08:40	09:39	 A18	DUSSELDORF (DUS)	International	Active	 Detail
+EK 77	EK 77	23/09/2026	08:40	09:43	 C11	PROVENCE-ALPES-COTE D'AZUR (NCE)	International	Active	 Detail
+EK 372	EK 372	23/09/2026	09:40	09:43	 C19	BANGKOK (BKK)	International	Active	 Detail
+EK 516	EK 516	23/09/2026	09:50	09:45	 B20	HARYANA (DEL)	International	Active	 Detail
+EK 652	EK 652	23/09/2026	09:45	09:46	 A6	MAALE (MLE)	International	Active	 Detail
+FZ 931	FZ 931	23/09/2026	08:50	09:48	 F11	MINTAQAT TABUK (NUM)	International	Active	 Detail
+FZ 909	FZ 909	23/09/2026	09:35	09:50	 F6	MAKKAH (JED)	International	Active	 Detail
+EK 111	EK 111	23/09/2026	09:55	09:54	 C12	PEST (BUD)	International	Active	 Detail
+EK 225	EK 225	23/09/2026	08:25	09:55	 B21	CALIFORNIA (SFO)	International	Active	 Detail
+6E 1482	6E 1482	23/09/2026	09:55	09:58	 D13	CHANDIGARH (IXC)	International	Active	 Detail
+EK 81	EK 81	23/09/2026	08:55	10:01	 B9	RHONE-ALPES (LYS)	International	Active	 Detail
+EK 352	EK 352	23/09/2026	10:00	10:04	 C22	SINGAPORE (SIN)	International	Active	 Detail
+EK 73	EK 73	23/09/2026	08:20	10:06	 A8	PARIS (CDG)	International	Active	 Detail
+EK 380	EK 380	23/09/2026	10:00	10:06	 B25	TUEN MUN (HKG)	International	Active	 Detail
+EK 775	EK 775	23/09/2026	10:15	10:08	 A14	KWAZULU-NATAL (DUR)	International	Active	 Detail
+FZ 751	FZ 751	23/09/2026	09:15	10:10	 F10	ISTANBUL (SAW)	International	Active	 Detail
+EK 763	EK 763	23/09/2026	09:55	10:11	 A11	GAUTENG (JNB)	International	Active	 Detail
+FZ 761	FZ 761	23/09/2026	09:35	10:15	 F5	FEDERATION OF BOSNIA AND HERZEGOVINA (SJJ)	International	Active	 Detail
+EK 127	EK 127	23/09/2026	09:10	10:17	 B22	LOWER AUSTRIA (VIE)	International	Active	 Detail
+EK 235	EK 235	23/09/2026	09:55	10:17	 A17	ILLINOIS (ORD)	International	Active	 Detail
+EK 362	EK 362	23/09/2026	10:15	10:19	 C17	GUANGZHOU (CAN)	International	Active	 Detail
+EK 406	EK 406	23/09/2026	10:05	10:21	 A10	VICTORIA (MEL)	International	Active	 Detail
+EK 783	EK 783	23/09/2026	10:15	10:21	 B14	LAGOS (LOS)	International	Active	 Detail
+FZ 1687	FZ 1687	23/09/2026	09:50	10:24	 B1	ZANZIBAR URBAN/WEST (ZNZ)	International	Active	 Detail
+FZ 1147	FZ 1147	23/09/2026	09:15	10:25	 B2	BANGHAZI (BEN)	International	Active	 Detail
+EK 396	EK 396	23/09/2026	10:25	10:26	 A18	PHUKET (HKT)	International	Active	 Detail
+EK 778	EK 778	23/09/2026	10:25	10:28	 A19	WESTERN CAPE (CPT)	International	Active	 Detail
+EK 49	EK 49	23/09/2026	09:10	10:30	 C20	BAVARIA (MUC)	International	Active	 Detail
+EK 586	EK 586	23/09/2026	10:35	10:30	 B12	DHAKA (DAC)	International	Active	 Detail
+EK 448	EK 448	23/09/2026	10:05	10:31	 A15	AUCKLAND (AKL)	International	Active	 Detail
+6E 1452	6E 1452	23/09/2026	10:40	10:41	 D3	MAHARASHTRA (BOM)	International	Active	 Detail
+EK 412	EK 412	23/09/2026	10:10	10:42	 A12	SYDNEY (SYD)	International	Active	 Detail
+EK 342	EK 342	23/09/2026	10:25	10:42	 A16	NEGERI SEMBILAN (KUL)	International	Active	 Detail
+EK 97	EK 97	23/09/2026	09:10	10:43	 C13	LATIUM (FCO)	International	Active	 Detail
+EK 719	EK 719	23/09/2026	10:30	10:43	 A5	NAIROBI AREA (NBO)	International	Active	 Detail
+EK 723	EK 723	23/09/2026	10:40	10:45	 C9	ADIS ABEBA (ADD)	International	Active	 Detail
+GF 503	GF 503	23/09/2026	11:00	10:46	 D17	MUHARRAQ (BAH)	International	Active	 Detail
+EK 211	EK 211	23/09/2026	09:30	10:48	 B11	GEORGE BUSH INTERCONTINENTAL AIRPORT (IAH)	International	Active	 Detail
+EK 703	EK 703	23/09/2026	10:35	10:49	 B19	GRAND PORT (MRU)	International	Active	 Detail
+FZ 1211	FZ 1211	23/09/2026	09:55	10:50	 C15	CENTRAL DISTRICT (TLV)	International	Active	 Detail
+EK 358	EK 358	23/09/2026	10:50	10:51	 C8	WEST JAVA (CGK)	International	Active	 Detail
+EK 308	EK 308	23/09/2026	10:40	10:52	 C6	BEIJING CAPITAL INTERNATIONAL AIRPORT (PEK)	International	Active	 Detail
+FZ 1945	FZ 1945	23/09/2026	10:45	10:55	 B5	TOSHKENT SHAHRI (TAS)	International	Active	 Detail
+FZ 841	FZ 841	23/09/2026	10:55	10:55	 F8	AR RIYAD (RUH)	International	Scheduled	 Detail
+EK 434	EK 434	23/09/2026	10:35	10:56	 A23	QUEENSLAND (BNE)	International	Active	 Detail
+EK 29	EK 29	23/09/2026	09:40	10:59	 B15	ENGLAND (LHR)	International	Active	 Detail
+FZ 1789	FZ 1789	23/09/2026	09:20	11:00	 B4	SENCUR (LJU)	International	Active	 Detail
+FZ 1757	FZ 1757	23/09/2026	09:55	11:00	 B2	SOFIA-CAPITAL (SOF)	International	Scheduled	 Detail
+FZ 971	FZ 971	23/09/2026	10:15	11:00	 F10	KRASNODARSKIY (AER)	International	Scheduled	 Detail
+FZ 1335	FZ 1335	23/09/2026	11:00	11:00	 B1	BANGKOK (DMK)	International	Scheduled	 Detail
+WY 604	WY 604	23/09/2026	11:00	11:00	 D1	MUHAFAZAT MASQAT (MCT)	International	Scheduled	 Detail
+EK 87	EK 87	23/09/2026	08:50	11:01	 C16	ZURICH (ZRH)	International	Active	 Detail
+EK 328	EK 328	23/09/2026	11:00	11:01	 A17	GUANGDONG (SZX)	International	Active	 Detail
+EK 209	EK 209	23/09/2026	10:50	11:02	 B23	ATTICA (ATH)	International	Active	 Detail
+FZ 1797	FZ 1797	23/09/2026	11:10	11:10	 B2	ILFOV (OTP)	International	Scheduled	 Detail
+EK 205	EK 205	23/09/2026	09:35	11:13	 A9	LOMBARDY (MXP)	International	Active	 Detail
+FZ 201	FZ 201	23/09/2026	10:15	11:14	 F7	MAYORALITY OF BAGHDAD (BGW)	International	Active	 Detail
+FZ 1793	FZ 1793	23/09/2026	09:30	11:19	 B5	ZAGREBACKA (ZAG)	International	Active	 Detail
+FZ 1745	FZ 1745	23/09/2026	09:25	11:20	 B4	CENTRAL SERBIA (BEG)	International	Scheduled	 Detail
+EK 123	EK 123	23/09/2026	10:40	11:20	 A20	ISTANBUL (IST)	International	Scheduled	 Detail
+FZ 869	FZ 869	23/09/2026	11:20	11:20	 F9	EASTERN PROVINCE (DMM)	International	Scheduled	 Detail
+FZ 873	FZ 873	23/09/2026	11:20	11:20	 F12	MAKKAH (TIF)	International	Scheduled	 Detail
+EK 93	EK 93	23/09/2026	09:45	11:25	 B31	EMILIA-ROMAGNA (BLQ)	International	Scheduled	 Detail
+6E 1468	6E 1468	23/09/2026	11:25	11:25	 D11	KARNATAKA (IXE)	International	Scheduled	 Detail
+6E 1476	6E 1476	23/09/2026	11:25	11:25	 D5	KERALA (COK)	International	Scheduled	 Detail
+EK 31	EK 31	23/09/2026	11:25	11:25	 A22	ENGLAND (LHR)	International	Scheduled	 Detail
+XY 202	XY 202	23/09/2026	11:25	11:25	 D12	AR RIYAD (RUH)	International	Scheduled	 Detail
+FZ 715	FZ 715	23/09/2026	10:25	11:30	 F12	ARMAVIR (EVN)	International	Scheduled	 Detail
+SV 563	SV 563	23/09/2026	10:40	11:30	 D14	AR RIYAD (RUH)	International	Scheduled	 Detail
+FZ 711	FZ 711	23/09/2026	11:35	11:35	 F6	DIDI LILO (TBS)	International	Scheduled	 Detail
+FZ 307	FZ 307	23/09/2026	11:45	11:45	 F7	KABUL (KBL)	International	Scheduled	 Detail
+QR 1007	QR 1007	23/09/2026	11:45	11:45	 D15	BALADIYAT AD DAWHAH (DOH)	International	Scheduled	 Detail
+VRH 6801	VRH 6801	23/09/2026	11:45	11:45	 F2	TEHRAN (IKA)	International	Scheduled	 Detail
+FZ 549	FZ 549	23/09/2026	11:50	11:50	 F8	CMB (CMB)	International	Scheduled	 Detail
+J9 122	J9 122	23/09/2026	11:50	11:50	 D19	AL FARWANIYAH (KWI)	International	Scheduled	 Detail
+EK 921	EK 921	23/09/2026	12:00	12:00	 C14	CAIRO (CAI)	International	Scheduled	 Detail
+FZ 1165	FZ 1165	23/09/2026	12:00	12:00	 B2	BINH THUAN (PHH)	International	Scheduled	 Detail
+6E 1462	6E 1462	23/09/2026	11:50	12:05	 D2	HARYANA (DEL)	International	Scheduled	 Detail
+FZ 1081	FZ 1081	23/09/2026	12:10	12:10	 C15	CENTRAL DISTRICT (TLV)	International	Scheduled	 Detail
+SG 5158	SG 5158	23/09/2026	12:15	12:15	 D2	RAJASTHAN (JAI)	International	Scheduled	 Detail
+EK 330	EK 330	23/09/2026	12:20	12:20	 B30	METRO MANILA (MNL)	International	Scheduled	 Detail
+FZ 335	FZ 335	23/09/2026	12:25	12:25	 F9	SINDH (KHI)	International	Scheduled	 Detail
+BS 344	BS 344	23/09/2026	12:30	12:30	 D8	CHITTAGONG (CGP)	International	Scheduled	 Detail
+HY 334	HY 334	23/09/2026	12:30	12:30	 D13	TOSHKENT SHAHRI (TAS)	International	Scheduled	 Detail
+RQ 966	RQ 966	23/09/2026	12:35	12:35	 D17	KHYBER PAKHTUNKHWA (KHT)	International	Scheduled	 Detail
+SG 5023	SG 5023	23/09/2026	04:15	12:40	 D21	MAHARASHTRA (BOM)	International	Scheduled	 Detail
+FZ 1595	FZ 1595	23/09/2026	12:40	12:40	 B2	KATHMANDU (KTM)	International	Scheduled	 Detail
+ME 427	ME 427	23/09/2026	12:45	12:45	 D3	MONT-LIBAN (BEY)	International	Scheduled	 Detail
+F3 506	F3 506	23/09/2026	12:50	12:50	 D14	AR RIYAD (RUH)	International	Scheduled	 Detail
+IX 748	IX 748	23/09/2026	12:50	12:50	 F3	KERALA (CNN)	International	Scheduled	 Detail
+6E 1508	6E 1508	23/09/2026	12:55	12:55	 D20	GUJARAT (STV)	International	Scheduled	 Detail
+GF 505	GF 505	23/09/2026	12:55	12:55	 D18	MUHARRAQ (BAH)	International	Scheduled	 Detail
+B9 9721	B9 9721	23/09/2026	13:00	13:00		TEHRAN (IKA)	International	Scheduled	 Detail
+C6 352	C6 352	23/09/2026	13:00	13:00	 D10	TOSHKENT SHAHRI (TAS)	International	Scheduled	 Detail
+EK 502	EK 502	23/09/2026	13:00	13:00	 A13	MAHARASHTRA (BOM)	International	Scheduled	 Detail
+FZ 1113	FZ 1113	23/09/2026	13:00	13:00	 B4	RIF-DIMASHQ (DAM)	International	Scheduled	 Detail
+FZ 707	FZ 707	23/09/2026	13:00	13:00	 F5	BAKI (GYD)	International	Scheduled	 Detail
+EK 572	EK 572	23/09/2026	13:05	13:05	 A4	WEST BENGAL (CCU)	International	Scheduled	 Detail
+KU 672	KU 672	23/09/2026	13:05	13:05	 D21	AL FARWANIYAH (KWI)	International	Scheduled	 Detail
+FZ 1227	FZ 1227	23/09/2026	13:10	13:10	 B1	BASRA GOVERNORATE (BSR)	International	Scheduled	 Detail
+SG 5106	SG 5106	23/09/2026	12:25	13:15	 D5	HARYANA (DEL)	International	Scheduled	 Detail
+FZ 875	FZ 875	23/09/2026	13:15	13:15	 F12	AL-QASSIM (ELQ)	International	Scheduled	 Detail
+QR 1023	QR 1023	23/09/2026	13:15	13:15	 D16	BALADIYAT AD DAWHAH (DOH)	International	Scheduled	 Detail
+IX 346	IX 346	23/09/2026	11:55	13:20	 F4	KERALA (CCJ)	International	Scheduled	 Detail
+EK 654	EK 654	23/09/2026	13:20	13:20	 B8	CMB (CMB)	International	Scheduled	 Detail
+RJ 611	RJ 611	23/09/2026	13:20	13:20	 D7	AMMAN (AMM)	International	Scheduled	 Detail
+SV 597	SV 597	23/09/2026	13:20	13:20	 D11	AR RIYAD (RUH)	International	Scheduled	 Detail
+FZ 203	FZ 203	23/09/2026	13:35	13:35	 F6	ARBIL (EBL)	International	Scheduled	 Detail
+FZ 811	FZ 811	23/09/2026	13:40	13:40	 F8	ABHA (AHB)	International	Scheduled	 Detail
+CY 107	CY 107	23/09/2026	13:45	13:45	 D9	LARNAKA (LCA)	International	Scheduled	 Detail
+EK 566	EK 566	23/09/2026	13:45	13:45	 B31	KARNATAKA (BLR)	International	Scheduled	 Detail
+FZ 727	FZ 727	23/09/2026	13:45	13:45	 F11	ISTANBUL (IST)	International	Scheduled	 Detail
+EK 903	EK 903	23/09/2026	13:50	13:50	 B13	AMMAN (AMM)	International	Scheduled	 Detail
+FZ 1625	FZ 1625	23/09/2026	13:50	13:50	 C15	CENTRAL DISTRICT (TLV)	International	Scheduled	 Detail
+FZ 863	FZ 863	23/09/2026	13:50	13:50	 F12	EASTERN PROVINCE (DMM)	International	Scheduled	 Detail
+TK 765	TK 765	23/09/2026	13:50	13:50	 D6	ISTANBUL (IST)	International	Scheduled	 Detail
+FZ 523	FZ 523	23/09/2026	13:55	13:55	 F5	DHAKA (DAC)	International	Scheduled	 Detail
+FZ 651	FZ 651	23/09/2026	13:55	13:55	 F9	CENTRAL REGION (EBB)	International	Scheduled	 Detail
+EK 187	EK 187	23/09/2026	14:05	14:05	 C12	CATALONIA (BCN)	International	Scheduled	 Detail
+EK 181	EK 181	23/09/2026	14:10	14:10	 A16	FLANDERS (BRU)	International	Scheduled	 Detail
+SU 779	SU 779	23/09/2026	14:10	14:10	 D7	KRASNODARSKIY (KRR)	International	Scheduled	 Detail
+EK 3	EK 3	23/09/2026	14:15	14:15	 A1	ENGLAND (LHR)	International	Scheduled	 Detail
+EK 67	EK 67	23/09/2026	14:15	14:15	 A10	ENGLAND (STN)	International	Scheduled	 Detail
+SV 569	SV 569	23/09/2026	14:15	14:15	 D12	MAKKAH (JED)	International	Scheduled	 Detail
+EK 149	EK 149	23/09/2026	14:20	14:20	 B28	NORTH HOLLAND (AMS)	International	Scheduled	 Detail
+FZ 21	FZ 21	23/09/2026	14:20	14:20	 F6	MUHARRAQ (BAH)	International	Scheduled	 Detail
+EK 193	EK 193	23/09/2026	14:25	14:25	 B23	LISBON (LIS)	International	Scheduled	 Detail
+EK 57	EK 57	23/09/2026	14:25	14:25	 B14	DUSSELDORF (DUS)	International	Scheduled	 Detail
+EK 765	EK 765	23/09/2026	14:25	14:25	 A5	GAUTENG (JNB)	International	Scheduled	 Detail
+EK 953	EK 953	23/09/2026	14:25	14:25	 B6	MONT-LIBAN (BEY)	International	Scheduled	 Detail
+FZ 897	FZ 897	23/09/2026	14:25	14:25	 F11	AL MADINAH AL MUNAWWARAH (MED)	International	Scheduled	 Detail
+EK 121	EK 121	23/09/2026	14:30	14:30	 B27	ISTANBUL (IST)	International	Scheduled	 Detail
+EK 143	EK 143	23/09/2026	14:30	14:30	 C1	MADRID (MAD)	International	Scheduled	 Detail
+EK 175	EK 175	23/09/2026	14:30	14:30	 A17	ST. PETERSBURG (LED)	International	Scheduled	 Detail
+EK 19	EK 19	23/09/2026	14:30	14:30	 B21	ENGLAND (MAN)	International	Scheduled	 Detail
+EK 75	EK 75	23/09/2026	14:30	14:30	 A21	PARIS (CDG)	International	Scheduled	 Detail
+FZ 3027	FZ 3027	23/09/2026	14:45	14:45		SINDH (KHI)	International	Scheduled	 Detail
+FZ 829	FZ 829	23/09/2026	14:45	14:45	 F10	MAKKAH (JED)	International	Scheduled	 Detail
+IX 432	IX 432	23/09/2026	14:45	14:45	 F3	KERALA (COK)	International	Scheduled	 Detail
+EK 546	EK 546	23/09/2026	14:50	14:50	 A15	TAMIL NADU (MAA)	International	Scheduled	 Detail
+EK 37	EK 37	23/09/2026	14:55	14:55	 A9	ENGLAND (BHX)	International	Scheduled	 Detail
+EK 857	EK 857	23/09/2026	14:55	14:55	 C7	AL FARWANIYAH (KWI)	International	Scheduled	 Detail
+EK 9	EK 9	23/09/2026	14:55	14:55	 A23	ENGLAND (LGW)	International	Scheduled	 Detail
+EK 528	EK 528	23/09/2026	15:00	15:00	 A8	TELANGANA (HYD)	International	Scheduled	 Detail
+EK 61	EK 61	23/09/2026	15:00	15:00	 C5	HAMBURG (HAM)	International	Scheduled	 Detail
+EK 163	EK 163	23/09/2026	15:10	15:10	 A20	LEINSTER (DUB)	International	Scheduled	 Detail
+EK 809	EK 809	23/09/2026	15:10	15:10	 A14	AL MADINAH AL MUNAWWARAH (MED)	International	Scheduled	 Detail
+EK 23	EK 23	23/09/2026	15:15	15:15	 B22	SCOTLAND (EDI)	International	Scheduled	 Detail
+EK 51	EK 51	23/09/2026	15:15	15:15	 B8	BAVARIA (MUC)	International	Scheduled	 Detail
+EK 85	EK 85	23/09/2026	15:15	15:15	 A22	ZURICH (ZRH)	International	Scheduled	 Detail
+EK 923	EK 923	23/09/2026	15:15	15:15	 B32	CAIRO (CAI)	International	Scheduled	 Detail
+FZ 881	FZ 881	23/09/2026	15:15	15:15	 F8	MINTAQAT TABUK (TUU)	International	Scheduled	 Detail
+FZ 1855	FZ 1855	23/09/2026	11:20	15:20	 B1	ALMATY OBLYSY (ALA)	International	Scheduled	 Detail
+EK 131	EK 131	23/09/2026	15:20	15:20	 C2	MOSKOVSKAYA (DME)	International	Scheduled	 Detail
+EK 47	EK 47	23/09/2026	15:20	15:20	 A4	HESSE (FRA)	International	Scheduled	 Detail
+FZ 975	FZ 975	23/09/2026	15:20	15:20	 F10	MOSKOVSKAYA (VKO)	International	Scheduled	 Detail
+EK 514	EK 514	23/09/2026	15:25	15:25	 A2	HARYANA (DEL)	International	Scheduled	 Detail
+AI 4210	AI 4210	23/09/2026	15:30	15:30	 D2	HARYANA (DEL)	International	Scheduled	 Detail
+FZ 63	FZ 63	23/09/2026	15:30	15:30	 F5	AL FARWANIYAH (KWI)	International	Scheduled	 Detail
+EK 91	EK 91	23/09/2026	15:35	15:35	 C22	LOMBARDY (MXP)	International	Scheduled	 Detail
+EK 5	EK 5	23/09/2026	15:40	15:40	 B15	ENGLAND (LHR)	International	Scheduled	 Detail
+EK 803	EK 803	23/09/2026	15:45	15:45	 A12	MAKKAH (JED)	International	Scheduled	 Detail
+EK 95	EK 95	23/09/2026	15:45	15:45	 C23	LATIUM (FCO)	International	Scheduled	 Detail
+FZ 1781	FZ 1781	23/09/2026	15:45	15:45	 B1	CENTRAL BOHEMIA (PRG)	International	Scheduled	 Detail
+FZ 647	FZ 647	23/09/2026	15:45	15:45	 F9	ADIS ABEBA (ADD)	International	Scheduled	 Detail
+FZ 17	FZ 17	23/09/2026	15:50	15:50	 F11	BALADIYAT AD DAWHAH (DOH)	International	Scheduled	 Detail
+QB 2211	QB 2211	23/09/2026	15:50	15:50	 F2	TEHRAN (IKA)	International	Scheduled	 Detail
+EK 721	EK 721	23/09/2026	15:55	15:55	 C20	NAIROBI AREA (NBO)	International	Scheduled	 Detail
+IS 7353	IS 7353	23/09/2026	15:55	15:55	 F3	TEHRAN (IKA)	International	Scheduled	 Detail
+EK 508	EK 508	23/09/2026	16:00	16:00	 B18	MAHARASHTRA (BOM)	International	Scheduled	 Detail
+EK 839	EK 839	23/09/2026	16:00	16:00	 B29	MUHARRAQ (BAH)	International	Scheduled	 Detail
+FZ 1125	FZ 1125	23/09/2026	16:00	16:00	 C15	CENTRAL DISTRICT (TLV)	International	Scheduled	 Detail
+SV 559	SV 559	23/09/2026	16:00	16:00	 D14	AR RIYAD (RUH)	International	Scheduled	 Detail
+FZ 997	FZ 997	23/09/2026	16:05	16:05	 F12	SVERDLOVSK (SVX)	International	Scheduled	 Detail
+SU 521	SU 521	23/09/2026	16:05	16:05	 D3	MOSCOW (SVO)	International	Scheduled	 Detail
+FZ 211	FZ 211	23/09/2026	16:10	16:10	 F8	MAYORALITY OF BAGHDAD (BGW)	International	Scheduled	 Detail
+BS 342	BS 342	23/09/2026	02:20	16:20	 D7	DHAKA (DAC)	International	Scheduled	 Detail
+EK 103	EK 103	23/09/2026	16:20	16:20	 C3	ATTICA (ATH)	International	Scheduled	 Detail
+MS 913	MS 913	23/09/2026	16:20	16:20	 D13	CAIRO (CAI)	International	Scheduled	 Detail
+PK 212	PK 212	23/09/2026	16:30	16:30	 D15	PUNJAB (ISB)	International	Scheduled	 Detail
+FZ 1581	FZ 1581	23/09/2026	16:35	16:35	 C17	NAIROBI AREA (NBO)	International	Scheduled	 Detail
+FZ 967	FZ 967	23/09/2026	16:35	16:35	 F9	MOSKOVSKAYA (VKO)	International	Scheduled	 Detail
+PF 787	PF 787	23/09/2026	16:40	16:40	 D8	PUNJAB (LHE)	International	Scheduled	 Detail
+EK 584	EK 584	23/09/2026	16:45	16:45	 B8	DHAKA (DAC)	International	Scheduled	 Detail
+EK 817	EK 817	23/09/2026	16:45	16:45	 B25	AR RIYAD (RUH)	International	Scheduled	 Detail
+EK 69	EK 69	23/09/2026	16:50	16:50	 A13	ENGLAND (LGW)	International	Scheduled	 Detail
+WY 610	WY 610	23/09/2026	16:50	16:50	 D17	MUHAFAZAT MASQAT (MCT)	International	Scheduled	 Detail
+EK 336	EK 336	23/09/2026	17:00	17:00	 B11	METRO MANILA (MNL)	International	Scheduled	 Detail
+GF 507	GF 507	23/09/2026	17:00	17:00	 D8	MUHARRAQ (BAH)	International	Scheduled	 Detail
+IX 612	IX 612	23/09/2026	17:00	17:00	 F4	TAMIL NADU (TRZ)	International	Scheduled	 Detail
+IX 832	IX 832	23/09/2026	17:00	17:00	 F3	KARNATAKA (IXE)	International	Scheduled	 Detail
+FZ 1807	FZ 1807	23/09/2026	17:05	17:05	 C15	CENTRAL DISTRICT (TLV)	International	Scheduled	 Detail
+ET 603	ET 603	23/09/2026	17:10	17:10	 D6	ADIS ABEBA (ADD)	International	Scheduled	 Detail
+FZ 27	FZ 27	23/09/2026	17:10	17:10	 F7	MUHARRAQ (BAH)	International	Scheduled	 Detail
+FZ 991	FZ 991	23/09/2026	17:10	17:10	 F8	ST. PETERSBURG (LED)	International	Scheduled	 Detail
+FZ 9	FZ 9	23/09/2026	17:15	17:15	 F6	BALADIYAT AD DAWHAH (DOH)	International	Scheduled	 Detail
+PA 411	PA 411	23/09/2026	17:15	17:15	 D17	PUNJAB (LHE)	International	Canceled	 Detail
+FZ 573	FZ 573	23/09/2026	17:20	17:20	 F9	KATHMANDU (KTM)	International	Scheduled	 Detail
+FZ 733	FZ 733	23/09/2026	17:20	17:20	 F12	BAKI (GYD)	International	Scheduled	 Detail
+SV 589	SV 589	23/09/2026	17:30	17:30	 D16	MAKKAH (JED)	International	Scheduled	 Detail
+FZ 951	FZ 951	23/09/2026	17:35	17:35	 F10	MOSKOVSKAYA (VKO)	International	Scheduled	 Detail
+6E 1454	6E 1454	23/09/2026	17:40	17:40	 D18	MAHARASHTRA (BOM)	International	Scheduled	 Detail
+FZ 985	FZ 985	23/09/2026	17:40	17:40	 F5	BASHKORTOSTAN (UFA)	International	Scheduled	 Detail
+FZ 983	FZ 983	23/09/2026	17:45	17:45	 F11	TATARSTAN (KZN)	International	Scheduled	 Detail
+XY 206	XY 206	23/09/2026	17:45	17:45	 D5	AR RIYAD (RUH)	International	Scheduled	 Detail
+FZ 1405	FZ 1405	23/09/2026	17:50	17:50	 B4	PEST (BUD)	International	Scheduled	 Detail
+FZ 1715	FZ 1715	23/09/2026	17:50	17:50	 C13	MINSK (MSQ)	International	Scheduled	 Detail
+6E 1484	6E 1484	23/09/2026	17:55	17:55	 D12	MAHARASHTRA (PNQ)	International	Scheduled	 Detail
+FZ 995	FZ 995	23/09/2026	17:55	17:55	 F6	SAMARA (KUF)	International	Scheduled	 Detail
+EK 117	EK 117	23/09/2026	18:00	18:00	 B10	ISTANBUL (IST)	International	Scheduled	 Detail
+EK 602	EK 602	23/09/2026	18:00	18:00	 B9	SINDH (KHI)	International	Scheduled	 Detail
+FZ 867	FZ 867	23/09/2026	18:05	18:05	 F9	EASTERN PROVINCE (DMM)	International	Scheduled	 Detail
+SV 555	SV 555	23/09/2026	18:15	18:15	 D11	AR RIYAD (RUH)	International	Scheduled	 Detail
+PA 217	PA 217	23/09/2026	18:20	18:20	 D14	PUNJAB (ISB)	International	Scheduled	 Detail
+FZ 461	FZ 461	23/09/2026	18:25	18:25	 F10	WEST BENGAL (CCU)	International	Scheduled	 Detail
+SU 527	SU 527	23/09/2026	18:25	18:25	 D15	MOSCOW (SVO)	International	Scheduled	 Detail
+RB 516	RB 516	23/09/2026	18:30	18:30	 D14	RIF-DIMASHQ (DAM)	International	Scheduled	 Detail
+FZ 47	FZ 47	23/09/2026	18:35	18:35	 F6	MUHAFAZAT MASQAT (MCT)	International	Scheduled	 Detail
+FZ 963	FZ 963	23/09/2026	18:35	18:35	 F8	NOVOSIBIRSK (OVB)	International	Scheduled	 Detail
+FZ 569	FZ 569	23/09/2026	18:40	18:40	 F7	CMB (CMB)	International	Scheduled	 Detail
+FZ 987	FZ 987	23/09/2026	18:40	18:40	 F5	MOSKOVSKAYA (VKO)	International	Scheduled	 Detail
+FZ 159	FZ 159	23/09/2026	18:45	18:45	 F9	MONT-LIBAN (BEY)	International	Scheduled	 Detail
+AI 4218	AI 4218	23/09/2026	18:55	18:55	 D13	MAHARASHTRA (BOM)	International	Scheduled	 Detail
+FZ 855	FZ 855	23/09/2026	18:55	18:55	 F12	AR RIYAD (RUH)	International	Scheduled	 Detail
+KU 674	KU 674	23/09/2026	18:55	18:55	 D7	AL FARWANIYAH (KWI)	International	Scheduled	 Detail
+FZ 973	FZ 973	23/09/2026	19:05	19:05	 F5	TATARSTAN (KZN)	International	Scheduled	 Detail
+FZ 979	FZ 979	23/09/2026	19:05	19:05	 F10	SVERDLOVSK (SVX)	International	Scheduled	 Detail
+FZ 1053	FZ 1053	23/09/2026	19:15	19:15	 C15	CENTRAL DISTRICT (TLV)	International	Scheduled	 Detail
+FZ 1749	FZ 1749	23/09/2026	19:15	19:15	 B2	CENTRAL SERBIA (BEG)	International	Scheduled	 Detail
+FZ 645	FZ 645	23/09/2026	19:15	19:15	 F11	MAEKEL REGION (ASM)	International	Scheduled	 Detail
+FZ 143	FZ 143	23/09/2026	19:25	19:25	 F6	AMMAN (AMM)	International	Scheduled	 Detail
+AI 4310	AI 4310	23/09/2026	19:30	19:30	 D2	HARYANA (DEL)	International	Scheduled	 Detail
+FZ 329	FZ 329	23/09/2026	19:40	19:40	 F10	SINDH (KHI)	International	Scheduled	 Detail
+FZ 5	FZ 5	23/09/2026	19:40	19:40	 F7	BALADIYAT AD DAWHAH (DOH)	International	Scheduled	 Detail
+6E 1456	6E 1456	23/09/2026	19:45	19:45	 D3	MAHARASHTRA (BOM)	International	Scheduled	 Detail
+J9 126	J9 126	23/09/2026	19:45	19:45	 D1	AL FARWANIYAH (KWI)	International	Scheduled	 Detail
+FZ 965	FZ 965	23/09/2026	19:50	19:50	 F12	MOSKOVSKAYA (VKO)	International	Scheduled	 Detail
+FZ 807	FZ 807	23/09/2026	19:55	19:55	 F9	MAKKAH (JED)	International	Scheduled	 Detail
+IX 530	IX 530	23/09/2026	19:55	19:55	 F4	KERALA (TRV)	International	Scheduled	 Detail
+FYC 728	FYC 728	23/09/2026	20:00	20:00	 D16	RIF-DIMASHQ (DAM)	International	Scheduled	 Detail
+PA 111	PA 111	23/09/2026	20:00	20:00		SINDH (KHI)	International	Scheduled	 Detail
+RX 244	RX 244	23/09/2026	20:15	20:15	 D6	AR RIYAD (RUH)	International	Scheduled	 Detail
+FZ 175	FZ 175	23/09/2026	20:20	20:20	 F8	ALEXANDRIA (HBE)	International	Scheduled	 Detail
+9P 513	9P 513	23/09/2026	20:25	20:25	 D11	PUNJAB (LHE)	International	Scheduled	 Detail
+SV 561	SV 561	23/09/2026	20:30	20:30	 D18	AR RIYAD (RUH)	International	Scheduled	 Detail
+XY 208	XY 208	23/09/2026	20:40	20:40	 D12	AR RIYAD (RUH)	International	Scheduled	 Detail
+FZ 435	FZ 435	23/09/2026	20:45	20:45	 F12	TELANGANA (HYD)	International	Scheduled	 Detail
+EK 821	EK 821	23/09/2026	20:50	20:50	 B25	EASTERN PROVINCE (DMM)	International	Scheduled	 Detail
+6E 1472	6E 1472	23/09/2026	20:50	20:55	 D10	TAMIL NADU (MAA)	International	Scheduled	 Detail
+SG 5112	SG 5112	23/09/2026	20:55	20:55	 D8	HARYANA (DEL)	International	Scheduled	 Detail
+EK 314	EK 314	23/09/2026	21:00	21:00	 A5	SINGAPORE (SIN)	International	Scheduled	 Detail
+EK 542	EK 542	23/09/2026	21:00	21:00	 B27	TAMIL NADU (MAA)	International	Scheduled	 Detail
+FZ 1721	FZ 1721	23/09/2026	21:00	21:00	 B4	ALMATY OBLYSY (ALA)	International	Scheduled	 Detail
+GF 511	GF 511	23/09/2026	21:00	21:00	 D17	MUHARRAQ (BAH)	International	Scheduled	 Detail
+SV 551	SV 551	23/09/2026	21:00	21:00	 D21	MAKKAH (JED)	International	Scheduled	 Detail
+XY 212	XY 212	23/09/2026	21:00	21:00	 D5	AR RIYAD (RUH)	International	Scheduled	 Detail
+EK 614	EK 614	23/09/2026	21:05	21:05	 B18	PUNJAB (ISB)	International	Scheduled	 Detail
+FZ 19	FZ 19	23/09/2026	21:10	21:10	 F11	BALADIYAT AD DAWHAH (DOH)	International	Scheduled	 Detail
+FZ 755	FZ 755	23/09/2026	21:10	21:10	 F9	ISTANBUL (IST)	International	Scheduled	 Detail
+EK 344	EK 344	23/09/2026	21:15	21:15	 B26	NEGERI SEMBILAN (KUL)	International	Scheduled	 Detail
+EK 568	EK 568	23/09/2026	21:15	21:15	 A22	KARNATAKA (BLR)	International	Scheduled	 Detail
+FZ 1303	FZ 1303	23/09/2026	21:15	21:15	 B2	AKMOLA (NQZ)	International	Scheduled	 Detail
+FZ 1941	FZ 1941	23/09/2026	21:20	21:20	 C17	TOSHKENT SHAHRI (TAS)	International	Scheduled	 Detail
+EK 522	EK 522	23/09/2026	21:25	21:25	 A17	KERALA (TRV)	International	Scheduled	 Detail
+EK 532	EK 532	23/09/2026	21:25	21:25	 A16	KERALA (COK)	International	Scheduled	 Detail
+EK 512	EK 512	23/09/2026	21:30	21:30	 A12	HARYANA (DEL)	International	Scheduled	 Detail
+SG 5153	SG 5153	23/09/2026	12:00	22:55	 D17	KERALA (CCJ)	International	Scheduled	 Detail
+SG 5117	SG 5117	23/09/2026	15:40	23:45	 D4	KERALA (COK)	International	Scheduled

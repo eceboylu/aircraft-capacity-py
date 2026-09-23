@@ -1,0 +1,99 @@
+# CI - test suite against a real, isolated MySQL 8 service database.
+#
+# Bu proje MySQL-only (bkz. app/db.py - SQLite fallback yok, hiçbir
+# environment'ta): DATABASE_URL set edilmeden `import app.db` bile
+# başarısız olur, bu yüzden test COLLECTION'ı bile gerçek bir
+# DATABASE_URL gerektirir. Bu workflow o değeri, production DB'sinden
+# TAMAMEN ayrı, sadece bu job'ın ömrü boyunca var olan geçici bir
+# MySQL 8 service container'ına işaret edecek şekilde sağlar.
+#
+# NOT: mevcut testlerin (bkz. tests/) BÜYÜK ÇOĞUNLUĞU kendi izole
+# `sqlite:///` engine'lerini kullanır (bkz. tests/date_shift_replay/
+# run_date_shift_replay.py, test_e2e_refresh.py vb.) - gerçek MySQL
+# service'e sadece "collection zamanında app.db import edilebilsin" ve
+# "schema gerçekten kurulabiliyor mu" doğrulaması için ihtiyaç var,
+# testlerin kendi mantığı DEĞİŞTİRİLMEDİ/dokunulmadı.
+#
+# ADIM (CI/MySQL Production Readiness) - schema kurulumu artık
+# `app.db.init_db()` (`create_all()`) DEĞİL, `alembic upgrade head`
+# (bkz. alembic/versions/) - production deploy akışıyla (deploy/systemd/
+# README.md) AYNI, TEK komut. Karışık/belirsiz bir "ikisi de kurar"
+# durumu YOK: CI DB'si BOŞ başlar, SADECE Alembic onu kurar - bu, test
+# ortamının schema'yı GERÇEKTEN Alembic'in ürettiği haliyle (production
+# DB'lerin kurulacağı YOL) doğruladığı anlamına gelir, `create_all()`'ın
+# potansiyel olarak farklı/eksik bırakabileceği bir şema DEĞİL.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: ci_root_pw
+          MYSQL_USER: ci_app
+          MYSQL_PASSWORD: ci_app_pw
+          MYSQL_DATABASE: aircraft_capacity_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h127.0.0.1 -uroot -pci_root_pw"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=15
+
+    env:
+      # Test DB - production'ın DATABASE_URL'inden TAMAMEN ayrı, bu
+      # job'a özel geçici bir service container + geçici bir DB adı.
+      # utf8mb4: connection-level charset parametresi (PyMySQL) - proje
+      # genelinde zaten bu şekilde kullanılıyor (bkz. deploy/systemd/
+      # aircraft-capacity.env.example örneği).
+      DATABASE_URL: mysql+pymysql://ci_app:ci_app_pw@127.0.0.1:3306/aircraft_capacity_test?charset=utf8mb4
+      APP_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Wait for MySQL
+        run: |
+          for i in $(seq 1 30); do
+            mysqladmin ping -h127.0.0.1 -uroot -pci_root_pw --silent && break
+            echo "waiting for mysql... ($i)"
+            sleep 2
+          done
+          mysqladmin ping -h127.0.0.1 -uroot -pci_root_pw
+
+      - name: Ensure utf8mb4 database charset
+        run: |
+          mysql -h127.0.0.1 -uroot -pci_root_pw -e "ALTER DATABASE aircraft_capacity_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+      - name: Verify strict SQL mode
+        run: |
+          mode=$(mysql -h127.0.0.1 -uroot -pci_root_pw -N -e "SELECT @@sql_mode;")
+          echo "sql_mode: $mode"
+          echo "$mode" | grep -q "STRICT_TRANS_TABLES" || (echo "STRICT_TRANS_TABLES missing from sql_mode" && exit 1)
+
+      - name: Verify DATABASE_URL points at MySQL (fail-fast sanity check)
+        run: |
+          python -c "from app.db import engine; assert engine.dialect.name == 'mysql', engine.dialect.name; print('dialect OK:', engine.dialect.name)"
+
+      - name: Migrate schema (alembic upgrade head)
+        run: alembic upgrade head
+
+      - name: Run test suite
+        run: pytest -q

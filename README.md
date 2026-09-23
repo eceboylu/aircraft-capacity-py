@@ -318,93 +318,33 @@ yorum satırı da bırakılmamıştır.
 
 ## Production scheduler (systemd)
 
-Sistem sürekli çalışan bir servis/worker DEĞİLDİR: AirLabs verisi zaten
-~30 dakikada bir yenilendiği için `python -m app.queue.pipeline`
-(bkz. `app/queue/pipeline.py:main()`) periyodik bir **batch** olarak
-çalıştırılır — her çalıştırma ingestion → refresh → prediction → DB
-adımlarını yapıp çıkar. Bunun için ek bir Python scheduler/worker
-(APScheduler, Celery, Redis kuyruğu vb.) **yazılmadı/eklenmedi**;
-Linux production sunucularında bunu `systemd timer` + `systemd
-service` üstleniyor. Unit dosyaları: `deploy/systemd/`.
+Sistem **sürekli çalışan iki bağımsız servis** olarak deploy edilir -
+biri ingestion/prediction worker'ı, diğeri salt-okunur web/API. Worker
+kendi içinde 5 dakikalık bir döngü yönetir (`app/worker.py:
+run_forever()`) ve `flock(2)` tabanlı bir single-instance kilidiyle
+korunur - AYRI bir systemd timer'a GEREK YOK, worker zaten sürekli
+çalışan tek bir process.
+
+**Güncel/CURRENT production unit'leri:**
 
 | Dosya | Amaç |
 |---|---|
-| `deploy/systemd/aircraft-capacity.service` | `python -m app.queue.pipeline`'ı tek seferlik (`Type=oneshot`) çalıştırır |
-| `deploy/systemd/aircraft-capacity.timer` | Servisi saatin :00/:30'unda tetikler (`Persistent=true`) |
-| `deploy/systemd/aircraft-capacity.env.example` | `EnvironmentFile=` için ÖRNEK biçim - gerçek secret İÇERMEZ |
+| `deploy/systemd/airport-queue-worker.service` | `python -m app.worker` - sürekli çalışan, kendi içinde 5 dk'lık refresh döngüsü (ingestion → refresh → prediction), flock single-instance kilidi |
+| `deploy/systemd/airport-queue-web.service` | `python -m app.web.server` - sürekli çalışan, salt-okunur HTTP API + static frontend, hiç ingestion yapmaz |
+| `deploy/systemd/aircraft-capacity.env.example` | `EnvironmentFile=` için ÖRNEK biçim - gerçek secret İÇERMEZ, her iki servis de AYNI dosyayı paylaşır |
 
-### Kurulum
+Tam kurulum/enable/status/log komutları için: **`deploy/systemd/README.md`**
+(bu iki servisin kurulum adımlarının TEK doğru kaynağı - burada
+tekrarlanmıyor, iki yerde birbirinden sapabilecek kopya talimat
+tutulmuyor).
 
-```bash
-# 1) Ayrıcalıksız sistem kullanıcısı + uygulama dizini
-sudo useradd --system --home /opt/aircraft-capacity --shell /usr/sbin/nologin aircraft-capacity
-sudo mkdir -p /opt/aircraft-capacity
-# (repo'yu /opt/aircraft-capacity içine kopyalayın/klonlayın, sonra:)
-cd /opt/aircraft-capacity
-sudo -u aircraft-capacity python -m venv venv
-sudo -u aircraft-capacity venv/bin/pip install -r requirements.txt
-
-# 2) Secret'lar - repo'nun DIŞINDA, kısıtlı izinli bir dosyada
-sudo mkdir -p /etc/aircraft-capacity
-sudo cp deploy/systemd/aircraft-capacity.env.example /etc/aircraft-capacity/aircraft-capacity.env
-sudo chmod 600 /etc/aircraft-capacity/aircraft-capacity.env
-sudo chown aircraft-capacity:aircraft-capacity /etc/aircraft-capacity/aircraft-capacity.env
-# ^ bu dosyayı GERÇEK AIRLABS_API_KEY / DATABASE_URL değerleriyle düzenleyin.
-
-# 3) Unit dosyalarını kur
-sudo cp deploy/systemd/aircraft-capacity.service deploy/systemd/aircraft-capacity.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-```
-
-### Timer'ı etkinleştirme / başlatma
-
-```bash
-sudo systemctl enable --now aircraft-capacity.timer
-```
-
-Bu, `aircraft-capacity.service`'i DOĞRUDAN başlatmaz - sadece timer'ı
-kurar; ilk gerçek çalıştırma bir sonraki :00/:30'da olur (`Persistent=
-true` sayesinde sunucu o an kapalıysa da bir sonraki açılışta telafi
-edilir).
-
-### Durum kontrolü
-
-```bash
-systemctl status aircraft-capacity.timer     # timer aktif mi, bir sonraki tetikleme ne zaman
-systemctl list-timers aircraft-capacity.timer
-systemctl status aircraft-capacity.service   # son çalıştırmanın sonucu (exit code dahil)
-```
-
-Kritik bir hata (bkz. `main()`'in exit-code kararı) `systemctl
---failed` altında görünür; kısmi havalimanı hatası (`failed_airports`)
-servisi "failed" YAPMAZ, sadece WARNING olarak loglanır.
-
-### Logları görüntüleme
-
-```bash
-journalctl -u aircraft-capacity.service -f              # canlı takip
-journalctl -u aircraft-capacity.service --since "2h ago" # geçmiş
-```
-
-`app/logging_config.py`'nin ürettiği rutin INFO logları (run started/
-completed, ingestion/refresh/prediction özetleri, süre) buradan okunur
-- ayrı bir log dosyası/rotasyon yönetimi gerekmez, journald üstlenir.
-
-### Manuel (tek seferlik) çalıştırma
-
-```bash
-sudo systemctl start aircraft-capacity.service
-# veya, geliştirme/hata ayıklama için doğrudan:
-sudo -u aircraft-capacity /opt/aircraft-capacity/venv/bin/python -m app.queue.pipeline
-```
-
-### Overlap koruması
-
-Ayrı bir kilit dosyası/PID kontrolü **yok** - systemd, aynı unit adı
-(`aircraft-capacity.service`) zaten çalışırken timer'dan gelen ikinci
-bir tetiklemeyi ikinci bir instance olarak BAŞLATMAZ. Bir run 30
-dakikadan uzun sürerse bir sonraki tetikleme bu garanti sayesinde
-çakışmaz.
+> **LEGACY - kurmayın:** `deploy/systemd/aircraft-capacity.service` ve
+> `deploy/systemd/aircraft-capacity.timer` bu projenin ESKİ (worker.py
+> öncesi, kilitsiz, 30 dakikalık batch-timer) deployment paternidir.
+> Artık kullanılmıyor ve `airport-queue-worker.service` ile AYNI
+> server'da ASLA enable edilmemeli (ikisi de aynı MySQL DB'ye bağımsız
+> yazar, birbirinden habersiz - double-refresh riski). Detay ve gerekçe:
+> dosyaların kendi başlık yorumları + `deploy/systemd/README.md`.
 
 ---
 

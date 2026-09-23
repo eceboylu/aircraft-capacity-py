@@ -153,9 +153,39 @@ def _migrate_sqlite_table(table: str, columns: dict[str, str], target_engine=Non
             )
 
 
+def _destructive_reset_allowed() -> bool:
+    return os.environ.get("ALLOW_DESTRUCTIVE_DB_RESET", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
+
 def init_db(drop_first: bool = False) -> None:
-    """Veritabanı tablları ."""
+    """
+    Veritabanı tablları.
+
+    ADIM (CI/MySQL Production Readiness - Database Safety Guard) -
+    `drop_first=True` (`Base.metadata.drop_all()` - TÜM tabloları siler)
+    HİÇBİR test/script/CI adımı tarafından bugün ÇAĞRILMIYOR (audit ile
+    doğrulandı - tek çağıran `app/seed.py:run(reset=True)`, o da hiçbir
+    yerden `reset=True` ile invoke edilmiyor) - ama bu fonksiyon TEK
+    ortak nokta olduğu için (gelecekte biri buraya `drop_first=True`
+    bağlarsa) proje genelinde ZATEN kullanılan AYNI desenle
+    (`RETENTION_ENABLED`, `RETENTION_DRY_RUN` - açık env-var opt-in,
+    DB adına göre kırılgan bir tahmin YOK) korunuyor: `ALLOW_DESTRUCTIVE_
+    DB_RESET=true` AÇIKÇA set edilmeden `drop_first=True` DB'ye HİÇ
+    dokunmadan `RuntimeError` fırlatır. `drop_first=False` (varsayılan,
+    HER production `pipeline.run()`/retention cycle'ının kullandığı
+    yol) bu kontrolden HİÇ etkilenmez.
+    """
     if drop_first:
+        if not _destructive_reset_allowed():
+            raise RuntimeError(
+                "init_db(drop_first=True) refused: this drops every table "
+                "in the database configured by DATABASE_URL. Set "
+                "ALLOW_DESTRUCTIVE_DB_RESET=true explicitly to allow this "
+                "(only ever appropriate for a disposable/local/test "
+                "database - never production)."
+            )
         Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     _migrate_sqlite_table("airport_operational_configs", _SQLITE_OPERATIONAL_CONFIG_COLUMNS)
