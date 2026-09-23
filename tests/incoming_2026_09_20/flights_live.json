@@ -1,9 +1,0 @@
-{
-  "request": {
-    "host": "airlabs.co",
-    "method": "flights",
-    "has_more": false
-  },
-  "response": [],
-  "terms": "https://airlabs.co/docs/terms (test fixture)"
-}
