@@ -316,6 +316,29 @@ yorum satırı da bırakılmamıştır.
 
 ---
 
+## Production data source (AirLabs)
+
+Production'ın **tek** canlı veri kaynağı AirLabs API'sidir
+(`app/queue/ingestion/airlabs_client.py`) - `app/worker.py:main()`
+her başlangıçta bunu inşa edip `pipeline.run(source_a=..., source_b=...)`'a
+geçirir. Zorunlu ortam değişkenleri (`deploy/systemd/aircraft-capacity.env.example`):
+
+| Değişken | Açıklama |
+|---|---|
+| `AIRLABS_API_KEY` | Zorunlu secret - tanımsızsa worker hiçbir HTTP isteği yapmadan fail-fast başlamaz. |
+| `AIRLABS_TRACKED_AIRPORTS` | Zorunlu - virgülle ayrılmış IATA kodları (ör. `IST,SAW`). Hardcoded bir havalimanı listesi YOKTUR; geçersiz bir kod veya boş liste worker'ı fail-fast durdurur. |
+
+Her ikisi de eksik/geçersizse worker **başlatılmaz** - generated/static
+JSON'a sessizce geri düşme yoktur (o dosyalar SADECE test/dev amaçlıdır,
+aşağıya bkz.). Bu, `WorkerLockError` ile AYNI "sessizce korumasız/yanlış
+kaynakla devam etme" ilkesini izler.
+
+**Test/dev amaçlı, production'da KULLANILMAYAN kaynaklar** (korunur,
+silinmez):
+- `data/generated_delays_*.json` (`QUEUE_LOCAL_SOURCE_MODE=generated` ile local/dev görüntüleme)
+- `data/Delays - Type *.json` / `response-delays.json` (pipeline.py'nin kendi, provider-bağımsız varsayılanı - testler ve doğrudan CLI çağrıları için)
+- `tests/fixtures/airlabs_*` (mock AirLabs response'ları, gerçek ağa hiç çıkmadan `airlabs_client` kodunun TAMAMINI - istek kurma, sayfalama, retry/backoff - egzersiz eder)
+
 ## Production scheduler (systemd)
 
 Sistem **sürekli çalışan iki bağımsız servis** olarak deploy edilir -

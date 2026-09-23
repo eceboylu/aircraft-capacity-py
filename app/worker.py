@@ -35,6 +35,8 @@ from .db import get_session
 from .health import record_successful_refresh
 from .queue import pipeline, retention
 from .queue.engine import domain_now
+from .queue.ingestion import airlabs_client
+from .queue.ingestion.airlabs_client import TrackedAirportsConfigError, tracked_airports_from_env
 
 # ADIM (Worker Single-Instance Lock) - `fcntl` POSIX-only (Linux/systemd
 # production hedefi - bkz. deploy/systemd/). Windows gibi fcntl'siz bir
@@ -259,11 +261,77 @@ def run_forever(
     return completed
 
 
+class AirLabsConfigError(RuntimeError):
+    """
+    ADIM (AirLabs Production Wiring) - `main()`'in AirLabs config'ini
+    (API key + tracked airports) doğrularken kullandığı TEK, ortak hata
+    tipi - hem `AIRLABS_API_KEY` eksikliğini (`airlabs_client._api_key()`
+    zaten aynı anlamda bir RuntimeError fırlatır) hem `AIRLABS_
+    TRACKED_AIRPORTS` hatalarını (`TrackedAirportsConfigError`) TEK bir
+    except bloğunda, TEK bir "kalıcı config hatası, retry YOK" anlamıyla
+    yakalayabilmek için. Bu sınıfın kendisi HİÇBİR secret İÇERMEZ.
+    """
+
+
+def _build_live_run_fn():
+    """
+    ADIM (AirLabs Production Wiring) - production'ın TEK canlı veri
+    kaynağı: `AIRLABS_API_KEY` + `AIRLABS_TRACKED_AIRPORTS`'tan inşa
+    edilen gerçek AirLabs `source_a`/`source_b` sağlayıcıları,
+    `pipeline.run()`'ın ZATEN var olan `source_a=`/`source_b=`
+    enjeksiyon noktasına AÇIKÇA geçirilir - `pipeline.py`'nin KENDİ
+    varsayılanı (`file_source_a`/`file_source_b`, generated/static JSON)
+    DEĞİŞMEDEN kalır; provider SEÇİMİ burada, sadece production
+    entrypoint'inde yapılır.
+
+    Config eksik/geçersizse (API key yok VEYA tracked airports boş/
+    hatalı) HİÇBİR HTTP isteği YAPILMADAN, `main()`'e (çağıran taraf)
+    açık bir `AirLabsConfigError` fırlatılır - kalıcı bir konfigürasyon
+    hatasıdır, generated/static JSON'a SESSİZCE geri düşülmez ve retry
+    döngüsüne GİRİLMEZ (bkz. `main()`'in bu fonksiyonu SADECE bir kez,
+    döngü başlamadan ÖNCE çağırması).
+    """
+    if not os.environ.get("AIRLABS_API_KEY"):
+        raise AirLabsConfigError(
+            "AIRLABS_API_KEY tanımlı değil - production worker AirLabs "
+            "olmadan başlatılamaz (generated/static JSON fallback YOK)."
+        )
+    try:
+        airports = tracked_airports_from_env()
+    except TrackedAirportsConfigError as exc:
+        raise AirLabsConfigError(str(exc)) from exc
+
+    logger.info(
+        "AirLabs production source configured: tracked_airports=%s",
+        airports,
+    )
+    source_a = airlabs_client.build_source_a(airports)
+    source_b = airlabs_client.build_source_b()
+    return lambda: pipeline.run(
+        now=domain_now(), apply_usage_horizon=True,
+        source_a=source_a, source_b=source_b,
+    )
+
+
 def main() -> int:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+
+    # ADIM (AirLabs Production Wiring) - lock'tan ÖNCE doğrulanır: config
+    # hatalıysa worker kilidi bile almadan, hiçbir HTTP isteği yapmadan
+    # başlamadan durur (fail-fast) - "sessizce korumasız/yanlış kaynakla
+    # devam etme" ilkesi worker lock'unkiyle AYNI (bkz. WorkerLockError).
+    try:
+        production_run_fn = _build_live_run_fn()
+    except AirLabsConfigError:
+        logger.exception(
+            "AirLabs production config geçersiz - worker BAŞLATILMIYOR "
+            "(fail-fast, generated/static JSON'a fallback YOK, hiçbir "
+            "HTTP isteği yapılmadı)"
+        )
+        return 1
 
     # ADIM (Worker Single-Instance Lock) - SADECE `main()` (gerçek process
     # giriş noktası) kilit alır - `run_forever()`'ın kendisi DEĞİŞMEDİ,
@@ -285,7 +353,7 @@ def main() -> int:
 
     logger.info("worker lock acquired (%s)", WORKER_LOCK_PATH)
     try:
-        run_forever()
+        run_forever(run_fn=production_run_fn)
     finally:
         lock_file.close()
     return 0

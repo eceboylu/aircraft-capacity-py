@@ -86,6 +86,30 @@ def get_last_successful_refresh(session) -> datetime | None:
     return row.last_successful_refresh_at if row else None
 
 
+def _source_mode() -> tuple[str, bool]:
+    """
+    ADIM (AirLabs Production Wiring - Health) - `/health`'in Bölüm G
+    gereksinimi: hangi ingestion kaynağının aktif OLDUĞU gizlenmemeli.
+    Salt-okunur: SADECE env değişkenlerini okur, hiçbir HTTP isteği
+    yapmaz, `app/worker.py`'nin gerçek production config-doğrulamasını
+    (`_build_live_run_fn()`) TEKRARLAMAZ/ÇAĞIRMAZ - burası sadece
+    "AirLabs'ın konfigüre EDİLDİĞİ görünüyor mu" sorusuna dürüstçe
+    cevap verir; worker'ın kendisi ayrıca kendi fail-fast kontrolünü
+    (startup'ta, burada DEĞİL) uygular.
+    """
+    if os.environ.get("AIRLABS_API_KEY"):
+        try:
+            from .queue.ingestion.airlabs_client import tracked_airports_from_env
+            tracked_airports_from_env()
+        except Exception:
+            return "airlabs", False
+        return "airlabs", True
+
+    if os.environ.get("QUEUE_LOCAL_SOURCE_MODE", "").strip().lower() == "generated":
+        return "generated_local_fixture", False
+    return "bundled_sample_file", False
+
+
 def _newest_prediction_at(session) -> datetime | None:
     """
     ADIM (Health Semantics Audit) - `QueuePrediction.calculated_at`'in
@@ -130,24 +154,26 @@ def build_health_report(session) -> dict:
       - Aksi halde (İKİSİ de taze) -> "healthy".
 
     `source_mode`/`source_live_ingestion_configured` SADECE bilgilendirici
-    alanlardır, `status` kararını ETKİLEMEZ - bu projede `source_a`/
-    `source_b` HER ZAMAN dosya-tabanlıdır (bkz. pipeline.py
-    `file_source_a`/`file_source_b`); `app/queue/ingestion/airlabs_client.py`
-    var ama hiçbir yerden import EDİLMİYOR (grep ile doğrulandı) - yani
-    "source çok uzun süredir yeni veri getirmedi" diye bir canlı-feed
-    kesinti sinyali ÜRETİLEMEZ/ÜRETİLMEMELİDİR (yoksayılan bir feed'i
-    "stale" saymak yanlış alarm üretir). Bunun yerine hangi modda
+    alanlardır, `status` kararını ETKİLEMEZ. ADIM (AirLabs Production
+    Wiring)'den SONRA: `app/worker.py:main()` production'da AirLabs'ı
+    `pipeline.run(source_a=..., source_b=...)`'a AÇIKÇA geçirir (bkz.
+    `_build_live_run_fn()`) - ama BU fonksiyon (`_source_mode()`) worker
+    ile AYNI config-doğrulama mantığını burada TEKRARLAMAZ/ÇAĞIRMAZ,
+    sadece env değişkenlerine bakıp "AirLabs konfigüre EDİLMİŞ Mİ
+    GÖRÜNÜYOR" sorusuna dürüstçe cevap verir - worker'ın KENDİ fail-fast
+    kontrolü (startup'ta) bu raporlamadan TAMAMEN BAĞIMSIZDIR. "Source çok
+    uzun süredir yeni veri getirmedi" diye bir canlı-feed kesinti sinyali
+    hâlâ ÜRETİLMEZ (yoksayılan bir feed'i "stale" saymak yanlış alarm
+    üretir) - bu SADECE "configured mı" sorusuna cevap verir, "sağlıklı
+    mı çalışıyor" sorusuna DEĞİL (o zaten worker heartbeat/prediction
+    freshness sinyalleriyle KAPSANIYOR). Bunun yerine hangi modda
     çalıştığı AÇIKÇA/dürüstçe raporlanır (Bölüm G: "gizlenmemeli").
     """
     last = get_last_successful_refresh(session)
     newest_prediction = _newest_prediction_at(session)
     now = datetime.now(timezone.utc)
 
-    source_mode = (
-        "generated_local_fixture"
-        if os.environ.get("QUEUE_LOCAL_SOURCE_MODE", "").strip().lower() == "generated"
-        else "bundled_sample_file"
-    )
+    source_mode, source_live_ingestion_configured = _source_mode()
 
     def _as_aware(value: datetime | None) -> datetime | None:
         if value is None:
@@ -175,5 +201,5 @@ def build_health_report(session) -> dict:
         "prediction_age_seconds": round(prediction_age_seconds, 1) if prediction_age_seconds is not None else None,
         "prediction_stale": prediction_stale,
         "source_mode": source_mode,
-        "source_live_ingestion_configured": False,
+        "source_live_ingestion_configured": source_live_ingestion_configured,
     }

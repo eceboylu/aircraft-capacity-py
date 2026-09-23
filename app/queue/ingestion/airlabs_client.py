@@ -1,10 +1,15 @@
 """
 AirLabs gerçek API client (`schedules` + `flights` endpoint'leri).
 
-Bu modül SADECE `app/queue/pipeline.py` içinden, `run(source_a=...,
-source_b=...)` ile AÇIKÇA geçirilirse devreye girer. Hiçbir varsayılan
-davranış otomatik olarak gerçek API'ye bağlanmaz - `file_source_a()`/
-`file_source_b()` (pipeline.py) hâlâ `run()`'ın varsayılanıdır.
+Bu modül import edilirken HİÇBİR ağ isteği yapmaz - SADECE gerçekten
+çağrıldığında devreye girer. `app/worker.py:main()`, production'da
+`build_source_a()`/`build_source_b()` ile bu modülü `pipeline.run(
+source_a=..., source_b=...)`'a AÇIKÇA geçirir (ADIM AirLabs Production
+Wiring) - `pipeline.py`'nin KENDİ `file_source_a()`/`file_source_b()`
+varsayılanı DEĞİŞMEDİ, hâlâ SADECE parametre verilmediğinde (testler,
+`python -m app.queue.pipeline` doğrudan CLI çağrısı) devreye girer;
+`pipeline.py` provider'dan bağımsız kalır, provider SEÇİMİ worker
+katmanının sorumluluğudur.
 
 API key GÜVENLİĞİ:
   - `AIRLABS_API_KEY` ortam değişkeninden okunur, koda hiçbir yerde
@@ -31,6 +36,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -108,6 +114,74 @@ def _api_key() -> str:
             "AirLabs client kullanılamaz."
         )
     return key
+
+
+class TrackedAirportsConfigError(RuntimeError):
+    """
+    ADIM (AirLabs Production Wiring) - `AIRLABS_TRACKED_AIRPORTS`
+    eksik/boş/geçersiz - production worker'ın hangi havalimanlarını
+    çekeceğini bilmediği, kalıcı bir konfigürasyon hatasıdır. `_api_key()`
+    içindeki `RuntimeError` ile AYNI aile/ciddiyette - retry EDİLMEZ,
+    worker startup'ta fail-fast olmalı (bkz. `app/worker.py:main()`).
+    """
+
+
+_IATA_CODE_RE = re.compile(r"^[A-Z]{3}$")
+
+
+def tracked_airports_from_env(env_var: str = "AIRLABS_TRACKED_AIRPORTS") -> list[str]:
+    """
+    ADIM (AirLabs Production Wiring) - Production'da hangi havalimanlarının
+    çekileceğini `AIRLABS_TRACKED_AIRPORTS` ortam değişkeninden okur.
+    Hardcoded bir havalimanı listesi (ör. sabit IST/SAW) İCAT EDİLMEZ -
+    bu tamamen operasyonel bir karardır, koda gömülmez.
+
+    Biçim: virgülle ayrılmış IATA kodları - her biri boşluklardan
+    arındırılır, büyük harfe çevrilir, tekrarlar KORUNAN İLK GÖRÜLME
+    sırasına göre elenir (deterministic - aynı env var her zaman AYNI
+    sırayı üretir, bir `set()`'in rastgele sırasına GÜVENİLMEZ).
+
+    Geçerli bir IATA kodu tam olarak 3 alfabetik karakterdir (ör. "IST").
+    Listede TEK bir geçersiz kod bile varsa (ör. "ISTANBUL", "12A", "AB",
+    boş bir eleman) TÜM konfigürasyon reddedilir - "geçersiz olanı
+    sessizce atla, geçerlileri kullan" YAPILMAZ; bir operatörün yazım
+    hatasını sessizce yutup YANLIŞ bir havalimanı setiyle production'ı
+    çalıştırmak, açık bir başlangıç hatasından çok daha kötü bir
+    sonuçtur.
+
+    Sonuç boşsa (env var hiç set edilmemiş, sadece boşluk, veya "") de
+    `TrackedAirportsConfigError` fırlatılır - production'da izlenecek
+    HİÇBİR havalimanı olmadan worker'ın "başarıyla" hiçbir şey
+    yapmadan dönmesi YANLIŞ ALARM/sessiz veri kaybı riski taşır.
+    """
+    raw = os.environ.get(env_var, "")
+    seen: dict[str, None] = {}
+    invalid: list[str] = []
+
+    for piece in raw.split(","):
+        code = piece.strip().upper()
+        if not code:
+            continue
+        if not _IATA_CODE_RE.match(code):
+            invalid.append(piece.strip() or "<empty>")
+            continue
+        seen.setdefault(code, None)
+
+    if invalid:
+        raise TrackedAirportsConfigError(
+            f"{env_var} içinde geçersiz IATA kodu/kodları var: "
+            f"{invalid!r} - her kod tam olarak 3 alfabetik karakter "
+            "olmalı (ör. 'IST'). Konfigürasyon TAMAMEN reddedildi, "
+            "kısmi/geçerli-olanları-kullan davranışı YOK."
+        )
+
+    airports = list(seen.keys())
+    if not airports:
+        raise TrackedAirportsConfigError(
+            f"{env_var} boş veya tanımlı değil - production'da izlenecek "
+            "en az bir havalimanı (IATA kodu) AÇIKÇA belirtilmelidir."
+        )
+    return airports
 
 
 def _retry_wait(exc: urllib.error.HTTPError, attempt: int) -> float:
@@ -191,12 +265,28 @@ def _request_page(endpoint: str, params: dict) -> tuple[list[dict], bool]:
 
         try:
             payload = json.loads(raw)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
             logger.error(
                 "AirLabs geçersiz JSON döndürdü (endpoint=%s) - retry edilmiyor",
                 endpoint,
             )
-            raise
+            # ADIM (Malformed JSON Airport Isolation Fix) - ÖNCEDEN ham
+            # `json.JSONDecodeError` TEKRAR fırlatılıyordu (bare `raise`);
+            # bu, `build_source_a()`'nın per-airport `except AirLabsError:`
+            # izolasyonu (aşağıda) tarafından YAKALANAMIYORDU - hata per-
+            # airport loop'un TAMAMEN DIŞINA taşıp `pipeline.py:load_
+            # flight_rows()`'un per-YÖN `except (OSError, ValueError)`
+            # bloğuna kadar yükseliyordu; sonuç: bir havalimanının
+            # malformed JSON'ı AYNI YÖNDEKİ (departure/arrival) DİĞER
+            # TÜM havalimanlarının verisini de o turda kaybettiriyordu -
+            # `build_source_a()`'nın kendi docstring'inin iddia ettiği
+            # "sadece o havalimanı atlanır" garantisi BOZULUYORDU. Retry/
+            # auth semantiği DEĞİŞMEDİ - hâlâ retry EDİLMİYOR (sadece
+            # `raise` yerine `raise AirLabsError(...) from exc`), 401/403
+            # kod yoluna HİÇ dokunulmadı.
+            raise AirLabsError(
+                f"AirLabs geçersiz JSON döndürdü: {endpoint}"
+            ) from exc
 
         if not isinstance(payload, dict):
             return [], False

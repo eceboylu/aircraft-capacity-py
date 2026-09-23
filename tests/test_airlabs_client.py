@@ -291,6 +291,13 @@ def test_connection_error_retries_then_raises(monkeypatch):
 
 
 def test_malformed_json_raises_without_retry(monkeypatch):
+    """
+    ADIM (Malformed JSON Airport Isolation Fix) - ham `json.JSONDecodeError`
+    artık `AirLabsError`'a SARILIYOR (böylece `build_source_a()`'nın
+    per-airport `except AirLabsError:` izolasyonu bunu yakalayabiliyor -
+    bkz. tests/test_airlabs_live_smoke.py). Retry semantiği DEĞİŞMEDİ -
+    hâlâ TEK istek, retry YOK (calls["n"] == 1 ile doğrulanır).
+    """
     calls = {"n": 0}
 
     class _BadResponse(_FakeResponse):
@@ -303,8 +310,11 @@ def test_malformed_json_raises_without_retry(monkeypatch):
 
     monkeypatch.setattr(client.urllib.request, "urlopen", fake_urlopen)
 
-    with pytest.raises(json.JSONDecodeError):
+    with pytest.raises(client.AirLabsError) as excinfo:
         client.fetch_schedules("departure", "IST")
+
+    assert isinstance(excinfo.value.__cause__, json.JSONDecodeError), "orijinal JSONDecodeError __cause__ olarak korunmalı"
+    assert calls["n"] == 1, "malformed JSON RETRY edilmemeli"
 
     assert calls["n"] == 1
 
