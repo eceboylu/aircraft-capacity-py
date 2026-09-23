@@ -69,9 +69,24 @@ def make_row(flight_key, airport="AAA", aircraft="A320", **overrides):
 # --------------------------------------------------------------------
 
 def test_refresh_flights_bad_row_is_skipped_good_rows_survive(session, caplog):
+    """
+    ADIM (MySQL Performance Regression Fix - Phase 1) - bozuk satır
+    enjeksiyon mekanizması güncellendi: ESKİ `refresh_flights()`
+    `Flight(**payload)` kullandığı için beklenmeyen bir dict anahtarı
+    (`this_column_does_not_exist`) bir Python `TypeError` üretiyordu.
+    YENİ implementasyon SADECE bilinen alanlara `setattr()` yapar
+    (bkz. `_MUTABLE_FLIGHT_FIELDS`) - fazladan/bilinmeyen bir anahtar
+    artık SESSİZCE YOK SAYILIR (hata ÜRETMEZ, çünkü ZATEN hiç
+    okunmuyor). Bu, TEST İÇİN daha az "bozuk" bir enjeksiyon aracı
+    olduğu anlamına gelir - GERÇEK bir hata senaryosu (DB seviyesinde
+    GERÇEKTEN reddedilecek bir değer - burada geçersiz bir DateTime
+    tipi, SQLite/MySQL ikisinde de `flush()` sırasında GERÇEKTEN hata
+    üretir) ile DEĞİŞTİRİLDİ - test edilen KONTRAT (bozuk satır izole
+    edilir, iyi satırlar hayatta kalır) DEĞİŞMEDİ.
+    """
     good1 = make_row("TK_1_2026-09-15")
     bad = make_row("TK_BAD_2026-09-15")
-    bad["this_column_does_not_exist"] = "boom"   # Flight(**payload) TypeError fırlatır
+    bad["dep_scheduled_utc"] = object()  # flush() sırasında StatementError/TypeError - GERÇEK bir DB-seviyesi hata
     good2 = make_row("TK_2_2026-09-15")
 
     with caplog.at_level(logging.ERROR, logger="app.queue.ingestion.refresh"):
@@ -95,7 +110,7 @@ def test_refresh_flights_bad_row_is_skipped_good_rows_survive(session, caplog):
 def test_refresh_flights_bad_row_does_not_break_session_for_later_calls(session):
     good1 = make_row("TK_3_2026-09-15")
     bad = make_row("TK_BAD2_2026-09-15")
-    bad["another_bad_field"] = object()
+    bad["arr_scheduled_utc"] = object()  # bkz. yukarıdaki test - gerçek DB-seviyesi hata
 
     refresh_flights(session, [good1, bad])
 
@@ -115,7 +130,7 @@ def test_refresh_flights_bad_row_rolls_back_its_own_pending_event(session):
     refresh_flights(session, [make_row("TK_5_2026-09-15", aircraft="A320")])
 
     updated_bad = make_row("TK_5_2026-09-15", aircraft="A321")  # aircraft change tetikler
-    updated_bad["broken_field"] = "x"                            # ama merge patlayacak
+    updated_bad["dep_scheduled_utc"] = object()                   # ama flush() patlayacak (gerçek DB-seviyesi hata)
 
     summary = refresh_flights(session, [updated_bad])
 

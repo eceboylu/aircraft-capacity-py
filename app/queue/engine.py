@@ -30,7 +30,7 @@ import logging
 
 from sqlalchemy import select
 
-from .baseline import get_baseline, get_passenger_baseline, record_observation
+from .baseline import record_observation
 from .config import AirportConfigView, get_configs
 from .constants import (
     DEMAND_WINDOW_MINUTES,
@@ -91,7 +91,7 @@ from .domain.flows import (
     security_flights,
     security_international_flights,
 )
-from .models import Airport, Flight, QueuePrediction
+from .models import Airport, Flight, HistoricalFlightCount, QueuePrediction
 from .reasons.detector import DetectedReason, detect_reasons
 
 logger = logging.getLogger(__name__)
@@ -1431,29 +1431,59 @@ def _airport_timezones(session, airport_codes) -> dict[str, str | None]:
     return dict(rows)
 
 
-def _db_baseline_fn(session, airport_iata: str):
-    """Uçuş baseline okumasını (süreç, pencere) çiftine bağlar."""
+def _load_historical_flight_count_cache(
+    session, airport_iata: str
+) -> dict[tuple[str, int, int], HistoricalFlightCount]:
+    """
+    ADIM (MySQL Performance Regression Fix - Phase 1) - Bölüm 11-14:
+    bu havalimanı için `HistoricalFlightCount`'un TÜM satırlarını TEK
+    bir bulk SELECT ile yükler - `_bucket()`'ın (baseline.py) kullandığı
+    AYNI dört boyutla (`airport_iata`, `process`, `hour_of_day`,
+    `day_of_week`) anahtarlanan bir sözlük döner; `airport_iata` bu
+    fonksiyonun kendi filtresi olduğu için sözlük anahtarı SADECE
+    (process, hour_of_day, day_of_week) - havalimanı zaten SABİT
+    (çapraz-havalimanı SIZINTI YAPISAL OLARAK imkansız, bkz. `WHERE
+    airport_iata == airport_iata`).
+
+    Bölüm 14 (yazma sırası/point-in-time semantiği) - GÜVENLİ: bu
+    cache `predict_airport()` çağrılmadan HEMEN ÖNCE, bu havalimanı
+    için BİR KEZ yüklenir; `record_baseline_observations()` (bu
+    döngünün YAZDIĞI tek yer) TÜM havalimanlarının tahminleri
+    üretildikten SONRA, `run_predictions()`'ın en sonunda çağrılır -
+    yani bu cache'in ömrü boyunca `HistoricalFlightCount`'a HİÇ yazma
+    OLMAZ; eski satır-başına-SELECT yaklaşımı da AYNI garantiyi (bu
+    turun KENDİ yazmalarını asla erken GÖRMEZ) doğal olarak sağlıyordu -
+    cache bu semantiği DEĞİŞTİRMEZ, sadece AYNI sonucu tek sorguyla üretir.
+    """
+    rows = session.execute(
+        select(HistoricalFlightCount).where(HistoricalFlightCount.airport_iata == airport_iata)
+    ).scalars().all()
+    return {(r.process, r.hour_of_day, r.day_of_week): r for r in rows}
+
+
+def _db_baseline_fn(session, airport_iata: str, cache: dict | None = None):
+    """Uçuş baseline okumasını (süreç, pencere) çiftine bağlar - `cache` verilmezse bu airport için BİR KEZ yüklenir (bkz. `_load_historical_flight_count_cache`)."""
+    if cache is None:
+        cache = _load_historical_flight_count_cache(session, airport_iata)
+
     def lookup(process: str, window_start: datetime) -> float | None:
-        return get_baseline(
-            session,
-            airport_iata=airport_iata,
-            process=process,
-            hour_of_day=window_start.hour,
-            day_of_week=window_start.weekday(),
-        )
+        row = cache.get((process, window_start.hour, window_start.weekday()))
+        if row is None or row.sample_size <= 0:
+            return None
+        return row.average_flight_count
     return lookup
 
 
-def _db_passenger_baseline_fn(session, airport_iata: str):
-    """MADDE 7 - yolcu baseline okumasını (süreç, pencere) çiftine bağlar."""
+def _db_passenger_baseline_fn(session, airport_iata: str, cache: dict | None = None):
+    """MADDE 7 - yolcu baseline okumasını (süreç, pencere) çiftine bağlar - AYNI `cache`'i `_db_baseline_fn` ile PAYLAŞABİLİR (iki AYRI bulk SELECT gerekmez, ikisi de AYNI HistoricalFlightCount satırlarını okur)."""
+    if cache is None:
+        cache = _load_historical_flight_count_cache(session, airport_iata)
+
     def lookup(process: str, window_start: datetime) -> float | None:
-        return get_passenger_baseline(
-            session,
-            airport_iata=airport_iata,
-            process=process,
-            hour_of_day=window_start.hour,
-            day_of_week=window_start.weekday(),
-        )
+        row = cache.get((process, window_start.hour, window_start.weekday()))
+        if row is None or row.passenger_sample_size <= 0:
+            return None
+        return row.average_expected_passengers
     return lookup
 
 
@@ -1727,13 +1757,18 @@ def run_predictions(
                 per_airport[code] = 0
                 continue
 
+            # ADIM (MySQL Performance Regression Fix - Phase 1) - Bölüm 11/12:
+            # bu havalimanının HistoricalFlightCount satırları BİR KEZ
+            # yüklenir, `baseline_fn`/`passenger_baseline_fn` İKİSİ DE AYNI
+            # cache'i paylaşır (iki ayrı bulk SELECT yerine tek sorgu).
+            historical_cache = _load_historical_flight_count_cache(session, code)
             predictions = predict_airport(
                 airport_iata=code,
                 flights=flights,
                 config=configs[code],
                 demand=DemandCalculator(resolver),
-                baseline_fn=_db_baseline_fn(session, code),
-                passenger_baseline_fn=_db_passenger_baseline_fn(session, code),
+                baseline_fn=_db_baseline_fn(session, code, cache=historical_cache),
+                passenger_baseline_fn=_db_passenger_baseline_fn(session, code, cache=historical_cache),
                 aircraft_changes=aircraft_changes_for_airport(session, code),
                 window_minutes=window_minutes,
                 now=resolved_now,
