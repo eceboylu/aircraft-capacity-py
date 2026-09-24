@@ -42,7 +42,6 @@ from .constants import (
     RISK_UNKNOWN,
 )
 from .domain.operational_day import (
-    operational_date as resolve_operational_date,
     operational_day_window,
     resolve_airport_timezone,
 )
@@ -404,6 +403,230 @@ def _synthetic_zero_demand_window(window_start: datetime, window_end: datetime, 
     }
 
 
+def _pick_highest_severity_entry(entries: list[dict]) -> dict:
+    """
+    ADIM (Shared Worst-Of Reducer) - Bölüm 6D-2 H2'nin "en kötü kazanır"
+    kuralının TEK, paylaşılan uygulaması: birden fazla pencere-sözlüğü
+    arasından önce en yüksek severity'yi (`RISK_ORDER`), sonra (aynı
+    severity'yi taşıyan birden fazla giriş varsa) gerçek/finite
+    `estimated_wait_minutes`'ı EN YÜKSEK olanı seçer; hiçbirinde finite
+    wait yoksa (hepsi wait-modelsiz, ör. security) severity'yi taşıyan
+    İLK girişi döner.
+
+    `_merge_overall_series` (SÜREÇLER ARASI birleştirme - ör. aynı saatte
+    domestic_security/international_security/passport) İLE
+    `_merge_duplicate_local_hour` (AYNI sürecin DST fall-back'te
+    tekrarlanan yerel saatindeki İKİ GERÇEK/sentetik pencereyi
+    birleştirme, Bölüm 4) TEK bu reducer'ı kullanır - iki YERDE ayrı,
+    tutarsız bir risk/wait kuralı İCAT EDİLMEZ.
+    """
+    top_severity = max(RISK_ORDER.get(e["risk"], -1) for e in entries)
+    top_entries = [e for e in entries if RISK_ORDER.get(e["risk"], -1) == top_severity]
+    with_wait = [e for e in top_entries if e["estimated_wait_minutes"] is not None]
+    return max(with_wait, key=lambda e: e["estimated_wait_minutes"]) if with_wait else top_entries[0]
+
+
+def _merge_duplicate_local_hour(first: dict, second: dict) -> dict:
+    """
+    ADIM (DST Fall-Back Exact24) - Bölüm 4: sonbahar geri-alma gününde
+    AYNI yerel duvar-saati (ör. Europe/Amsterdam'da "02:00-03:00") İKİ
+    farklı GERÇEK UTC saatinde gerçekleşir. `first` bunların KRONOLOJİK
+    olarak ÖNCE geleni, `second` SONRA geleni - ikisi de zaten
+    `_window_to_dict()`/`_synthetic_zero_demand_window()` çıktısı bir
+    sözlüktür (gerçek `QueuePrediction` satırı VEYA o saatte hiç uçuş
+    yoksa sıfır-talep sentetik pencere). HİÇBİRİ SİLİNMEZ/ATLANMAZ -
+    "hiçbir gerçek QueuePrediction silently drop edilmemeli" (Bölüm 4).
+
+    `flight_count`/`expected_passengers` TOPLANIR (additive) - bu iki
+    GERÇEK saat GERÇEKTEN farklı yolcuları/uçuşları temsil eder, bu
+    yüzden passenger conservation İÇİN toplamaları GEREKİR (Bölüm 5 -
+    "PASSENGER CONSERVATION"). Risk/wait/utilization/confidence/reasons/
+    ratio alanları YENİ bir formülle YENİDEN hesaplanmaz - mevcut
+    `_pick_highest_severity_entry()` (Bölüm 6D-2 H2 ile PAYLAŞILAN AYNI
+    "en kötü kazanır" kuralı) ile ikisinden "en kötü"sü seçilip AYNEN
+    taşınır; uydurma bir ortalama/yeni oran ÜRETİLMEZ - "mevcut backend
+    semantics'i kullan... yeni rastgele/worst-of kural uydurma" (Bölüm 4).
+
+    `window_start`/`window_end` (canonical UTC) bu görünür bucket'ın
+    GERÇEKTE kapladığı TAM 2 saatlik UTC aralığını taşır (`min(start)`..
+    `max(end)`) - "24 GÖRÜNÜR bucket" sözü SADECE frontend'in TEK bir
+    yerel-saat etiketi görmesi anlamına gelir, GERÇEK 2 saatlik veri
+    aralığı `window_start`/`window_end`'den hâlâ hesaplanabilir kalır
+    (Bölüm 8 - API shape/semantics net kalmalı). `window_start_local`/
+    `window_end_local` ise tekrarlanan yerel saati TEK etiket olarak
+    taşır (`first`in başlangıcı, `second`in bitişi - "02:00"/"03:00").
+    `calculated_at` en GÜNCEL (`max`) olanı taşır.
+    """
+    winner = _pick_highest_severity_entry([first, second])
+    calculated_candidates = [
+        v for v in (first["calculated_at"], second["calculated_at"]) if v is not None
+    ]
+    return {
+        "window_start": min(first["window_start"], second["window_start"]),
+        "window_end": max(first["window_end"], second["window_end"]),
+        "window_start_local": first.get("window_start_local"),
+        "window_end_local": second.get("window_end_local"),
+        "flight_count": first["flight_count"] + second["flight_count"],
+        "expected_passengers": first["expected_passengers"] + second["expected_passengers"],
+        "baseline_ratio": winner["baseline_ratio"],
+        "flight_ratio": winner["flight_ratio"],
+        "passenger_ratio": winner["passenger_ratio"],
+        "utilization": winner["utilization"],
+        "estimated_wait_minutes": winner["estimated_wait_minutes"],
+        "risk": winner["risk"],
+        "risk_label": winner["risk_label"],
+        "confidence": winner["confidence"],
+        "reasons": winner["reasons"],
+        "calculated_at": max(calculated_candidates) if calculated_candidates else None,
+    }
+
+
+def _synthetic_gap_window(transition_utc: datetime, local_start_naive: datetime, local_end_naive: datetime) -> dict:
+    """
+    ADIM (DST Spring-Forward Exact24) - Bölüm 4: ilkbahar ileri-alma
+    gününde bir yerel duvar-saati (ör. "02:00-03:00") HİÇBİR GERÇEK UTC
+    anına karşılık gelmez (saat yerel 01:59'dan doğrudan 03:00'e
+    ATLAR). Bu slot için UYDURMA bir queue/demand verisi ÜRETİLMEZ
+    (Bölüm 4 - "synthetic bucket queue data uydurmamalı") -
+    `_synthetic_zero_demand_window()` ile AYNI sıfır-talep/LOW/
+    confidence=1.0 sözleşmesini taşır (o yerel saatte GERÇEKLEŞMİŞ hiçbir
+    zaman aralığı yoktur, dolayısıyla tanım gereği sıfır talep).
+
+    `window_start`/`window_end` (canonical UTC) YİNE gerçek bir UTC anı
+    taşır - `transition_utc`, bu yerel saatin "sıfır genişlikte" var
+    olduğu TEK UTC an (önceki/sonraki gerçek saatin sınırı) - Bölüm 8'in
+    "window_start HER ZAMAN UTC" sözleşmesi bu sentetik bucket için de
+    BOZULMAZ. `window_start_local`/`window_end_local` ise bu UTC anının
+    KENDİSİNDEN `astimezone` ile türetilmez (bu, var OLMAYAN saati değil,
+    bitişteki GERÇEK saati gösterirdi) - doğrudan, NAIVE aritmetikle
+    hesaplanan "duvar saati ne gösterirdi" etiketini taşır (deterministic,
+    UYDURMA queue verisi İÇERMEZ, SADECE bir metin etiketi).
+    """
+    key_iso = transition_utc.isoformat()
+    return {
+        "window_start": key_iso,
+        "window_end": key_iso,
+        "window_start_local": local_start_naive.isoformat(),
+        "window_end_local": local_end_naive.isoformat(),
+        "flight_count": 0,
+        "expected_passengers": 0,
+        "baseline_ratio": None,
+        "flight_ratio": None,
+        "passenger_ratio": None,
+        "utilization": 0.0,
+        "estimated_wait_minutes": 0.0,
+        "risk": RISK_LOW,
+        "risk_label": ui_label_for_risk(RISK_LOW),
+        "confidence": 1.0,
+        "reasons": [],
+        "calculated_at": None,
+    }
+
+
+def _build_exact24_display_windows(
+    windows: list[dict],
+    grid_start: datetime,
+    grid_end: datetime,
+    day_start: datetime,
+    tz,
+) -> list[dict]:
+    """
+    ADIM (Calculation Horizon != Display Horizon - Bölüm 3/4): `windows`
+    (bu havalimanı/süreç/gün için ZATEN filtrelenmiş - `_belongs_to_
+    current_operational_day` + `_within_display_bounds` - GERÇEK pencere
+    sözlükleri, `[grid_start, grid_end)` UTC aralığında) GERÇEK yerel
+    günün UZUNLUĞUNA (`grid_end - grid_start` - DST geçiş günlerinde 23/
+    25, aksi halde 24 saat) göre TAM 24 GÖRÜNÜR bucket'a projekte edilir:
+
+      - NORMAL gün (24 saat): `_pad_series_to_24_hours()` ile AYNI 1:1
+        davranış (eksik saat -> `_synthetic_zero_demand_window`).
+      - İLKBAHAR İLERİ ALMA (23 saat): 23 GERÇEK saat 1:1 + TEK bir
+        `_synthetic_gap_window()` (var OLMAYAN yerel saat, sıfır talep,
+        UYDURMA veri YOK) = 24.
+      - SONBAHAR GERİ ALMA (25 saat): 24 saat 1:1 + tekrarlanan TEK
+        yerel saat için 2 GERÇEK saat `_merge_duplicate_local_hour()`
+        ile BİRLEŞTİRİLİR (hiçbiri silinmez, additive+worst-of reducer) = 24.
+
+    Hangi saatin "gap" (İLKBAHAR) veya "duplicate" (SONBAHAR) olduğu
+    HARDCODE bir tarih/ay kontrolüyle DEĞİL, `[grid_start, grid_end)`
+    aralığındaki HER GERÇEK UTC saatinin `zoneinfo.astimezone()` ile
+    yerel saate çevrilmesinden (UTC->local yönü HER ZAMAN well-defined,
+    ASLA ambiguous/nonexistent olmaz) DOĞAL olarak ORTAYA ÇIKAR: yerel
+    saat etiketleri (0..23) beklenen sırayla ilerlerken bir TEKRAR
+    (sonbahar) veya bir SIÇRAMA (ilkbahar) görülür.
+
+    Non-DST/normal timezone'larda (İstanbul dahil - 2016'dan beri kalıcı
+    UTC+3, DST uygulamıyor) `grid_end - grid_start` HER ZAMAN 24 saattir,
+    bu fonksiyon `_pad_series_to_24_hours()` ile TAM olarak AYNI sonucu
+    üretir - davranış REGRESSION'SIZ.
+    """
+    real_hours = int(round((grid_end - grid_start).total_seconds() / 3600))
+    by_utc_start = {w["window_start"]: w for w in windows}
+
+    def _entry_for(utc_hour: datetime) -> dict:
+        key = utc_hour.isoformat()
+        if key in by_utc_start:
+            return by_utc_start[key]
+        return _synthetic_zero_demand_window(utc_hour, utc_hour + timedelta(hours=1), tz)
+
+    local_midnight_naive = day_start.replace(tzinfo=timezone.utc).astimezone(tz).replace(tzinfo=None)
+
+    display: list[dict] = []
+    expected_label = 0
+    i = 0
+    while i < real_hours and expected_label < 24:
+        utc_hour = grid_start + timedelta(hours=i)
+        local_label = utc_hour.replace(tzinfo=timezone.utc).astimezone(tz).hour
+
+        if local_label == expected_label:
+            display.append(_entry_for(utc_hour))
+            expected_label += 1
+            i += 1
+            continue
+
+        if display and local_label == (expected_label - 1) % 24:
+            # SONBAHAR - bu gerçek saat, HEMEN ÖNCE eklenen bucket ile
+            # AYNI yerel saati taşıyor: iki gerçek pencere BİRLEŞİR.
+            previous = display.pop()
+            display.append(_merge_duplicate_local_hour(previous, _entry_for(utc_hour)))
+            i += 1
+            continue
+
+        # İLKBAHAR - beklenen yerel saat hiç GERÇEKLEŞMEDİ (yerel saat
+        # ileri sıçradı): sentetik gap bucket'ı eklenir. `i` İLERLEMEZ -
+        # bu GERÇEK saat henüz tüketilmedi, bir sonraki turda (artık
+        # `expected_label`'e eşit olması beklenir) işlenir.
+        gap_local_start = local_midnight_naive + timedelta(hours=expected_label)
+        # ADIM (Gap Bucket Key Collision Fix) - `utc_hour`'un KENDİSİ bir
+        # sonraki turda AYNEN bu değerle GERÇEK bir bucket olarak da
+        # eklenecek (henüz `i` İLERLEMEDİ) - gap'e transition anının TAM
+        # KENDİSİNİ vermek, listedeki İKİ AYRI bucket'ın (sentetik gap +
+        # onu izleyen gerçek saat) AYNI `window_start` anahtarını
+        # taşımasına yol açardı ("no duplicate display hour" ihlali).
+        # 1 mikrosaniye ÖNCESİ (bu projede daha önce AYNI sınıf çakışma
+        # için kullanılan teknik) sıfır-genişlik semantiğini KORUR
+        # (hâlâ `window_end`'e eşit, hâlâ hiçbir gerçek süre kapsamıyor)
+        # ama benzersiz/kesinlikle-önce sıralanan bir anahtar verir.
+        transition = utc_hour - timedelta(microseconds=1)
+        display.append(_synthetic_gap_window(
+            transition, gap_local_start, gap_local_start + timedelta(hours=1),
+        ))
+        expected_label += 1
+
+    # Günün SON saati gap ise (nadir - beklenen yerel saat günün en
+    # sonunda hiç gerçekleşmedi) kalan slot(lar) sentetik gap ile
+    # tamamlanır.
+    while expected_label < 24:
+        transition = grid_start + timedelta(hours=real_hours) - timedelta(microseconds=1)
+        gap_local_start = local_midnight_naive + timedelta(hours=expected_label)
+        display.append(_synthetic_gap_window(
+            transition, gap_local_start, gap_local_start + timedelta(hours=1),
+        ))
+        expected_label += 1
+
+    return display
+
+
 def _pad_series_to_24_hours(windows: list[dict], day_start: datetime, tz=None) -> list[dict]:
     """
     ADIM (24-Hour Graph) - Bölüm A/B/C/D: bir sürecin `windows`
@@ -447,14 +670,33 @@ def _resolve_airport_tz_and_day_start(session, airport_iata: str, now: datetime)
     """
     ADIM (24-Hour Graph, genişletildi: Timezone Display) - havalimanının
     GERÇEK `Airport.timezone`'undan (bilinmiyorsa/`zoneinfo`'da
-    tanınmıyorsa ikisi de None - UYDURMA bir UTC varsayımı/offset
+    tanınmıyorsa hepsi None - UYDURMA bir UTC varsayımı/offset
     ÜRETİLMEZ, bkz. `resolve_airport_timezone` docstring'i) çözülen
-    `(tz, day_start)` çifti döner:
+    `(tz, day_start, day_end)` üçlüsü döner:
 
       - `tz`        : `window_start_local` üretimi için (bkz.
                        `_to_local_iso`) - Bölüm 2/3.
-      - `day_start` : 24 saatlik padding penceresinin UTC başlangıcı
-                       (bkz. `_pad_series_to_24_hours`) - DEĞİŞMEDİ.
+      - `day_start` : havalimanının GERÇEK yerel gece yarısının UTC
+                       karşılığı (`operational_day_window()`'dan,
+                       DEĞİŞMEDİ).
+      - `day_end`   : bir SONRAKİ GERÇEK yerel gece yarısının UTC
+                       karşılığı - ADIM (Calculation Horizon != Display
+                       Horizon): `day_end - day_start` DST geçiş
+                       günlerinde 24 saat OLMAK ZORUNDA DEĞİLDİR (23
+                       saat ilkbahar ileri alma / 25 saat sonbahar geri
+                       alma günlerinde) - bu, `_pad_series_to_24_hours`'ın
+                       ESKİ, `_day_end`'i atıp `day_start + 24h` sabit
+                       ızgarasını KULLANAN davranışının kökündeki DST
+                       bug'ıydı (bkz. rapor). Artık ÇAĞIRAN TARAF (bkz.
+                       `process_series`) bu gerçek sınırı kullanıp DISPLAY
+                       ızgarasını GERÇEK yerel gün uzunluğuna göre kurar,
+                       eksik/fazla saati (gap/duplicate) deterministic
+                       olarak Bölüm 4 kuralıyla 24 GÖRÜNÜR bucket'a
+                       projekte eder - `day_end`'in KENDİSİ hâlâ SADECE
+                       görünür grafiğin sınırıdır, `QueuePrediction`
+                       hesaplama/persistence ufkunu (calculation state)
+                       HİÇ ETKİLEMEZ/KISALTMAZ (bkz. engine.py - orada
+                       hiçbir 24 saatlik/gece yarısı truncation YOK).
 
     `tz` None dönerse çağıran taraf PADDING YAPMAZ VE local alanları
     `None` bırakır - "her zaman 24 saat/local label" garantisi, güvenilir
@@ -465,12 +707,12 @@ def _resolve_airport_tz_and_day_start(session, airport_iata: str, now: datetime)
     """
     airport = session.get(Airport, airport_iata)
     if airport is None:
-        return None, None
+        return None, None, None
     tz = resolve_airport_timezone(airport.timezone)
     if tz is None:
-        return None, None
-    day_start, _day_end = operational_day_window(tz, now)
-    return tz, day_start
+        return None, None, None
+    day_start, day_end = operational_day_window(tz, now)
+    return tz, day_start, day_end
 
 
 def _pick_current(rows: list[QueuePrediction], now: datetime) -> QueuePrediction | None:
@@ -515,6 +757,7 @@ def process_series(
     now: datetime | None = None,
     day_start: datetime | None = None,
     tz=None,
+    day_end: datetime | None = None,
 ) -> dict:
     """
     Bir (havalimanı, süreç) çifti için kronolojik pencere serisi +
@@ -527,16 +770,23 @@ def process_series(
     `current: None, windows: []` döner - bu durum çağıran tarafta
     ASLA "NORMAL" ile karıştırılmamalı.
 
-    day_start : ADIM (24-Hour Graph) - verilirse (havalimanının
-                çözülebilen bir timezone'u varsa, bkz.
-                `_resolve_airport_tz_and_day_start`) `windows` bu 24
-                saate `_pad_series_to_24_hours()` ile tamamlanır ve
-                `current` PADDED liste üzerinden (`_pick_current_window`
-                - `_pick_current` ile AYNI üç kollu mantık, ama dict
-                listesi üzerinde) seçilir. Verilmezse (None, varsayılan)
-                ESKİ davranış (sadece gerçek satırlar, padding YOK)
-                birebir korunur - doğrudan çağıranlar/eski testler
-                ETKİLENMEZ.
+    day_start/day_end : ADIM (Calculation Horizon != Display Horizon) -
+                verilirse (havalimanının çözülebilen bir timezone'u
+                varsa, bkz. `_resolve_airport_tz_and_day_start`)
+                `windows` GERÇEK yerel gün sınırına (`_build_exact24_
+                display_windows()` - DST-farkında, `day_end - day_start`
+                23/24/25 saat olabilir) göre tam 24 GÖRÜNÜR bucket'a
+                projekte edilir ve `current` bu PROJEKTE EDİLMİŞ liste
+                üzerinden (`_pick_current_window` - `_pick_current` ile
+                AYNI üç kollu mantık, ama dict listesi üzerinde) seçilir.
+                `day_end` verilmezse (None, varsayılan - eski
+                çağıranlar/testler) `day_start + 24h` sabit ızgarasına
+                GERİ DÜŞÜLÜR (DST-farkında olmayan, ESKİ davranış) -
+                DOĞRUDAN geriye dönük uyumluluk için, YENİ hiçbir
+                çağıran bunu KULLANMAMALI. `day_start`/`tz` hiçbiri
+                verilmezse (None) ESKİ davranış (sadece gerçek satırlar,
+                padding YOK) birebir korunur - doğrudan çağıranlar/eski
+                testler ETKİLENMEZ.
     tz        : ADIM (24-Hour Graph Timezone Display) - `day_start` ile
                 AYNI kaynaktan (`_resolve_airport_tz_and_day_start`)
                 gelir; HER pencereye (gerçek VEYA padded, current dahil)
@@ -568,62 +818,47 @@ def process_series(
         # satırları KARIŞIK içermesine yol açıyordu (bkz. rapor - stale-day
         # leak bulgusu).
         #
-        # DOĞRU filtre `window_start` ARALIĞI DEĞİL (bu, Bölüm 61'in
-        # KORUNMASI gereken sınır-geçişli/backlog spillover event'lerini -
-        # ör. 00:45 kalkışın -120dk'lık effective_time'ı ÖNCEKİ takvim
-        # gününe, VEYA ağır bir security backlog'unun completion_time'ı
-        # SONRAKİ takvim gününe düşmesi - YANLIŞLIKLA dışlardı, bkz.
-        # `test_cross_midnight_departure_queue_event_stays_on_its_real_hour_
-        # not_shifted` regresyonu). Bunun yerine `QueuePrediction.
-        # operational_date` (bu satırı ÜRETEN `run_predictions()` çağrısının
-        # o havalimanı için çözdüğü YEREL "bugün" - bkz. models.py
-        # docstring'i) kullanılır: bu alan `window_start`'ın kaydığı saatten
-        # BAĞIMSIZ, "hangi günün TALEBİNDEN üretildi" sorusuna cevap verir.
+        # ADIM (Calculation Horizon != Display Horizon - Bölüm 3/5,
+        # DÜZELTME): `QueuePrediction.operational_date` eşitliğini bir
+        # DISPLAY filtresi olarak KULLANMAKTAN vazgeçildi - bu ESKİ
+        # yaklaşım "backlog GÜNLERCE ileri taşınabilir" (Bölüm 9 - passport
+        # departure completion_time'ı security_intl'in arrival_time'ı olur,
+        # ağır backlog'ta bu SONRAKİ takvim gününe geçebilir) davranışıyla
+        # ÇATIŞIYORDU: bir satır Day-1'in flight-run'ından ÜRETİLDİĞİ için
+        # `operational_date=Day-1` taşır, ama `window_start`'ı GERÇEKTEN
+        # Day-2'nin saat aralığına düşer. Bu satır `_within_display_bounds`
+        # ile Day-1'in ızgarasından (day_end'in dışında kaldığı için, doğru
+        # şekilde) ELENİYORDU; AMA `operational_date == Day-1 != Day-2`
+        # olduğu için Day-2'nin ızgarasına da hiç GİRMİYORDU - satır
+        # HİÇBİR grafikte görünmeyen bir "yetim" oluyordu (Bölüm 5'in
+        # yasakladığı TAM senaryo: "queue midnight'ta sıfırlanmış gibi
+        # davranmamalı").
         #
-        # Eski (bu ADIM'dan ÖNCE yazılmış) satırlarda bu alan `None`dır -
-        # onlar için ESKİ (window_start ARALIĞI tabanlı, superset/additive)
-        # davranışa GERİ DÖNÜLÜR - GERİYE DÖNÜK UYUMLU, mevcut cross-midnight
-        # testleri etkilenmez.
-        target_date = resolve_operational_date(tz, now) if tz is not None else None
-
-        def _belongs_to_current_operational_day(row: QueuePrediction) -> bool:
-            if row.operational_date is None:
-                # Etiketsiz (bu ADIM'dan ÖNCE yazılmış) satır - ESKİ
-                # davranış: HİÇ FİLTRELENMEZ (additive/superset, bkz.
-                # `_pad_series_to_24_hours` docstring'i) - aksi halde
-                # `day_start..day_end` aralığı DIŞINDAKİ meşru cross-
-                # midnight spillover satırları (Bölüm 61) burada da
-                # YANLIŞLIKLA dışlanırdı.
-                return True
-            return row.operational_date == target_date
-
+        # Artık TEK doğruluk kaynağı `window_start`'ın GERÇEK yerel gün
+        # sınırına (`grid_start`/`grid_end` - aşağıda, DST-farkında
+        # `day_end`'den türetilir) göre KONUMUdur - hangi flight-run'ın
+        # o satırı ÜRETTİĞİ (operational_date) DEĞİL. Bu artık GÜVENLİDİR
+        # (eski "stale-day leak" riski YOK): `grid_start`/`grid_end` artık
+        # `day_start + sabit 24h` YAKLAŞIKLIĞI değil, GERÇEK yerel gün
+        # sınırıdır (bu ADIM'ın kendisi) - bu yüzden `window_start` aralığı
+        # TEK BAŞINA hem Bölüm 61'in sınır-geçişli spillover'ını (Day-1'in
+        # kendi backlog'u Day-1'in ızgarasında kalırken) hem de Bölüm 3/5'in
+        # istediği Day-2 görünürlüğünü (Day-1-etiketli ama Day-2 saatine
+        # düşen satır artık Day-2'nin ızgarasında GÖRÜNÜR) doğru ayırır -
+        # `operational_date` etiketine ARTIK gerek yok (persistence/
+        # retention'daki KENDİ rolü DEĞİŞMEDİ, SADECE bu display filtresi
+        # olarak kullanılmasından vazgeçildi).
+        #
         # ADIM (Exact 24-Bucket Visible Graph) - Bölüm 3.3: CALCULATION
-        # STATE != VISIBLE GRAPH RANGE. `operational_date` etiketi TEK
-        # BAŞINA "TAM 24 saat" garantisi VERMEZ - event-driven backlog
-        # demand/kapasiteyi GÜNLER boyunca aşarsa (bkz. rapor: SIN
-        # passport_dep günlük talebi günlük kapasitenin ~4.8 katı),
-        # completion event'leri window_start'ı GÜNLERCE ileri taşıyabilir;
-        # bunların HEPSİ AYNI (doğru) `operational_date` etiketini taşır
-        # (Bölüm 61'in KENDİSİ - "hangi günün talebinden üretildi" - hâlâ
-        # doğru), ama `_pad_series_to_24_hours` SADECE ekler/asla silmez,
-        # bu yüzden HEPSİ "görünür grafik" `windows` listesine düşüp
-        # `airport_predictions()`'ın kendi belgelediği "HER ZAMAN TAM 24
-        # saat" sözünü (bkz. o fonksiyonun docstring'i) BOZAR.
-        #
-        # Görünür grafik penceresi KESİN OLARAK `[day_start, day_end)`
-        # ile sınırlanır - margin/tolerans YOK (önceki turda denenen
-        # ±120dk marj, bu turda kullanıcı talimatıyla KALDIRILDI: "24 +
-        # legitimate overflow KABUL EDİLMEZ"). Backlog'un KENDİSİ (event
-        # simülasyonu, wait, risk - `calculation state`) HİÇ DEĞİŞMEDİ -
-        # `current` göstergesi GERÇEK, güncel backlog şiddetini (ör. çok
-        # yüksek wait) TAŞIMAYA DEVAM EDER, çünkü "now" tanım gereği
-        # `[day_start, day_end)` İÇİNDEDİR - current'ı İÇEREN pencere
-        # her zaman bu aralıkta kalır. SADECE bugünün 24 saatlik
-        # x-ekseninin DIŞINDAKİ (bir önceki/sonraki güne ait, KISA
-        # menzilli flight-offset kaynaklı DAHİL) satırlar artık AYRI bir
-        # bucket olarak LİSTELENMEZ - `test_cross_midnight_departure_
-        # queue_event_stays_on_its_real_hour_not_shifted` bu YENİ,
-        # kesin contract'a göre güncellendi (bkz. o test).
+        # STATE != VISIBLE GRAPH RANGE. Görünür grafik penceresi KESİN
+        # OLARAK `[grid_start, grid_end)` ile sınırlanır - margin/tolerans
+        # YOK ("24 + legitimate overflow KABUL EDİLMEZ"). Backlog'un
+        # KENDİSİ (event simülasyonu, wait, risk - `calculation state`)
+        # HİÇ DEĞİŞMEDİ - `current` göstergesi GERÇEK, güncel backlog
+        # şiddetini TAŞIMAYA DEVAM EDER. SADECE bugünün 24 saatlik
+        # x-ekseninin DIŞINDAKİ satırlar bu günün grafiğinde AYRI bir
+        # bucket olarak LİSTELENMEZ - bir SONRAKİ günün kendi grafiği
+        # istendiğinde ise (yukarıdaki düzeltme sayesinde) ARTIK KAYBOLMAZ.
         #
         # ADIM (Half-Hour-Offset Timezone Grid Fix) - gerçek `data/*.json`
         # ile 78 havalimanı üzerinde uçtan uca replay testi DEL (Asia/
@@ -651,17 +886,31 @@ def process_series(
         grid_start = day_start
         if grid_start.minute or grid_start.second or grid_start.microsecond:
             grid_start = grid_start.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-        grid_end = grid_start + timedelta(hours=24)
+
+        if day_end is not None:
+            # ADIM (Calculation Horizon != Display Horizon - Bölüm 3/4):
+            # `day_end` çağıran taraftan (`_resolve_airport_tz_and_day_
+            # start`) GERÇEK yerel gün sınırı olarak gelir - DST geçiş
+            # günlerinde `day_end - day_start` 23/25 saat olabilir (ESKİ
+            # `grid_start + 24h` sabit ızgarası BUNU YOK SAYIYORDU, bkz.
+            # rapor). `grid_end` de `grid_start` ile AYNI yarım-saat-
+            # offset yuvarlamasına tabi tutulur (Half-Hour-Offset Timezone
+            # Grid Fix ile TUTARLI - ikisi de aynı miktarda ileri kayar).
+            grid_end = day_end
+            if grid_end.minute or grid_end.second or grid_end.microsecond:
+                grid_end = grid_end.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        else:
+            # `day_end` verilmeyen (ESKİ, doğrudan) çağıranlar için
+            # GERİYE DÖNÜK UYUMLU sabit-24-saat ızgara - YENİ hiçbir
+            # çağıran bunu kullanmamalı (bkz. `process_series` docstring'i).
+            grid_end = grid_start + timedelta(hours=24)
 
         def _within_display_bounds(row: QueuePrediction) -> bool:
             return grid_start <= row.window_start < grid_end
 
-        rows_for_windows = [
-            r for r in rows
-            if _belongs_to_current_operational_day(r) and _within_display_bounds(r)
-        ]
+        rows_for_windows = [r for r in rows if _within_display_bounds(r)]
         windows = [_window_to_dict(row, tz) for row in rows_for_windows]
-        windows = _pad_series_to_24_hours(windows, grid_start, tz)
+        windows = _build_exact24_display_windows(windows, grid_start, grid_end, day_start, tz)
         current = _pick_current_window(windows, now)
     else:
         windows = [_window_to_dict(row, tz) for row in rows]
@@ -752,10 +1001,7 @@ def _merge_overall_series(*process_results: dict, now: datetime) -> dict:
             by_window.setdefault(window["window_start"], []).append(window)
 
     def _worst_of(entries: list[dict]) -> dict:
-        top_severity = max(RISK_ORDER.get(w["risk"], -1) for w in entries)
-        top_entries = [w for w in entries if RISK_ORDER.get(w["risk"], -1) == top_severity]
-        with_wait = [w for w in top_entries if w["estimated_wait_minutes"] is not None]
-        base = max(with_wait, key=lambda w: w["estimated_wait_minutes"]) if with_wait else top_entries[0]
+        base = _pick_highest_severity_entry(entries)
         wait = base["estimated_wait_minutes"]
         return {
             "window_start": base["window_start"],
@@ -872,14 +1118,14 @@ def airport_predictions(
     EK bir görüntü alanı eklendi (Bölüm 3/14 - backward compatible).
     """
     now = now if now is not None else _utcnow()
-    tz, day_start = _resolve_airport_tz_and_day_start(session, airport_iata, now)
+    tz, day_start, day_end = _resolve_airport_tz_and_day_start(session, airport_iata, now)
 
     security = process_series(session, airport_iata, PROCESS_SECURITY, since, now)
     passport = process_series(session, airport_iata, PROCESS_PASSPORT, since, now)
-    domestic_security = process_series(session, airport_iata, PROCESS_SECURITY_DOMESTIC, since, now, day_start, tz)
-    international_security = process_series(session, airport_iata, PROCESS_SECURITY_INTL, since, now, day_start, tz)
-    passport_departure = process_series(session, airport_iata, PROCESS_PASSPORT_DEPARTURE, since, now, day_start, tz)
-    passport_arrival = process_series(session, airport_iata, PROCESS_PASSPORT_ARRIVAL, since, now, day_start, tz)
+    domestic_security = process_series(session, airport_iata, PROCESS_SECURITY_DOMESTIC, since, now, day_start, tz, day_end)
+    international_security = process_series(session, airport_iata, PROCESS_SECURITY_INTL, since, now, day_start, tz, day_end)
+    passport_departure = process_series(session, airport_iata, PROCESS_PASSPORT_DEPARTURE, since, now, day_start, tz, day_end)
+    passport_arrival = process_series(session, airport_iata, PROCESS_PASSPORT_ARRIVAL, since, now, day_start, tz, day_end)
 
     # ADIM (Overall Graph Legacy Passport Bug Fix): Overall ARTIK
     # legacy/8-server `passport` (PROCESS_PASSPORT) serisini KULLANMIYOR -
