@@ -177,14 +177,30 @@ def _resolve_security_lane_counts(
     row: AirportOperationalConfig | None, resources: dict | None,
 ) -> tuple[int, int]:
     """
-    Security lane'ler İÇİN ÖNCELİK satır-seviyesindedir (mevcut, hiç
-    değişmeyen davranış): bir `AirportOperationalConfig` satırı VARSA
-    onun `domestic_security_lane_count`/`international_security_
-    lane_count`'u AYNEN kullanılır (satır zaten "bu havalimanı için
-    açıkça ayarlandı" anlamına gelir). Satır YOKSA scale-derived (veya
-    scale de yoksa eski sabit 8) kullanılır.
+    ADIM (Airport Operational Config Materialization - Live Scale Read)
+    - ÖNCEKİ davranış "satır VARSA onun lane sayısı AYNEN kullanılır"
+    idi - bu, `ensure_airport_operational_configs()` HER scale'i
+    çözülen havalimanı için bir satır seed ETTİĞİNDEN BERİ artık YANLIŞ:
+    o seed satırları sadece seed anındaki `SCALE_RESOURCES`'ın bir
+    KOPYASIYDI - `SCALE_RESOURCES["large"]` sonradan değişirse (ör.
+    kullanıcı LARGE'ın lane sayısını güncellerse) bu kopyalar
+    GÜNCELLENMEDEN eski/stale değeri döndürmeye devam ederdi (bkz. rapor
+    - kullanıcı talebi: "büyük ölçekliyse büyük ölçekli için kullandığımız
+    KAPASİTEYİ alacak" - yani HER ZAMAN GÜNCEL scale tanımını, dondurulmuş
+    bir kopyayı DEĞİL).
+
+    Artık ÖNCELİK: (1) satır VAR ve `is_seeded_default=False` (yani bir
+    İNSAN bu havalimanı için AÇIKÇA bu alanı özelleştirdi) -> satırın
+    KENDİ değeri AYNEN kullanılır. (2) satır YOK VEYA `is_seeded_
+    default=True` (satır SADECE scale'in bir kopyası, insan eliyle
+    DOKUNULMADI) -> HER ZAMAN `resources`'tan (yani `SCALE_RESOURCES`'ın
+    O ANKİ/GÜNCEL değerinden) canlı okunur - satırın KENDİ (belki artık
+    stale) kolon değeri bu durumda HİÇ okunmaz/kullanılmaz (sadece
+    phpMyAdmin'de görünürlük/son-seed-anının izini taşır, otorite
+    DEĞİLDİR). Scale de yoksa eski sabit 8 (`_legacy_unknown_server_
+    count()`) kullanılır - DEĞİŞMEDİ.
     """
-    if row is not None:
+    if row is not None and not row.is_seeded_default:
         return row.domestic_security_lane_count, row.international_security_lane_count
 
     fallback = _legacy_unknown_server_count()
@@ -224,7 +240,16 @@ def _build_config_view(
 
     if row is not None:
         base_fields = {name: getattr(row, name) for name in _CONFIG_FIELDS}
-        is_default = False
+        # ADIM (Airport Operational Config Materialization) - satırın
+        # VARLIĞI artık "override" ile AYNI ŞEY DEĞİL (bkz. pipeline.py:
+        # ensure_airport_operational_configs() - her scale'i çözülen
+        # havalimanı için bir satır otomatik seed edilir). `is_default`
+        # (ve confidence'taki `CONFIDENCE_PENALTY_DEFAULT_CONFIG`) artık
+        # satırın KENDİ `is_seeded_default` bayrağından okunur - SADECE
+        # scale kopyası olarak seed edilmiş (insan eliyle DOKUNULMAMIŞ)
+        # satırlar hâlâ "default" sayılır; bir alanı AÇIKÇA özelleştirilen
+        # satır (`is_seeded_default=False`) confidence cezasından muaf.
+        is_default = row.is_seeded_default
     else:
         base_fields = _column_defaults()
         is_default = True

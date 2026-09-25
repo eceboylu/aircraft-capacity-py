@@ -67,23 +67,36 @@ DEPARTURE_PASSENGER_ARRIVAL_OFFSET_MINUTES = 120
 #
 # Her satır: (departure'dan ÖNCE dakika-aralığı-başlangıcı, dakika-
 # aralığı-bitişi, o 15 dakikalık dilime düşen TOPLAM yolcu oranı).
-# Kullanıcının verdiği 30 dakikalık 6 segment (%5/%15/%30/%30/%15/%5),
-# HER biri deterministic olarak (RANDOM YOK) İKİ EŞİT 15 dakikalık
-# alt-batch'e bölünmüştür (her alt-batch kendi 30dk ebeveyninin YARISINI
-# taşır) - bkz. Bölüm 4: "iki adet 15 dakikalık batch'e deterministic
-# şekilde dağıt". Toplam = tam 1.0 (%100) - `test_departure_show_up_
-# profile.py` bunu doğrular.
+#
+# ADIM (4-Saatlik Show-Up Recalibration) - pencere 3 saatten (T-180) 4
+# saate (T-240) genişletildi, saatlik oranlar %20/%60/%20 (3 bucket)
+# yerine %10/%35/%45/%10 (4 bucket - "4-3 saat önce" / "3-2 saat önce" /
+# "2-1 saat önce" / "1-0 saat önce") olarak YENİDEN kalibre edildi (bkz.
+# görev.md - departure show-up mimarisi tartışması). Her saatlik oran,
+# o saatin İÇİNDEKİ 4 adet 15 dakikalık dilime EŞİT/DÜZ (uniform, ARA
+# saat sınırlarında yapay bir "ramp" YOK - görev.md'nin kendi örneği de
+# ["30 kişi / 12 slot = 2.5 kişi/slot"] hep düz/uniform dağılım
+# kullanıyor) olarak bölünür: %10/4=%2.5, %35/4=%8.75, %45/4=%11.25,
+# %10/4=%2.5. Toplam = tam 1.0 (%100).
 DEPARTURE_SHOW_UP_PROFILE: tuple[tuple[int, int, float], ...] = (
-    (180, 165, 0.025),
-    (165, 150, 0.025),
-    (150, 135, 0.075),
-    (135, 120, 0.075),
-    (120, 105, 0.15),
-    (105, 90, 0.15),
-    (90, 75, 0.15),
-    (75, 60, 0.15),
-    (60, 45, 0.075),
-    (45, 30, 0.075),
+    # T-240..T-180 ("4-3 saat önce") - toplam %10
+    (240, 225, 0.025),
+    (225, 210, 0.025),
+    (210, 195, 0.025),
+    (195, 180, 0.025),
+    # T-180..T-120 ("3-2 saat önce") - toplam %35
+    (180, 165, 0.0875),
+    (165, 150, 0.0875),
+    (150, 135, 0.0875),
+    (135, 120, 0.0875),
+    # T-120..T-60 ("2-1 saat önce") - toplam %45
+    (120, 105, 0.1125),
+    (105, 90, 0.1125),
+    (90, 75, 0.1125),
+    (75, 60, 0.1125),
+    # T-60..T0 ("1-0 saat önce") - toplam %10
+    (60, 45, 0.025),
+    (45, 30, 0.025),
     (30, 15, 0.025),
     (15, 0, 0.025),
 )

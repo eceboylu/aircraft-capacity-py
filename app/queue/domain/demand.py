@@ -151,8 +151,8 @@ def departure_show_up_events(flight, total_demand: float) -> list[tuple[datetime
     ADIM (Departure Show-Up Profile) - bir departure flight'ın TOPLAM
     yolcu talebini (`DemandCalculator.passenger_demand(flight)` - bu
     fonksiyon KENDİSİ hesaplamaz, dışarıdan ALIR), `DEPARTURE_SHOW_UP_
-    PROFILE`'a göre flight'ın KENDİ departure zamanından ÖNCEKİ 12 adet
-    15 dakikalık deterministic batch'e böler.
+    PROFILE`'a göre flight'ın KENDİ departure zamanından ÖNCEKİ 16 adet
+    (4 saat/T-240) 15 dakikalık deterministic batch'e böler.
 
     SAF/DETERMINISTIC: aynı flight + aynı total_demand HER ZAMAN aynı
     batch listesini üretir - RANDOM YOK. Her flight KENDİ show-up

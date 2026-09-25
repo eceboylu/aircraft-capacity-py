@@ -90,7 +90,14 @@ SCALE_RESOURCES: dict[str, dict[str, int]] = {
     # tarafı bu ADIM'da DOKUNULMADI.
     SCALE_LARGE: {
         "departure_passport_servers": 30,
-        "departure_passport_servers_max": 70,
+        # ADIM (Departure Passport Dynamic Ceiling Recalibration) -
+        # kullanıcının AÇIKÇA belirttiği yeni tavan: 70 DEĞİL, 45
+        # (arrival havuzunun SABİT tabanıyla aynı sayı - bilinçli bir
+        # kullanıcı kararı, genel bir araştırma oranı DEĞİL). Backlog
+        # hâlâ 10dk'lık kontrol noktalarında `ramp_step` (5) adımlarla
+        # [30, 45] aralığında yukarı/aşağı ayarlanıyor - SADECE tavan
+        # düştü, dynamic staffing mekanizmasının KENDİSİ DEĞİŞMEDİ.
+        "departure_passport_servers_max": 45,
         "arrival_passport_servers": 45,
         "arrival_passport_servers_max": 75,
         "domestic_security_lanes": 14,

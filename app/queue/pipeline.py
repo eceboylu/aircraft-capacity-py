@@ -45,6 +45,7 @@ from .ingestion.airports_import import (
     import_airports,
 )
 from .ingestion.refresh import refresh_flights
+from .domain.airport_scale import resource_view_for_scale
 from .domain.retention_time import USAGE_HORIZON_HOURS
 from .ingestion.sources import (
     aircraft_match_rate,
@@ -52,7 +53,7 @@ from .ingestion.sources import (
     load_source_payload,
     parse_source_a,
 )
-from .models import Airport
+from .models import Airport, AirportOperationalConfig
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,109 @@ def ensure_airport_scales(session, data_dir: str = DATA_DIR) -> dict | None:
         _path(data_dir, MEDIUM_SCALE_TXT),
         _path(data_dir, SMALL_SCALE_TXT),
     )
+
+
+def ensure_airport_operational_configs(session) -> dict:
+    """
+    ADIM (Airport Operational Config Materialization) - `ensure_
+    airport_scales()`'in HEMEN SONRASI çalışacak şekilde tasarlandı
+    (bkz. `run()` - scale'ler çözülmeden bu fonksiyonun yapacağı bir
+    şey yoktur). ÖNCEDEN: bir havalimanı için `airport_operational_
+    configs`'ta satır YOKSA `config.py:get_config()` her çağrıda
+    `Airport.scale`'den (`airport_scale.py:SCALE_RESOURCES`) sessizce
+    türetiyordu - satır SADECE elle override edilince oluşuyordu. Bu,
+    "bu havalimanı için hangi kapasiteyi kullanıyoruz" sorusunu MySQL'de
+    GÖREMEMEK anlamına geliyordu (bkz. rapor - kullanıcı talebi).
+
+    Artık `Airport.scale IS NOT NULL` olan (yani large/medium/small
+    çözülebilen) HER havalimanı için, henüz satırı YOKSA, `SCALE_
+    RESOURCES`'ın O ANKİ değerlerinin BİR KOPYASI `is_seeded_
+    default=True` ile eklenir - `AirportConfigView.is_default`/
+    confidence cezası (bkz. `config.py:_build_config_view`, `core/
+    scoring.py:confidence_score`) bu satırlar için AYNEN eskisi gibi
+    "default" sayılmaya devam eder; SADECE satırın KENDİSİ artık
+    MySQL'de GÖRÜNÜR/DÜZENLENEBİLİR.
+
+    ADIM (Live Scale Read) - `config.py:_resolve_security_lane_counts()`
+    artık `is_seeded_default=True` satırların KENDİ kolon değerini HİÇ
+    OKUMAZ, HER ZAMAN `SCALE_RESOURCES`'ın O ANKİ (güncel) değerinden
+    canlı türetir (bkz. o fonksiyonun docstring'i - kullanıcı talebi:
+    "büyük ölçekliyse büyük ölçekli için kullandığımız KAPASİTEYİ
+    alacak", dondurulmuş bir kopya DEĞİL). Bu fonksiyon YİNE DE
+    `is_seeded_default=True` satırların `domestic_security_lane_count`/
+    `international_security_lane_count` kolonlarını her çalışmada
+    GÜNCEL `resources`'a RESYNC eder (sadece GERÇEKTEN farklıysa
+    UPDATE - gereksiz yazma YOK) - bu SADECE phpMyAdmin'deki gösterimin
+    (kod zaten canlı okusa da) YANILTICI/stale görünmemesi içindir,
+    doğruluk BUNA bağlı DEĞİLDİR.
+
+    BİLİNÇLİ İSTİSNA - `passport_departure_server_count`/`passport_
+    arrival_server_count` seed/resync edilirken KASITLI OLARAK `None`
+    (NULL) bırakılır, `SCALE_RESOURCES`'ın sayısal değeri YAZILMAZ: bu
+    iki kolonun `NULL` OLMASI, `config.py:_resolve_passport_server_
+    counts()` için "override YOK, scale'den CANLI türet + LARGE'da
+    dynamic staffing'e AÇIK kal" anlamına gelir (bkz. o fonksiyon +
+    `_build_config_view`'ın `departure_is_override`/`passport_
+    departure_dynamic` mantığı). Eğer buraya scale'in 30/45 gibi
+    LİTERAL sayısını yazsaydık, kolon artık `NULL` OLMAYACAĞI için
+    sistem bunu "explicit override" sanıp HER LARGE havalimanının
+    dynamic staffing'ini (backlog'a göre 30->45 ramp) SESSİZCE
+    KAPATIRDI - bu YANLIŞ, istenmeyen bir yan etki olurdu.
+
+    Bir havalimanı için satır `is_seeded_default=False` (elle override
+    edildi) İSE bu fonksiyon ONU HİÇ dokunmaz/üzerine YAZMAZ -
+    "eğer havaalanına özel veri belirlediysek override olup onu almalı"
+    (kullanıcı talebi) tam olarak bu şekilde korunuyor.
+
+    `ensure_airports()`/`ensure_airport_scales()` ile AYNI idempotent
+    bootstrap deseni - HENÜZ hiçbir havalimanının scale'i çözülmediyse
+    (tablo boş/hepsi None) yapacak bir şey yoktur.
+
+    Döner: `{"created": int, "resynced": int}`.
+    """
+    resolved = (
+        session.query(Airport)
+        .filter(Airport.scale.isnot(None))
+        .all()
+    )
+    if not resolved:
+        return {"created": 0, "resynced": 0}
+
+    existing_rows = {
+        row.airport_iata: row
+        for row in session.query(AirportOperationalConfig).all()
+    }
+
+    created = 0
+    resynced = 0
+    for airport in resolved:
+        resources = resource_view_for_scale(airport.scale)
+        if resources is None:
+            continue
+        row = existing_rows.get(airport.iata_code)
+        if row is None:
+            session.add(AirportOperationalConfig(
+                airport_iata=airport.iata_code,
+                domestic_security_lane_count=resources["domestic_security_lanes"],
+                international_security_lane_count=resources["international_security_lanes"],
+                passport_departure_server_count=None,
+                passport_arrival_server_count=None,
+                is_seeded_default=True,
+            ))
+            created += 1
+            continue
+        if not row.is_seeded_default:
+            continue  # insan eliyle override edilmiş satır - HİÇ dokunulmaz.
+        if (
+            row.domestic_security_lane_count != resources["domestic_security_lanes"]
+            or row.international_security_lane_count != resources["international_security_lanes"]
+        ):
+            row.domestic_security_lane_count = resources["domestic_security_lanes"]
+            row.international_security_lane_count = resources["international_security_lanes"]
+            resynced += 1
+    if created or resynced:
+        session.commit()
+    return {"created": created, "resynced": resynced}
 
 
 class CapacitySeedError(RuntimeError):
@@ -350,6 +454,7 @@ def run(
     try:
         airports_loaded = ensure_airports(session, data_dir)
         scales_imported = ensure_airport_scales(session, data_dir)
+        operational_configs = ensure_airport_operational_configs(session)
         capacity_seeded = ensure_capacity_reference(session)
         rows = load_flight_rows(session, data_dir, source_a, source_b, now=now)
         match_rate = aircraft_match_rate(rows)
@@ -390,6 +495,8 @@ def run(
     summary = {
         "airports_loaded": airports_loaded,
         "scales_imported": scales_imported,
+        "operational_configs_seeded": operational_configs["created"],
+        "operational_configs_resynced": operational_configs["resynced"],
         "capacity_seeded": capacity_seeded,
         "flights_parsed": len(rows),
         "aircraft_match_rate": round(match_rate, 3),

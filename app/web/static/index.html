@@ -266,11 +266,64 @@
     LOW: "pill-LOW", MEDIUM: "pill-MEDIUM", HIGH: "pill-HIGH",
     CRITICAL: "pill-CRITICAL", UNKNOWN: "pill-UNKNOWN",
   };
-  var SEVERITY_HEIGHT = { UNKNOWN: 0.3, LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
   var SEVERITY_COLOR = {
     UNKNOWN: "#b3b7c2", LOW: "#2fa968", MEDIUM: "#d1a92c",
     HIGH: "#e08a3c", CRITICAL: "#d4514f",
   };
+
+  // ADIM (Continuous Wait->Color Gradient) - kullanıcı talebi: sütun
+  // rengi backend'in 4 SABİT risk renginden BİRİNE ZIPLAMASIN, dakika
+  // arttıkça YEŞİL->SARI->TURUNCU->KIRMIZI->BORDO diye SÜREKLİ/geçişli
+  // değişsin. Duraklar backend'in risk eşikleriyle (constants.py
+  // WAIT_RISK_LOW/MEDIUM/HIGH_MINUTES = 10/15/30) AYNI dakika
+  // noktalarında - YENİ bir risk kuralı İCAT EDİLMEDİ, SADECE o
+  // noktalar arasındaki renk artık ADIM ADIM değil DOĞRUSAL (linear
+  // RGB interpolation) geçiyor. 30 dk'nın ÜSTÜNDE (backend'in
+  // CRITICAL'ı BAŞLADIĞI nokta) 60 dk'ya kadar kırmızıdan bordoya
+  // devam eder, 60+ dk'da bordoda SABİTLENİR (daha da karartmaz -
+  // "en kötü" rengin kendisi budur).
+  var WAIT_COLOR_STOPS = [
+    { minutes: 0, rgb: [47, 169, 104] },   // #2fa968 - LOW (yeşil)
+    { minutes: 10, rgb: [209, 169, 44] },  // #d1a92c - MEDIUM (sarı)
+    { minutes: 15, rgb: [224, 138, 60] },  // #e08a3c - HIGH (turuncu)
+    { minutes: 30, rgb: [212, 81, 79] },   // #d4514f - CRITICAL (kırmızı)
+    { minutes: 60, rgb: [122, 31, 42] },   // bordo - kırmızının devamı
+  ];
+
+  function lerpRgb(a, b, t) {
+    return [
+      Math.round(a[0] + (b[0] - a[0]) * t),
+      Math.round(a[1] + (b[1] - a[1]) * t),
+      Math.round(a[2] + (b[2] - a[2]) * t),
+    ];
+  }
+
+  // `minutes == null` -> backend'in kendi UNKNOWN grisi (bkz.
+  // `colorForWindow` - "veri yok" ile "0 dakika" burada KARIŞTIRILMAZ).
+  function colorForWaitMinutes(minutes) {
+    var stops = WAIT_COLOR_STOPS;
+    if (minutes <= stops[0].minutes) return "rgb(" + stops[0].rgb.join(",") + ")";
+    for (var i = 1; i < stops.length; i++) {
+      if (minutes <= stops[i].minutes) {
+        var t = (minutes - stops[i - 1].minutes) / (stops[i].minutes - stops[i - 1].minutes);
+        return "rgb(" + lerpRgb(stops[i - 1].rgb, stops[i].rgb, t).join(",") + ")";
+      }
+    }
+    return "rgb(" + stops[stops.length - 1].rgb.join(",") + ")"; // 60dk+ -> bordoda sabit
+  }
+
+  // Bir pencerenin sütun rengi - `chartValue()` ile AYNI üç kollu
+  // mantık (gerçek wait / kapasite aşıldı / veri yok), SADECE renk
+  // için. Kapasite aşıldı (wait=null, utilization>=1) HER ZAMAN en
+  // kötü/bordo renktedir (teorik olarak sonsuz bekleme) - sayısal bir
+  // dakikaya dayanmaz.
+  function colorForWindow(w) {
+    if (w.estimated_wait_minutes != null) return colorForWaitMinutes(w.estimated_wait_minutes);
+    if (w.utilization != null && w.utilization >= 1) {
+      return "rgb(" + WAIT_COLOR_STOPS[WAIT_COLOR_STOPS.length - 1].rgb.join(",") + ")";
+    }
+    return SEVERITY_COLOR.UNKNOWN;
+  }
   // ADIM (Passenger-Facing Risk Threshold v2) - backend risk kodundan
   // (LOW/MEDIUM/HIGH/CRITICAL/UNKNOWN) İNGİLİZCE UI etiketine TEK JS-
   // side eşleme - backend'in `risk_label` alanıyla (app/queue/api.py
@@ -769,29 +822,93 @@
     }
   }
 
+  // ADIM (Continuous Wait Curve) - ÖNCEKİ sürüm burada `SEVERITY_
+  // HEIGHT`'ın 4 SEVİYELİ (1/2/3/4) yüksekliğini çiziyordu - bu, wait
+  // 9 dk'dan 10 dk'ya (LOW->MEDIUM eşiği) çıktığında görsel olarak
+  // %100'lük bir SIÇRAMA gibi görünüyordu (gerçekte 1 dakikalık, küçük
+  // bir fark) - "hesaplama hatası var gibi görünüyor" hissi BURADAN
+  // geliyordu. Artık y-ekseni GERÇEK `estimated_wait_minutes` (sürekli
+  // bir sayı) - risk KATEGORİSİ değil - bu yüzden küçük gerçek
+  // farklılıklar küçük, büyük farklılıklar büyük görünür; backend'in
+  // kendisi HİÇ değişmedi, SADECE bu fonksiyonun hangi sayıyı çizdiği
+  // değişti. `waitTimeText()`/risk ile AYNI kaynak alanlar okunur,
+  // yeni bir hesap YAPILMAZ.
+  function chartValue(w, ceiling) {
+    if (w.estimated_wait_minutes != null) return w.estimated_wait_minutes;
+    if (w.utilization != null && w.utilization >= 1) {
+      // Kapasite aşıldı - sayısal bir wait YOK (teorik olarak sonsuz).
+      // Görsel olarak "grafikteki her şeyden daha yüksek" göstermek
+      // için mevcut tavanın biraz üstünde bir nokta - GERÇEK bir dakika
+      // DEĞİL, tooltip hâlâ `waitTimeText()` üzerinden "Capacity
+      // exceeded" yazar (bkz. aşağı).
+      return ceiling;
+    }
+    return 0; // Unavailable - gösterilecek sayısal bir değer yok.
+  }
+
   function drawChart(windows, canvasId, key) {
     if (!windows.length) return;
     var canvas = document.getElementById(canvasId);
     if (!canvas) return;
 
     var labels = windows.map(function (w) { return windowLabel(w); });
-    var heights = windows.map(function (w) { return SEVERITY_HEIGHT[w.risk]; });
-    var colors = windows.map(function (w) { return SEVERITY_COLOR[w.risk] || SEVERITY_COLOR.UNKNOWN; });
+    var realWaits = windows
+      .map(function (w) { return w.estimated_wait_minutes; })
+      .filter(function (v) { return v != null; });
+    var maxReal = realWaits.length ? Math.max.apply(null, realWaits) : 0;
+    // ADIM (Capacity-Exceeded Visual Ceiling) - gerçek en yüksek wait'in
+    // %25 üstü, en az 10 dk - kapasite aşıldı sütunu HER ZAMAN görünür
+    // şekilde diğerlerinden yüksek durur ama eksen ölçeği anlamsız
+    // büyümez (ör. tek bir "Capacity exceeded" saati yüzünden eksen
+    // 1000 dk'ya sıçramaz).
+    var ceiling = Math.max(10, maxReal * 1.25);
+    var values = windows.map(function (w) { return chartValue(w, ceiling); });
+    var colors = windows.map(colorForWindow);
+    var axisMax = Math.max(ceiling * 1.1, 10);
 
     state.charts[canvasId] = new Chart(canvas, {
+      // ADIM (Bar Shape Kept, Height Now Continuous) - kullanıcı
+      // talebi: sütun (bar) şekli KORUNSUN, SADECE yükseklik artık
+      // (yukarıdaki ADIM) risk kategorisi değil gerçek dakika. Renk
+      // HÂLÂ backend'in `risk` alanından geliyor (SEVERITY_COLOR) -
+      // wait arttıkça hem sütun uzuyor hem de (risk eşiklerini
+      // geçtikçe) rengi LOW(yeşil)->MEDIUM->HIGH->CRITICAL(kırmızı)
+      // değişiyor - burada YENİ bir renk/eşik kuralı İCAT EDİLMEDİ.
       type: "bar",
       data: {
         labels: labels,
-        datasets: [{ data: heights, backgroundColor: colors, borderRadius: 2, maxBarThickness: 14 }],
+        datasets: [{
+          data: values,
+          backgroundColor: colors,
+          borderRadius: 2,
+          maxBarThickness: 14,
+          // ADIM (Zero-Wait Still Visible) - 0 dakikalık (gerçek, LOW/
+          // yeşil) bir saat Chart.js'te YÜKSEKLİĞİ 0 olduğu için tamamen
+          // KAYBOLURDU - kullanıcı talebi: "0 bekleme süresini yine
+          // göstersin, biraz yeşil olarak". `minBarLength` (piksel)
+          // veriyi/rengi DEĞİŞTİRMEZ - SADECE 0'a çok yakın sütunlara
+          // en az bu kadar piksel yükseklik ÇİZDİRİR, tooltip/gerçek
+          // değer ETKİLENMEZ (hâlâ "Wait: 0 min" yazar).
+          minBarLength: 4,
+        }],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        // ADIM (Frontend 4-Graph Contract) - Bölüm 50/64/67: bir çubuğa
+        // ADIM (Refresh Animation) - her refresh'te (5 dk'lık otomatik
+        // poll dahil) grafik YENİDEN OLUŞTURULUYOR (bkz. `renderContent`)
+        // - bu yüzden yeni değerlere geçiş HER ZAMAN bu "giriş"
+        // animasyonuyla (400ms, sütunların büyümesi) olur; eski/yeni
+        // değer arasında ANİ bir "sıçrama" göstermez.
+        animation: { duration: 400, easing: "easeOutQuart" },
+        // ADIM (Frontend 4-Graph Contract) - Bölüm 50/64/67: bir noktaya
         // tıklamak SADECE bu grafiğin (`key`) kendi seçili penceresini
         // değiştirir; hesaplama YAPILMAZ, sadece zaten yüklü pencerenin
         // KENDİ `window_start`'ı saklanır (array index DEĞİL - bkz.
         // `state` yorumu, refresh sonrası aynı SAAT'i bulabilmek için).
+        // Wait süresi artık BUNA gerek KALMADAN hover/tooltip'te
+        // GÖRÜNÜR (bkz. altında `tooltip.callbacks.label`) - tıklama
+        // sadece alttaki detay panelini o saate SABİTLEMEK için kalır.
         onClick: function (evt, elements) {
           if (!elements.length) return;
           state.detail[key] = windows[elements[0].index].window_start;
@@ -806,9 +923,17 @@
                 var w = windows[items[0].dataIndex];
                 return windowLabelRange(w);
               },
+              // ADIM (Hover Shows Wait, Not Click) - kullanıcı talebi:
+              // bekleme süresi TIKLAMADAN, doğrudan hover/tooltip'te
+              // görünsün. `waitTimeText()` İLE AYNI merkezi formatlayıcı
+              // (Capacity exceeded/Unavailable dahil) - burada YENİ bir
+              // metin/hesap İCAT EDİLMEZ.
               label: function (item) {
                 var w = windows[item.dataIndex];
-                return w.risk_label || RISK_UI_LABEL.UNKNOWN;
+                return [
+                  "Wait: " + waitTimeText(w),
+                  "Status: " + (w.risk_label || RISK_UI_LABEL.UNKNOWN),
+                ];
               },
             },
           },
@@ -820,21 +945,11 @@
           },
           y: {
             min: 0,
-            max: 4.3,
+            max: axisMax,
             grid: { color: "#eef0f3" },
             ticks: {
-              stepSize: 1,
-              callback: function (value) {
-                // ADIM (Passenger-Facing Risk Threshold v2) - önceki
-                // sürüm burada AYRI, eksik (CRITICAL/4 hiç yoktu) ve
-                // Türkçe bir tablo tutuyordu - artık SEVERITY_HEIGHT'ın
-                // (yukarıda tanımlı, TEK yükseklik<->risk eşlemesi)
-                // TERSİ üzerinden AYNI RISK_UI_LABEL tablosunu okur -
-                // ikinci bir bağımsız etiket kümesi YOK.
-                var riskForHeight = { 1: "LOW", 2: "MEDIUM", 3: "HIGH", 4: "CRITICAL" }[value];
-                return riskForHeight ? RISK_UI_LABEL[riskForHeight] : "";
-              },
               font: { size: 10 },
+              callback: function (value) { return value + " min"; },
             },
           },
         },

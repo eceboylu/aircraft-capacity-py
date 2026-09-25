@@ -249,6 +249,31 @@ class AirportOperationalConfig(Base):
 
     arrival_bank_threshold: Mapped[int] = mapped_column(Integer, default=5)
 
+    # ADIM (Airport Operational Config Materialization) - önceden bir
+    # satırın VARLIĞI = "bu havalimanı açıkça override edildi" anlamına
+    # geliyordu (bkz. config.py:_build_config_view - `is_default = row
+    # is None`). Artık HER ölçeği çözülen havalimanı için (`ensure_
+    # airport_operational_configs()` - bkz. pipeline.py) bir satır
+    # OTOMATİK oluşturuluyor - satırın VARLIĞI artık "override" ile
+    # AYNI ŞEY DEĞİL. Bu kolon o farkı taşır:
+    #
+    #   True  = satır SADECE scale'in (`airport_scale.py:SCALE_
+    #           RESOURCES`) kopyası olarak seed edildi - insan ELİYLE
+    #           HİÇBİR alanı değiştirilmedi. `confidence_score()`'un
+    #           `CONFIDENCE_PENALTY_DEFAULT_CONFIG` cezası bu satırlar
+    #           için HÂLÂ uygulanır (bkz. config.py `is_default`) -
+    #           satırın var OLMASI, gerçek/ölçülmüş bir veri olduğu
+    #           anlamına GELMEZ.
+    #   False = bu satırdaki bir/birden fazla alan AÇIKÇA bu havalimanı
+    #           için özelleştirildi (override) - confidence cezası
+    #           KALKAR, `AirportConfigView.is_default=False` olur.
+    #
+    # Varsayılan `False`: elle INSERT edilen (seed fonksiyonundan
+    # GEÇMEYEN) eski/manuel satırlar hep "override" sayılır - geriye
+    # dönük uyumlu, YANLIŞLIKLA "default" sayılıp confidence'ı YÜKSELEN
+    # bir satır OLMAZ.
+    is_seeded_default: Mapped[bool] = mapped_column(Boolean, default=False)
+
 
 class QueuePrediction(Base):
     """
