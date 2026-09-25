@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 
 from .domain.airport_scale import resource_view_for_scale
-from .models import Airport, AirportOperationalConfig
+from .models import Airport, AirportOperationalConfig, AirportScaleConfig
 
 # Varsayılanlar burada TEKRAR YAZILMAZ; tek doğruluk kaynağı
 # AirportOperationalConfig sütun tanımlarıdır (bkz. models.py).
@@ -121,15 +121,18 @@ class AirportConfigView:
     # çağıranlar/testler bu iki alanı vermezse davranış DEĞİŞMEZ).
     passport_departure_server_count: int = 8
     passport_arrival_server_count: int = 8
-    # ADIM (Dynamic LARGE Passport Staffing) - `True` ise (SADECE scale
-    # "large" VE bu havuz için explicit `AirportOperationalConfig`
-    # alan-bazlı override YOKSA) `passport_departure_server_count`/
-    # `passport_arrival_server_count` yukarıdaki alan, dinamik
-    # staffing'in TABANI/DEFAULT'udur - `engine.py` bu bayrak True
-    # olduğunda `simulate_fifo_queue_dynamic()` yolunu kullanır.
-    # `False` (varsayılan, MEDIUM/SMALL/UNKNOWN VE her explicit override
-    # için hep False) ise ESKİ sabit `simulate_fifo_queue()` yolu
-    # AYNEN kullanılır - davranış BİREBİR korunur.
+    # ADIM (Dynamic MEGA Passport Staffing) - `True` ise (SADECE scale'in
+    # `domain/airport_scale.py:SCALE_RESOURCES`'ta `_max` anahtarı olması
+    # - bugünkü contract'ta bu TEK tier MEGA'dır - VE bu havuz için
+    # explicit `AirportOperationalConfig` alan-bazlı override YOKSA)
+    # `passport_departure_server_count`/`passport_arrival_server_count`
+    # yukarıdaki alan, dinamik staffing'in TABANI/DEFAULT'udur -
+    # `engine.py` bu bayrak True olduğunda `simulate_fifo_queue_dynamic()`
+    # yolunu kullanır. `False` (varsayılan, LARGE/MEDIUM/SMALL/UNKNOWN VE
+    # her explicit override için hep False) ise ESKİ sabit `simulate_
+    # fifo_queue()` yolu AYNEN kullanılır - LARGE artık dynamic DEĞİLDİR
+    # (eski, yanlışlıkla kaldırılan davranış - dynamic'in KENDİSİ MEGA'ya
+    # taşındı, silinmedi).
     passport_departure_dynamic: bool = False
     passport_arrival_dynamic: bool = False
     # Dynamic staffing'in ramp edebileceği TAVAN - SADECE ilgili
@@ -154,11 +157,12 @@ def _resolve_passport_server_counts(
     çözülür.
 
     Döner: (departure, arrival, departure_is_override, arrival_
-    is_override) - son ikisi ADIM (Dynamic LARGE Passport Staffing)
-    için: bir havuzun dynamic olup olamayacağı SADECE scale=large
-    olmasına değil, o havuzun explicit override TAŞIMAMASINA da bağlı
-    (bkz. `_build_config_view` - "explicit airport override = fixed
-    configuration" kuralı, process bazında AYRI değerlendirilir).
+    is_override) - son ikisi dynamic staffing mekanizması için: bir
+    havuzun dynamic olup olamayacağı hem `resources`'ın bir `_max`
+    anahtarı taşımasına (4-tier contract'ta SADECE MEGA taşıyor - bkz.
+    `SCALE_RESOURCES`) HEM DE o havuzun explicit override TAŞIMAMASINA
+    bağlı (bkz. `_build_config_view` - "explicit airport override =
+    fixed configuration" kuralı, process bazında AYRI değerlendirilir).
     """
     fallback = _legacy_unknown_server_count()
     scale_dep = resources["departure_passport_servers"] if resources else fallback
@@ -209,30 +213,77 @@ def _resolve_security_lane_counts(
     return domestic, international
 
 
+def _scale_resources_from_db(session) -> dict[str, dict]:
+    """
+    ADIM (DB-Editable Scale Resource Contract) - `airport_scale_configs`
+    tablosunun TÜM satırlarını TEK sorguda `domain/airport_scale.py:
+    SCALE_RESOURCES` ile AYNI şekle (dict-of-dict) çevirir.
+
+    `get_config()`/`get_configs()` bunu ÇAĞIRANIN sorumluluğunda TEK
+    SEFER çeker (N+1 sorgu YOK - `get_configs()` birden çok havalimanı
+    için bu fonksiyonu SADECE BİR KEZ çağırır).
+
+    `_max` alanları NULL ise sonuç dict'e HİÇ EKLENMEZ - `SCALE_
+    RESOURCES`'ın kendi konvansiyonuyla AYNI (`"...max" in resources`
+    kontrolü LARGE/MEDIUM/SMALL için `False` kalmalı, `None` değeriyle
+    var olan bir anahtar DEĞİL - `_build_config_view()`'ın `resources.
+    get("...max")` çağrısı zaten `None` dönmesi açısından ikisi de aynı
+    sonucu verir, ama tutarlılık için burada da AYNI konvansiyon
+    korunur).
+    """
+    rows = session.execute(select(AirportScaleConfig)).scalars().all()
+    result: dict[str, dict] = {}
+    for row in rows:
+        entry = {
+            "departure_passport_servers": row.departure_passport_servers,
+            "arrival_passport_servers": row.arrival_passport_servers,
+            "domestic_security_lanes": row.domestic_security_lanes,
+            "international_security_lanes": row.international_security_lanes,
+        }
+        if row.departure_passport_servers_max is not None:
+            entry["departure_passport_servers_max"] = row.departure_passport_servers_max
+        if row.arrival_passport_servers_max is not None:
+            entry["arrival_passport_servers_max"] = row.arrival_passport_servers_max
+        result[row.scale] = entry
+    return result
+
+
 def _build_config_view(
     airport_iata: str, row: AirportOperationalConfig | None, scale: str | None,
+    db_scale_resources: dict[str, dict] | None = None,
 ) -> AirportConfigView:
-    resources = resource_view_for_scale(scale)
+    # ADIM (DB-Editable Scale Resource Contract) - ÖNCELİK: (1)
+    # `airport_scale_configs` tablosunda bu `scale` için bir satır VARSA
+    # (db_scale_resources'ta anahtar olarak bulunuyorsa) AYNEN o
+    # kullanılır - phpMyAdmin'den değiştirilen bir sayı, kod
+    # değiştirilmeden/deploy edilmeden bir SONRAKİ hesaplamada etkili
+    # olur. (2) DB'de o scale için satır YOKSA (tablo boş/kısmi doldurulmuş
+    # olabilir) `SCALE_RESOURCES` (Python sabiti, `domain/airport_scale.py`)
+    # GÜVENLİ YEDEK olarak kullanılmaya devam eder - bu tablo "hepsi ya da
+    # hiçbiri" DEĞİLDİR. `db_scale_resources=None` (ör. `default_config()`
+    # - session YOK) HER ZAMAN (2)'ye düşer - PURE/test-edilebilir davranış
+    # DEĞİŞMEDEN korunur.
+    if db_scale_resources and scale in db_scale_resources:
+        resources = db_scale_resources[scale]
+    else:
+        resources = resource_view_for_scale(scale)
     (
         departure_servers, arrival_servers,
         departure_is_override, arrival_is_override,
     ) = _resolve_passport_server_counts(row, resources)
     domestic_lanes, international_lanes = _resolve_security_lane_counts(row, resources)
 
-    # ADIM (Dynamic LARGE Passport Staffing) - SADECE scale'in `_max`
-    # taşıyan bir tier olması (LARGE) VE o havuz için explicit override
-    # YOKSA dynamic aktif. `resources`'ta `_max` anahtarı yoksa (MEDIUM/
-    # SMALL/UNKNOWN - SCALE_RESOURCES'ta bu ölçeklerin sözlüğünde `_max`
-    # hiç YOK) dynamic zaten anlamsız kalır (max=None -> engine.py bu
-    # bayrağı hiç okumaz ama güvenlik için burada da False'a düşürülür).
-    # Kasıtlı olarak `scale == SCALE_LARGE` yerine `departure_max is not
-    # None` kontrolü kullanılıyor - bir zamanlar burada sabit `scale ==
-    # SCALE_LARGE` kontrolü vardı, artık kaldırılmış olan ayrı bir
-    # VERY_LARGE tier'ı eklenince bu, VERY_LARGE havalimanlarını SESSİZCE
-    # statik/sabit server sayısına düşürüyordu (peak'te max'a asla ramp
-    # ETMİYORDU) - `departure_max is not None` scale-agnostik olduğu
-    # için `_max` taşıyan HERHANGİ bir gelecekteki tier için de doğru
-    # çalışır, hard-code bir tier adına bağlı DEĞİLDİR.
+    # ADIM (Dynamic MEGA Passport Staffing) - dynamic aktif olması İÇİN
+    # scale'in `_max` taşıyan bir tier olması GEREKİR - `domain/
+    # airport_scale.py:SCALE_RESOURCES`'taki 4 tier'dan (mega/large/
+    # medium/small) SADECE MEGA'nın `_max` anahtarı VAR (departure
+    # taban=30/tavan=45, arrival taban=35/tavan=45) - LARGE/MEDIUM/SMALL
+    # HİÇBİRİNDE YOK, bu yüzden bu üçü için `departure_max`/`arrival_max`
+    # HER zaman `None`, dynamic bayrakları HER zaman `False` olur.
+    # Kontrol KASITLI olarak `scale == "mega"` gibi bir tier adına değil,
+    # `departure_max is not None`'a bağlı (scale-agnostik) - `_max`
+    # başka/ek bir tier'a taşınır/eklenirse kod DEĞİŞTİRİLMEDEN doğru
+    # çalışmaya devam eder.
     departure_max = resources.get("departure_passport_servers_max") if resources else None
     arrival_max = resources.get("arrival_passport_servers_max") if resources else None
     passport_departure_dynamic = not departure_is_override and departure_max is not None
@@ -295,7 +346,8 @@ def get_config(session, airport_iata: str) -> AirportConfigView:
     row = session.get(AirportOperationalConfig, airport_iata)
     airport = session.get(Airport, airport_iata)
     scale = airport.scale if airport is not None else None
-    return _build_config_view(airport_iata, row=row, scale=scale)
+    db_scale_resources = _scale_resources_from_db(session)
+    return _build_config_view(airport_iata, row=row, scale=scale, db_scale_resources=db_scale_resources)
 
 
 def get_configs(session, airport_codes) -> dict[str, AirportConfigView]:
@@ -321,7 +373,14 @@ def get_configs(session, airport_codes) -> dict[str, AirportConfigView]:
     ).all()
     scale_by_code = {iata: scale for iata, scale in scales}
 
+    # TEK sorgu, TÜM havalimanları için paylaşılır (N+1 YOK) - bkz.
+    # `_scale_resources_from_db()` docstring'i.
+    db_scale_resources = _scale_resources_from_db(session)
+
     return {
-        code: _build_config_view(code, rows_by_code.get(code), scale_by_code.get(code))
+        code: _build_config_view(
+            code, rows_by_code.get(code), scale_by_code.get(code),
+            db_scale_resources=db_scale_resources,
+        )
         for code in codes
     }

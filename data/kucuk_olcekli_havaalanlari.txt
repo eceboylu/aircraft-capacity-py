@@ -1,744 +1,2905 @@
-﻿KÜÇÜK ÖLÇEKLİ HAVAALANLARI
-Toplam: 740
+KÜÇÜK ÖLÇEKLİ HAVAALANLARI
+Toplam: 2.897
+Kriter: 1 milyon altı yolcu/yıl
 Biçim: IATA / ICAO - Havaalanı adı
 
+PPB / SBDN - A. De Barros Airport
+TAB / TTCP - A.N.R. Robinson International Airport
+AAR / EKAH - Aarhus Airport
+JEG / BGAA - Aasiaat Airport
+DIR / HADR - Aba Tenna D Yilma Airport
+ABD / OIAA - Abadan Airport
+ABA / UNAA - Abakan Airport
+MLG / WARA - Abdul Rachman Saleh Airport
+ABR / KABR - Aberdeen Municipal Airport
+ABI / KABI - Abilene Regional Airport
+PSR / LIBP - Abruzzo Airport
+AEU / OIBA - Abu Musa
+ABS / HEBL - Abu Simbel
+ADK / PADK - Adak Island Ns
+SLK / KSLK - Adirondack Airport
+JOG / WAHH - Adisutjipto International Airport
+ADF / LTCP - Adiyaman Airport
+AZR / DAUA - Adrar Airport
+AGX / VOAT - Agatti Island Airport
+RJL / LERJ - Agoncillo Airport
+AJI / LTCO - Agri Airport
+TMR / DAAT - Aguenar - Hadj Bey Akhamok Airport
 AGJ / RORA - Aguni
+AHE / NTHE - Ahe Airport
 AIP / VIAX - Ailinglapalap Island
+OGX / DAUU - Ain Beida Airport
+ROR / PTRO - Airai Airport
 AIT / NCAI - Aitutaki Airport
-AKK / PAKH - Akhiok SPB
+AJL / VELP - Aizawl Airport
 AKI / PFAK - Akiak
 LAK / CYKD - Aklavik
+CAK / KCAK - Akron-Canton Airport
+PVK / LGPZ - Aktion Airport
 AKV / CYKO - Akulivik
+AKR / DNAK - Akure
+AEY / BIAR - Akureyri Airport
 KQA / KQA - Akutan
+QUO / DNAI - Akwa Ibom Airport
+AAN / OMAL - Al Ain Airport
+AAY / OYGD - Al Ghaydah
+TAI / OYTZ - Al Janad
+ABT / OEBA - Al-Aqiq Airport
+FJR / OMFJ - Al-Fujairah International
+PGU / OIBP - Ala'Marvdasht Airport
 ACF / ZWAL - Alaer Talimu Airport
 AUK / PAUK - Alakanuk Airport
+DBB / HEAL - Alalamain International
+ALS / KALS - Alamosa Municipal Airport
+ALH / YABA - Albany Airport
+OAJ / KOAJ - Albert J Ellis Airport
+ABX / YMAY - Albury Airport
+ACI / EGJA - Alderney Airport
+AGT / SGES - Alejo Garcia Airport
+WKK / 5A8 - Aleknagik
 YAL / CYAL - Alert Bay
+AEX / KAEX - Alexandria International Airport
+ASP / YBAS - Alice Springs Airport
 AET / PFAL - Allakaket
+AIA / KAIA - Alliance Airport
 GGF / --- - Almeirim
+LEI / LEAM - Almeria Airport
 ARD / WATM - Alor Island Airport
+APN / KAPN - Alpena County Regional Airport
+ALF / ENAT - Alta Airport
+AFL / SBAT - Alta Floresta Airport
+LTI / ZMAT - Altai
+ATM / SBHT - Altamira Airport
+ACH / LSZR - Altenrhein Airport
+AOO / KAOO - Altoona Airport
+AXF / ZBAL - Alxa Left Banner
 RHT / ZBAR - Alxa Right Banner
+GTE / YGTE - Alyangula Airport
+AXJ / RJDA - Amakusa
+ASJ / RJKA - Amami Airport
+MAJ / PKMJ - Amata Kabua International Airport
+ABL / PAFM - Ambler Airport
+MJN / FMNM - Amborovy
+ASV / HKAM - Amboseli
+AMV / ULDD - Amderma
 GOY / --- - Amparai
+AVA / ZUAS - An Shun/Huang Guo Shu Airport
+AAA / NTGA - Anaa
 OTS / --- - Anacortes
+AOE / LTBY - Anadolu University
+DYR / UHMA - Anadyr Airport
+YAA / CAJ4 - Anahim Lake
+AKP / PAKP - Anaktuvuk
+AOI / LIPY - Ancona Falconara Airport
 ANS / SPHY - Andahuaylas
+ANX / ENAN - Andenes Airport
+AZN / UTFA - Andizhan Airport
+ASD / MYAF - Andros Town
 ICC / SVIE - Andrés Miguel Salazar Marcano Airport
+AGH / ESTA - Angelholm Helsingborg Airport
 YAX / CKB6 - Angling Lake Airport
+ANI / PANI - Aniak Airport
 AKA / ZLAK - Ankang
+NCY / LFLP - Annecy-Meythe
 NBN / FGAB - Annobón
+AQG / ZSAQ - Anqing Tianzhushan Airport
+AOG / ZYAS - Anshan Teng'ao Airport
+SCU / MUCU - Antonio Maceo Airport
+VQS / TJVQ - Antonio Rivera Rodriguez Airport
+DIE / FMNA - Antsiranana/Arrachart
+ANR / EBAW - Antwerp International Airport
+ANV / PANV - Anvik Airport
+APO / SKLC - Apartado Airport
 APK / NTGD - Apataki
+ARU / SBAU - Aracatuba Airport
+ARW / LRAR - Arad
+AUX / SWGN - Araguaina Airport
 AAK / NGUK - Aranuka
+RAE / OERR - Arar Airport
+AQA / SBAQ - Araraquara
+AUC / SKUC - Arauca Airport
+AAX / SBAX - Araxa Airport
+GPA / LGRX - Araxos Airport
+AMH / HAAM - Arba Mintch Airport
+ACV / KACV - Arcata-Eureka Airport
 YAB / CYAB - Arctic Bay
+ARC / PARC - Arctic Village
+ADU / OITL - Ardabil Airport
+OSD / ESNZ - Are Ostersund Airport
+SVD / TVSV - Argyle International Airport
 KSO / LGKA - Aristoteles Airport
+ARM / YARM - Armidale Airport
 KIE / AYIQ - Aropa
+ATC / MYCA - Arthur's Town
+VLN / SVVA - Arturo Michelena International Airport
+RUA / HUAR - Arua
+ARK / HTAR - Arusha Airport
+AXR / NTGU - Arutua Airport
+AVK / ZMAH - Arvaikheer
 YEK / CYEK - Arviat
+AJR / ESNX - Arvidsjaur Airport
+YIE / ZBES - Arxan Yiershi Airport
+ABB / DNAS - Asaba International Airport
+ASM / HHAS - Asmara International Airport
+ASO / HASO - Asosa Airport
+ASE / KASE - Aspen Airport
+ATZ / HEAT - Assiut Airport
 JTY / LGPL - Astypalaia Airport
 AIU / NCAT - Atiu Island
 AKB / PAAK - Atka
+ACY / KACY - Atlantic City International Airport
 ATT / --- - Atmautluak Airport
+ATK / PATQ - Atqasuk Edward Burnell Sr. Memorial Airport
 YAT / CYAT - Attawapiskat
+AUG / KAUG - Augusta Airport
+AGS / KAGS - Augusta Regional Airport
 YPJ / CYLA - Aupaluk Airport
 AUL / --- - Aur Island
+AUR / LFLW - Aurillac Airport
 AUU / YAUR - Aurukun Mission
+GRB / KGRB - Austin Straubel International Airport
 GBI / MYGM - Auxiliary Airfield
+AVV / YMAV - Avalon Airport
+AVN / LFMV - Avignon-Caumont Airport
+CBO / RPMC - Awang Airport
+AWA / HALA - Awassa
+JKG / ESGJ - Axamo Airport
+AXU / HAAX - Axum Airport
+TTE / WAEE - Babullah Airport
+SUI / UGSS - Babusheri
+BJZ / LEBZ - Badajoz Airport
 BDD / YBAU - Badu Island
+BJR / HABD - Bahar Dar Airport
+BHV / OPBW - Bahawalpur Airport
 BFQ / --- - Bahia Pinas
+BSC / SKBS - Bahia Solano
 THD / VVTX - Bai Thuong Airport
+BAY / LRBM - Baia Mare
+DBC / ZYBA - Baicheng Chang'an
+YBC / CYBC - Baie-Comeau Airport
 BBR / TFFB - Baillif
+VMU / AYBA - Baimuru
 BKM / WBGQ - Bakalalan
+BAR / ZJQH - Baker AAF
+YBK / CYBK - Baker Lake
+BWO / UWSB - Balakovo
 BAS / AGGE - Balalae
+BXH / UAAH - Balhash
+EDO / LTFD - Balikesir Koca Seyit Airport
+OPU / AYBM - Balimo
+BKN / --- - Balkanabat Airport
+BNK / YBNA - Ballina Byron Airport
+GPS / SEGS - Baltra Airport
 BMR / EDWZ - Baltrum
+BXR / OIKM - Bam
+IXD / VIAL - Bamrauli Airport
 OUI / --- - Ban Houei
+LKL / ENNA - Banak Airport
+BDH / OIBL - Bandar Lengeh
 BWX / WADY - Bandar Udara Internasional Banyuwangi
+FDU / FZBO - Bandundu
+BPX / ZUBD - Bangda Airport
+FKI / FZIC - Bangoka International Airport
+BGR / KBGR - Bangor International Airport
+BGF / FEFF - Bangui Airport
+BNX / LQBK - Banja Luka Airport
+BSD / ZPBS - Baoshan Airport
+BHB / KBHB - Bar Harbor Airport
+BCA / MUBA - Baracoa
+BRX / MDBH - Barahona
+ULV / UWLL - Baratayevka
 BAZ / SWBC - Barbelos
+BBQ / TAPH - Barbuda
+KSC / LZKZ - Barca Airport
+BCI / YBAR - Barcaldine Airport
+BDU / ENDU - Bardufoss Airport
+BEK / VIBY - Bareli
+BNS / SVBI - Barinas
+BBN / WBGZ - Bario Airport
+BZL / VGBR - Barisal Airport
+PAH / KPAH - Barkley Regional Airport
+HYA / KHYA - Barnstable Municipal Airport
+BRM / SVBM - Barquisimeto Airport
 BRA / SNBR - Barreiras Airport
+BTI / PABA - Barter Island Airport
+CAW / SBCP - Bartolomeu Lisandro Airport
+BSO / RPUO - Basco Airport
 BSX / VYPN - Bassein
+BSG / FGBT - Bata Airport
 BQJ / UEBB - Batagay
 BUT / VQBT - Bathpalathang Airport
+ZBF / CZBF - Bathurst Airport
+BAL / LTCJ - Batman Airport
+BLJ / DABT - Batna Airport
+BTR / KBTR - Baton Rouge Metropolitan Airport
+BJF / ENBS - Batsfjord Airport
+BBM / VDBG - Battambang
+BTC / VCCB - Batticaloa
 BTW / WAOC - Batu Licin
+BCU / DNBC - Bauchi
+VLI / NVVV - Bauerfield Airport
+JTC / SBAE - Bauru-Arealva Airport
+BYN / ZMBH - Bayankhongor
+RLK / ZBYZ - Bayannur Tianjitai Airport
+BZX / ZUBZ - Bazhong Enyang Airport
 XBE / CNE3 - Bearskin Lake
 WBQ / PAWB - Beaver
+BKW / KBKW - Beckley Airport
+BEU / YBIE - Bedourie
+NBC / UWKE - Begishevo Airport
+BEW / FQBR - Beira Airport
+BJA / DAAE - Bejaia Airport
+ODE / EKOD - Beldringe
 BMY / NWWC - Belep Island
+IXG / VOBM - Belgaum Airport
+ZEL / CBBC - Bella Bella Airport
+QBC / CYBD - Bella Coola Airport
+LIG / LFBL - Bellegarde Airport
+BLV / KBLV - Belleville
+BLI / KBLI - Bellingham International Airport
 BNY / AGGB - Bellona
-BLW / HCMN - Bellows Field
+EYK / USHQ - Beloyarsky Airport
+BEB / EGPL - Benbecula Airport
 BXG / YBDG - Bendigo
+CKB / KCKB - Benedum Airport
+BEM / GMMD - Beni Mellal Airport
+BNI / DNBE - Benin City Airport
+NVA / SKNV - Benito Salas Airport
+CPX / TJCP - Benjamin Rivera Noriega Airport
+BBO / HCMI - Berbera
 YBV / CYBV - Berens River Airport
-JBK / --- - Berkeley
+BVG / ENBV - Berlevag Airport
+BRN / LSZB - Bern Airport
+BPY / FMNQ - Besalampy
+BET / PABE - Bethel Airport
 BTT / PABT - Bettles
+BZR / LFMU - Beziers Vias Airport
 BDP / VNCG - Bhadrapur Airport
+BWA / VNBW - Bhairawa Airport
 BMO / VYBM - Bhamo
 BHR / VNBP - Bharatpur Airport
+BHU / VABV - Bhavnagar Airport
+KUU / VIBR - Bhuntar Airport
+YYA / ZGYY - Big Bay Yacht Club
 BGK / MZBG - Big Creek
 YTL / CYTL - Big Trout
+BFJ / ZUBJ - Bijie Airport
+PAB / VEBU - Bilaspur
+BIL / KBIL - Billings Logan International Airport
+BIM / MYBS - Bimini International Airport
+BGG / LTCU - Bingol Airport
+BTU / WBGB - Bintulu Airport
+BIR / VNVT - Biratnagar Airport
 KBC / Z91 - Birch Creek
+BVI / YBDV - Birdsville
+XBJ / OIMB - Birjand Airport
+BHH / OEBH - Bisha Airport
+BIH / KBIH - Bishop
+FNT / KFNT - Bishop International Airport
+BSK / DAUB - Biskra Airport
+BIS / KBIS - Bismarck Airport
 YBI / CCE4 - Black Tickle
+BKQ / YBCK - Blackall Airport
 MBL / KMBL - Blacker Airport
+BQS / UHBB - Blagoveschensk Airport
 BYW / 38WA - Blakely Island
+YBX / CYBX - Blanc Sablon
 BID / KBID - Block Island
 YDV / CZTA - Bloodvein
+BEF / MNBL - Bluefields
+BVB / SBBV - Boa Vista Airport
+IAN / PAIK - Bob Baker Memorial Airport
+BOC / MPBO - Bocas Del Toro
 ODO / UIKB - Bodaybo Airport
 BNB / FZGN - Boende
 BQG / UHNB - Bogorodskoye
 GIC / YBOI - Boigu Island
+BJB / OIMN - Bojnord
 BUI / WAJB - Bokondini
+BPL / ZWBL - Bole Airport
+BZO / LIPB - Bolzano
+YVB / CYVB - Bonaventure
 BYO / SBDB - Bonito Airport
+YBY / CYBF - Bonnyville
+TRW / NGTA - Bonriki Airport
 BXT / WALC - Bontang
+HRO / KHRO - Boone County Airport
+WWK / AYWK - Boram Airport
 RBB / SWBR - Borba
+BMW / DATM - Bordj Badji Mokhtar
+BOY / DFOO - Borgo
 BMK / EDWR - Borkum
+RNN / EKRN - Bornholm Airport
+OCJ / MKBS - Boscobel
 BOT / AYET - Boset
+BSA / HCMF - Bossaso
+BYK / DIBK - Bouake
+UAR / GMFB - Bouarfa
+BQL / YBOU - Boulia
+BRK / YBKE - Bourke
+BVJ / USDB - Bovanenkovo Airport
+BWK / LDSB - Brac
+BFD / KBFD - Bradford Airport
+BGC / LPBG - Braganca Airport
+BFN / FABL - Bram Fischer International Airport
+MNI / TRPM - Bramble Airport
+YBR / CYBR - Brandon Municipal Airport
+BKG / KBBG - Branson
+BTK / UIBB - Bratsk Airport
+BQT / UMBB - Brest Airport
 BVS / SNVS - Breves
 KTS / PFKT - Brevig Mission Airport
 FDE / ENBL - Bringeland Airport
 YBT / CYBT - Brochet
+BHQ / YBHI - Broken Hill Airport
+BMA / ESSB - Bromma Airport
+BNN / ENBN - Bronnoysund Airport Bronnoy
+BME / YBRM - Broome Airport
 LLO / WAFD - Bua Airport
 BKC / PABL - Buckland Airport
+BUN / SKBU - Buenaventura
+UUA / UWKB - Bugulma Airport
+BJM / HBBA - Bujumbura International Airport
+BUA / AYBK - Buka
+BHK / UTSB - Bukhara Airport
 BKZ / HTBU - Bukoba Airport
+BUQ / FVJN - Bulawayo Airport
+UGA / ZMBN - Bulgan
 TJQ / WIKT - Bulutumbang Airport
+BDB / YBUD - Bundaberg Airport
+BUX / FZKA - Bunia
 UOL / WAMY - Buol
+BFV / VTUO - Buri Ram Airport
 BUC / YBKT - Burketown
+BRL / KBRL - Burlington Airport
+BWT / YWYY - Burnie Wynyard Airport
+YPZ / CYPZ - Burns Lake
+BUZ / OIBB - Bushehr Airport
 BQB / YBLN - Bussellton Regional Airport
+USU / RPVV - Busuanga Airport
 BBG / NGTU - Butaritari
+BTM / KBTM - Butte Airport
+BXU / RPME - Butuan Airport
+BZG / EPBY - Bydgoszcz Airport
+BYM / MUBY - C.M. de Cespedes
+CAB / FNCA - Cabinda Airport
 CFB / SBCB - Cabo Frio International Airport
 OAL / SSKW - Cacoal Airport
+CJA / SPJR - Cajamarca Airport
+BCH / WPEC - Cakung International
+CBQ / DNCA - Calabar Airport
+CYP / RPVC - Calbayog Airport
 CLV / SBCN - Caldas Novas
+CDE / ZBCD - Caledonia
+CNQ / SARC - Camba Punta Airport
+JST / KJST - Cambria County Airport
+YCB / CYCB - Cambridge Bay Airport
+GCC / KGCC - Campbell County Airport
+YBL / CYBL - Campbell River Airport
+CPE / MMCP - Campeche International Airport
+CZS / SBCZ - Campo Internacional Airport
+YXC / CYXC - Canadian Rockies International Airport
+CAJ / SVCN - Canaima
+CKZ / LTBH - Canakkale Airport
+ZOS / SCJO - Canal Bajo Airport
+DCF / TDCF - Canefield Airport
+CWJ / ZPCW - Cangyuan Washan Airport
+PSO / SKPS - Cano Airport
+CIW / TVSC - Canouan Island
+CNY / KCNY - Canyonlands Field
+CAP / MTCH - Cap Haitien Airport
+CSK / GOGS - Cap Skirring
 YTE / CYTE - Cape Dorset
 CEL / --- - Cape Eleuthera
+CGI / KCGI - Cape Girardeau Airport
+SPI / KSPI - Capital Airport
+LAN / KLAN - Capital Region International Airport
+PDP / SULS - Capitan de Corbeta Carlos A. Curbelo International Airport
+TBP / SPME - Capitan FAP Pedro Canga Rodriguez Airport
+TJA / SLTJ - Capitan Oriel Lea Plaza Airport
+PCL / SPCL - Capitan Rolden Airport
+FLA / SKFL - Capitolio Airport
+TYL / SPYL - Captain FAP Victor Montes Arias Airport
+CKS / SBCJ - Carajas Airport
 CAF / SWCA - Carauari
+CCF / LFMK - Carcassonne Airport
+DNZ / LTAY - Cardak Airport
+CVQ / YCAR - Carnarvon Airport
+CFR / LFRK - Carpiquet Airport
 CRU / TGPZ - Carriacou Island
 YRF / CYCA - Cartwright
 CAU / SNRU - Caruaru
+CUP / SVCP - Carupano
+VLV / SVVL - Carvajal
+CAT / LPCS - Cascais Municipal Aerodrome
+CAC / SBCA - Cascavel Airport
+CPR / KCPR - Casper/Natrona County International Airport
+CDT / LECH - Castellon
+YCG / CYCG - Castlegar Airport
 YAC / CYAC - Cat Lake
+CTC / SANC - Catamarca Airport
+CBT / FNCT - Catumbela Airport
+CYZ / RPUY - Cauayan Airport
+CNM / KCNM - Cavern City Air Terminal
+CUK / MZCK - Caye Caulker
+CYC / --- - Caye Chapel
+CYO / MUCL - Cayo Largo Del Sur Airport
+CDC / KCDC - Cedar City Airport
+CED / YCDU - Ceduna Airport
 CWS / 78WA - Center Island
 CEM / PACE - Central
+BMI / KBMI - Central Illinois Regional Airport
+CWA / KCWA - Central Wisconsin Airport
+VXE / GVSV - Cesaria Evora International Airport
+CHH / SPPY - Chachapoyas
+CDR / KCDR - Chadron Airport
+ZBR / OIZC - Chah-Bahar Airport
 CIK / PACI - Chalkyitsik
+XCR / LFOK - Chalons Vatry Airport
+CMF / LFLB - Chambery
+CPO / SCAT - Chamonate Airport
+NBS / ZYBS - Changbaishan Airport
+CGD / ZGCD - Changde Airport
 CNI / ZYCH - Changhai
+CHX / MPCH - Changuinola
 CIH / ZBCZ - Changzhi Airport
+WUZ / ZGWZ - Changzhoudao
+CHG / ZYCY - Chaoyang Airport
+XAP / SBCH - Chapeco Airport
+CPC / SAZY - Chapelco Airport
+AHU / GMTA - Charif Al Idrissi Airport
+CYB / MWCB - Charles Kirkconnel International Airport
+CTL / YBCV - Charleville Airport
+CHO / KCHO - Charlottesville Albemarle Airport
 YHG / --- - Charlottetown
-CYF / PACK - Chefornak Sea Plane Base
+YYG / CYYG - Charlottetown Airport
+CSY / UWKS - Cheboksary Airport
+GEO / SYCJ - Cheddi Jagan International Airport
+TEE / DABS - Cheikh Larbi Tebessi Airport
+HCZ / ZGCZ - Chenzhou Beihu Airport
+CEE / ULWC - Cherepovets Airport
+TVC / KTVC - Cherry Capital Airport
+CYX / UESS - Cherskiy Airport
 YCS / CYCS - Chesterfield Inlet
+CTM / MMCM - Chetumal Airport
 VAK / PAVA - Chevak Airport
 YHR / CYHR - Chevery
+CYS / KCYS - Cheyenne
+CYI / RCKU - Chiayi Airport
+YMT / CYMT - Chibougamau Airport
+RFD / KRFD - Chicago Rockford International Airport
 CKX / CKX - Chicken
 KCQ / A79 - Chignik
+IXU / VAAU - Chikkalthana Airport
+BLZ / FWCL - Chileka Airport
+CHM / SPEO - Chimbote
+CMU / AYCH - Chimbu
+VPY / FQCH - Chimoio Airport
+TRR / VCCT - China Bay
+JKH / LGHI - Chios Airport
+CIU / KCIU - Chippewa County Airport
 YKU / CSU2 - Chisasibi
+HIB / KHIB - Chisholm Airport
+HTA / UIAA - Chita Airport
+CJL / OPCH - Chitral
+CTD / MPCE - Chitre
 JUH / ZSJH - Chizhou Jiuhuashan Airport
+CFK / DAOI - Chlef International Airport
+COQ / ZMCD - Choibalsan
 CHY / AGGC - Choiseul Bay Airport
+CKH / UESO - Chokurdah Airport
 WSK / ZUWS - Chongqing Wushan Airport
 CKW / YCHK - Christmas Creek Mine
+CXI / PLCH - Christmas Island Airport
 VCL / VVCA - Chu Lai International Airport
 CHU / PACH - Chuathbaluk Airport
+CCZ / MYBC - Chub Cay
+CJM / VTSE - Chumphon Airport
+YYQ / CYYQ - Churchill Airport
 ZUM / CZUM - Churchill Falls
+TKK / PTKK - Chuuk International Airport
 ICI / NFCI - Cicia
 IRC / PACR - Circle City
+LDY / EGAE - City of Derry Airport
 CUA / MMDA - Ciudad Constitución Airport
 LOH / SETM - Ciudad de Catamayo Airport
+CME / MMCE - Ciudad Del Carmen Airport
+CEN / MMCN - Ciudad Obregon Airport
+CVM / MMCV - Ciudad Victoria Airport
+AKY / VYSW - Civil Airport
 CLP / PFCL - Clarks Point
+AXA / TQPF - Clayton J. Lloyd International Airport
+YQD / CYQD - Clearwater
+CFE / LFLC - Clermont-Ferrand Auvergne Airport
+CNJ / YCCY - Cloncurry Airport
+CVN / KCVN - Clovis Municipal Airport
 YCY / CYCY - Clyde River
+EWN / KEWN - Coastal Carolina Regional Airport
+CAZ / YCBA - Cobar
+OCC / SECO - Coca Airport
 CNC / YCCT - Coconut Island
+CCK / YPCC - Cocos Islands Airport
+CUQ / YCOE - Coen
+CFS / YCFS - Coffs Harbour Airport
+CDB / PACD - Cold Bay Airport
+CLQ / MMIA - Colima Airport
+CSW / --- - Colorado do Oeste
+COU / KCOU - Columbia Regional Airport
+CSG / KCSG - Columbus Airport
 YCK / CYVL - Colville Lake
+BHI / SAZB - Comandante Airport
 DSE / HADC - Combolcha
+CIY / LICB - Comiso Airport
+DIL / WPDL - Comoro Airport
+YQQ / CYQQ - Comox Airport
+PGZ / SBPG - Comte Antonio Amilton Beraldo Airport
+VCS / VVCS - Con Dao
+CKY / GUCY - Conakry Airport
+USA / KJQF - Concord-Padgett Regional Airport
+AYQ / YAYE - Connellan Airport
 NNR / EICA - Connemara
 OTD / --- - Contadora
+CPD / YCBP - Coober Pedy Airport
+CTN / YCKN - Cooktown Airport
+CNB / YCNM - Coonamble
+YZS / CYZS - Coral Harbour Airport
+ODB / LEBA - Cordoba
+TEQ / LTBU - Corlu
 RNI / MNCI - Corn Island
+CZE / SVCR - Coro
+ETR / SERO - Coronel Artilleria Victor Larrea Airport
 LEC / SBLE - Coronel Horacio de Mattos Airport
+CZH / --- - Corozal
+CZU / SKCZ - Corozal Airport
+CRP / KCRP - Corpus Christi International Airport
+LAJ / SBLJ - Correia Pinto Airport
+CMG / SBCR - Corumba Internacional Airport
+RMU / LEMI - Corvera International
 CVU / LPCR - Corvo Island (Azores) Airport
+LTX / SELT - Cotapaxi International Airport
+COO / DBBB - Cotonou Airport
+VCT / KVCT - County-Foster
+CXB / VGCB - Coxs Bazar Airport
 CCV / NVSF - Craig Cove
 CKD / CJX - Crooked Creek
+CRI / MYCI - Crooked Island Airport
 YCR / CYCR - Cross Lake
+CRV / LIBC - Crotone
+BRD / KBRD - Crow Wing County Airport
+CDP / VOCP - Cuddapah
+CUM / SVCU - Cumana
+CMA / YCMU - Cunnamulla
 CYU / RPLO - Cuyo
+SJL / SBUA - Da Cachoeira
+VIL / GMMH - Dakhla Airport
+BLE / ESSD - Dala Airport
+DLZ / ZMDZ - Dalanzadgad
 DBA / OPDB - Dalbandin
 DLR / --- - Dalnerechensk Airport
+DGA / --- - Dangriga
+DCY / ZUDC - Daocheng Yading Airport
 DQA / ZYDQ - Daqing Shi Airport
+DBR / VE89 - Darbhanga Airport
 NLF / YDNI - Darnley Island
+DAU / AYDU - Daru Airport
+TAZ / UTAT - Dashoguz
+SRY / OINZ - Dashte Naz Airport
 DTD / WALJ - Datadawai
-DAX / ZUDX - Dazhou Heshi Airport
+DAT / ZBDT - Datong Airport
+YDN / CYDN - Dauphin
+OWB / KOWB - Daviess County Airport
+DWD / OEDM - Dawadmi Airport
+TVY / VYDW - Dawe Airport
+YDA / CYDA - Dawson City Airport
+GDV / KGDV - Dawson Community Airport
+GSM / OIKQ - Dayrestan Airport
+DAB / KDAB - Daytona Beach International Airport
+LGI / MYLD - Deadmans Cay Airport
 YDL / CYDL - Dease Lake
 DBM / HADM - Debra Marcos
+DEB / LHDC - Debrecen Airport
+DEC / KDEC - Decatur Airport
 DTR / WN07 - Decatur Island
 YVZ / CYVZ - Deer Lake
+YDF / CYDF - Deer Lake Regional Airport
+DRG / PADE - Deering Airport
+CEC / KCEC - Del Norte County Regional Airport
 YWJ / CYWJ - Deline
+HXD / ZLDL - Delingha Airport
 ZDY / OMDL - Delma Island Airport
+ESC / KESC - Delta County Airport
 DEM / HADD - Dembidollo
+AXD / LGAL - Demokritos Airport
 DGH / VEDO - Deoghar International Airport
+PGK / WIPK - Depati Amir Airport
 DPT / UEBD - Deputatsky
+DEA / OPDG - Dera Ghazi Khan Airport
+DVL / KDVL - Devils Lake Airport
+DPO / YDPO - Devonport Airport
+PIZ / PPIZ - Dew Station Airport
+DEF / OIAD - Dezful Airport
 DRV / VRMD - Dharavandhoo AIrport
+DIK / KDIK - Dickinson Regional Airport
+DIN / VVDB - Dien Bien Airport
+YPR / CYPR - Digby Island Airport
+DLG / PADL - Dillingham Airport
+DMU / VEMR - Dimapur Airport
+DPL / RPMG - Dipolog Airport
+DIG / ZPDQ - Diqing Shangri-La Airport
 DIU / VA1P - Diu Airport
+MVF / SBMS - Dixsept Rosado
+JIB / HDAM - Djibouti-Ambouli International Airport
+DDC / KDDC - Dodge City Municipal Airport
+DOD / HTDO - Dodoma Airport
+DLE / LFGJ - Dole-Jura Airport
 DOP / VNDP - Dolpa
+CFN / EIDL - Donegal Airport
+VDH / VVDH - Dong Hoi Airport
+DOG / HSDN - Dongola
 DMD / YDMG - Doomadgee Airport
+DHN / KDHN - Dothan Regional Airport
+MII / SBML - Dr Gastao Vidigal Airport
+RAO / SBRP - Dr. Leite Lopes State Airport
 DRJ / SMDA - Drietabbetje
+DUJ / KDUJ - Du Bois-Jefferson County
+DBO / YSDU - Dubbo City Regional Airport
+DBQ / KDBQ - Dubuque Municipal Airport
+DLH / KDLH - Duluth International Airport
+DGT / RPVD - Dumaguete Airport
+DND / EGPN - Dundee Airport
+DUE / FNDU - Dundo
+DQM / OODQ - Duqm International Airport
+DRO / KDRO - Durango-La Plata County Airport
+MME / EGNV - Durham Tees Valley Airport
+DZA / FMCZ - Dzaoudzi Airport
+CIJ / SLCO - E. Beltram Airport
 EAA / PAEG - Eagle
+EGE / KEGE - Eagle County Airport
+ELS / FAEL - East London Airport
 ZEM / CZEM - East Main
+PDT / KPDT - Eastern Oregon Regional Airport
+CLL / KCLL - Easterwood Airport
+EAU / KEAU - Eau Claire Airport
+EOI / EGED - Eday Airport
+SOM / SVST - Edmundo Barrios
+GAL / PAGA - Edward G. Pitka Sr. Airport
 EDR / YPMP - Edward River
 EEK / PAEE - Eek Airport
+GRQ / EHGG - Eelde Airport
+EGX / PAII - Egegik Airport
+EGS / BIEG - Egilsstadir Airport
+AAC / HEAR - El Arish International Airport
 EBH / DAOY - El Bayadh
+JUJ / SASJ - El Cadillal Airport
+UIB / SKUI - El Carano Airport
+AXM / SKAR - El Eden Airport
+ELF / HSFS - El Fasher Airport
+ELG / DAUE - El Golea Airport
 ENI / RPEN - El Nido
+EBD / HSOB - El Obeid
 TKM / --- - El Peten
+FMA / SARF - El Pucu Airport
+ESR / SCES - El Salvador
+PAZ / MMPA - El Tajin National Airport
+PMY / SAVY - El Tehuelche
+SRZ / SLET - El Trompillo
+VIG / SVVG - El Vigia
+EYP / SKYP - El Yopal Airport
+ELC / YELD - Elcho Island Airport
+EDL / HKEL - Eldoret Airport
 ELI / PFEL - Elim Airport
+ESL / URWI - Elista Airport
+EKO / KEKO - Elko Airport
+MYU / PAMY - Ellis Field
+ELM / KELM - Elmira Corning Regional Airport
 EME / EDWE - Emden
+EMD / YEML - Emerald Airport
+PLN / KPLN - Emmet County Airport
+EMK / PAEM - Emmonak Airport
 ENT / PKMA - Enewetak Island
 EJT / --- - Enijet
+EIE / UNII - Eniseysk
+ENF / EFET - Enontekio
+ONX / MPEJ - Enrique Adolfo Jimenez
+DAV / MPDA - Enrique Malek Airport
+SCN / EDDR - Ensheim Airport
+ENU / DNEN - Enugu Airport
+ERL / ZBER - Eren Hot Airport
+ERF / EDDE - Erfurt Airport
+ERI / KERI - Erie International Airport
 UMU / SSUM - Ernesto Geisel
+ERS / FYWE - Eros Airport
+ENY / ZLYA - Ershilipu Airport
+ERC / LTCD - Erzincan Airport
+EBJ / EKEB - Esbjerg Airport
+ESM / SETN - Esmeraldas Airport
+EPR / YESP - Esperance Airport
+EQS / SAVE - Esquel Airport
+ESU / GMMI - Essaouira Airport
+HZA / --- - Establecimiento El Araza Airport
+MAZ / TJMZ - Eugenio M. De Hostos Airport
+EVV / KEVV - Evansville Regional Airport
+EXT / EGTE - Exeter International Airport
+GGT / MYEF - Exuma International Airport
+EHU / ZHEC - Ezhou Huahu Airport
+EUX / TNCE - F D Roosevelt Airport
 FIE / EGEF - Fair Isle
+LYP / OPFA - Faisalabad Airport
 FBD / OAFZ - Faizabad Airport
+FKQ / WASF - Fak Fak Airport
 FHZ / NTKH - Fakahina
+FAV / NTGF - Fakarava Airport
+APW / NSFA - Faleolo Airport
+INL / KINL - Falls International Airport
 KFP / PAKF - False Pass
+FGU / NTGB - Fangatau
+NOS / FMNN - Fascene Airport
+BKS / WIGG - Fatmawati Soekarno Airport
+FAY / KFAY - Fayetteville Regional Airport
+PET / SBPK - Federal Airport
 KSR / WAWH - Federal No 1
+CAY / SOCA - Felix Eboue Airport
 FRE / AGGF - Fera Island Airport
+FLZ / WIMS - Ferdinand Lumban Tobing Airport
+FEG / UTFF - Fergana Airport
+FEN / SBFN - Fernando De Noronha Airport
 KCG / --- - Fisheries
 FTI / NSFQ - Fitiuta
+FIZ / YFTZ - Fitzroy Crossing
+FLG / KFLG - Flagstaff Pulliam Airport
+BON / TNCB - Flamingo International Airport
 YFO / CYFO - Flin Flon Airport
 FLS / YFLI - Flinders Island Airport
+FRO / ENFL - Flora Airport
+FLO / KFLO - Florence Airport
 AGE / EDWG - Flugplatz
 ZFD / CZFD - Fond-du-Lac Airport
+YOJ / CYOJ - Footner Lake Airport
+IMT / KIMT - Ford Airport
 YFA / CYFA - Fort Albany
+YPY / CYPY - Fort Chipewyan Airport
+FOD / KFOD - Fort Dodge Airport
+YAG / CYAG - Fort Frances Municipal Airport
 YGH / CYGH - Fort Good Hope
 YFH / CYFH - Fort Hope
+YMM / CYMM - Fort McMurray International Airport
 ZFM / CZFM - Fort Mcpherson
 YER / CYER - Fort Severn
+YFS / CYFS - Fort Simpson
+YSM / CYSM - Fort Smith Airport
+FSM / KFSM - Fort Smith Regional Airport
+FWA / KFWA - Fort Wayne International Airport
+FYU / PFYU - Fort Yukon Airport
+FON / MRAN - Fortuna Airport
 FOA / EGFO - Foula
 YFX / CCK4 - Fox Harbour (St Lewis)
+MVB / FOON - Franceville/Mvengue
 FBE / SSFB - Francisco Beltrao
+JDF / SBJF - Francisco De Assis
+FRW / FBFT - Francistown Airport
+HOG / MUHG - Frank Pais Airport
+HHN / EDFH - Frankfurt - Hahn Airport
+YFC / CYFC - Fredericton International Airport
+FRD / KFHR - Friday Harbor Airport
+SUN / KSUN - Friedman Memorial Airport
+FDH / EDNY - Friedrichshafen Airport
+TBU / NFTF - Fua'amotu International Airport
+FUJ / RJFE - Fukue Airport
+FKS / RJSF - Fukushima Airport
 FND / --- - Funadhoo Airport
+FUN / NGFU - Funafuti Atol International Airport
 FTA / NVVF - Futuna Airport
 FUT / NLWF - Futuna Island
+FYJ / ZYFY - Fuyuan Dongji Airport
+FYN / ZWFY - Fuyun Koktokay Airport
+GBB / UBBQ - Gabala International Airport
+TME / SKTM - Gabriel Vargas Santos Airport
+GCH / OIAH - Gachsaran
+DHM / VIGG - Gaggal Airport
+GNV / KGNV - Gainesville Regional Airport
 GLK / HCMR - Galcaio
+GEV / ESNG - Gallivare Airport
 GAX / FOGX - Gamba
-KOW / ZSGZ - Ganzhou Airport
+GMB / HAGM - Gambela Airport
+GAM / PAGM - Gambell Airport
+GMR / NTGJ - Gambier Island
+GAN / VRMG - Gan/Seenu Airport
+YQX / CYQX - Gander International Airport
+ISK / VAOZ - Gandhinagar Airport
+GNJ / UBBG - Ganja International Airport
+GXH / ZLXH - Gannan Xiahe Airport
+GAQ / GAGO - Gao
+GCK / KGCK - Garden City Municipal Airport
 GGR / HCMW - Garoe
+FNI / LFTW - Garons Airport
+GOU / FKKR - Garoua Airport
 GZG / ZUGZ - Garze Gesar Airport
 GMI / AYGT - Gasmata Island
+YND / CYND - Gatineau Airport
 GTA / AGOK - Gatokae Aerodrom
+GAY / VEGY - Gaya Airport
+GZP / LTFG - Gazipasa Airport
+BDT / FZFD - Gbadolite
+GDZ / URKG - Gelendzik Airport
+GMA / FZFK - Gemena
+RIB / SLRI - Gen Buech Airport
+GYM / MMGM - Gen Jose M Yanez
+REX / MMRX - Gen Lucio Blanco International Airport
+LET / SKLT - Gen. A.V. Cobo Airport
+LAR / KLAR - General Brees Field
+CRD / SAVC - General E. Mosconi International Airport
+BLA / SVBC - General Jose Antonio Anzoategui International Airport
+PRA / SAAP - General Justo Jose de Urquiza Airport
+SNC / SESA - General Ulpiano Paez Airport
 IBB / SEII - General Villamil
+GRJ / FAGG - George Airport
+SLU / TLPC - George F. L. Charles Airport
+GET / YGEL - Geraldton Airport
 ZGS / CTT5 - Gethsemani
 LKA / WATL - Gewayenta Airport
+LTD / HLTD - Ghadames
+GIL / OPGT - Gilgit Airport
 YGX / CYGX - Gillam
-CJN / WICN - Gillespie Field
+FOG / LIBF - Gino Lisa
+PNP / AYGR - Girua Airport
+GIS / NZGS - Gisborne Airport
+GID / HBBE - Gitega
 GZO / AGGN - Gizo Airport
 YHK / CYHK - Gjoa Haven Airport
+FCA / KGPI - Glacier Park International Airport
+GLT / YGLA - Gladstone Airport
+GGW / KGGW - Glasgow International Airport
+PIK / EGPK - Glasgow Prestwick Airport
+YPA / CYPA - Glass Field
+ILY / EGPI - Glenegedale Airport
+BQK / KBQK - Glynco Jetport
+VDM / SAVV - Gobernador Edgardo Castello Airport
 GGS / SAWR - Gobernador Gregores
+GDE / HAGO - Gode/Iddidole Airport
 YGO / CYGO - Gods Lake Narrows Airport
 ZGI / CZGI - Gods River Airport
 IWD / KIWD - Gogebic County Airport
+GTR / KGTR - Golden Triangle Regional Airport
+SZZ / EPSC - Goleniow Airport
+GLF / MRGF - Golfito Airport
+GOQ / ZLGM - Golmud Airport
+GMQ / ZLGL - Golog Maqin Airport
+LCE / MHLC - Goloson International Airport
 GLV / PAGL - Golovin Airport
+GOM / FZNA - Goma Airport
+GMO / DNGO - Gombe Lawanti International Airport
+GME / UMGG - Gomel Airport
+GDQ / HAGN - Gondar Airport
+GDB / VAGD - Gondia Airport
 GNU / GNU - Goodnews Bay
+YYR / CYYR - Goose Bay Airport
+GOP / VEGK - Gorakhpur Airport
+GKA / AYGA - Goroka Airport
+JGA / VAJM - Govardhanpur Airport
+GVR / SBGV - Governador Valadares Airport
+GHB / MYEM - Governor's Harbour Airport
+GRW / LPGR - Graciosa Island Airport
+FPO / MYGF - Grand Bahama International Airport
+CCE / HECP - Grand Case
+GFK / KGFK - Grand Forks International Airport
+GRI / KGRI - Grand Island Airport
+GJT / KGJT - Grand Junction Regional Airport
+GDT / MBGT - Grand Turk Island
+YQU / CYQU - Grande Prairie Airport
+SVC / KSVC - Grant County Airport
 KGX / PAGX - Grayling Airport
 GBZ / NZGB - Great Barrier Island
+GTF / KGTF - Great Falls International Airport
+BGM / KBGM - Greater Binghamton Airport
+YQM / CYQM - Greater Moncton International Airport
+ILG / KILG - Greater Wilmington
+LWB / KLWB - Greenbrier Valley Airport
+GLH / KGLH - Greenville Airport
+GGG / KGGG - Gregg County Airport
+GNB / LFLS - Grenoble-Isere Airport
+GFF / YGTH - Griffith Airport
+GRY / BIGR - Grimsey
 YGZ / CYGZ - Grise Fiord
+GRV / URMG - Groznyy Airport
 GYZ / YGRM - Gruyere Mine Airport
-GGJ / SSGY - Guaíra Airport
+DGO / MMDO - Guadalupe Victoria Airport
+GJA / MHNJ - Guanaja
+GYS / ZUGU - Guang Yuan Airport
+GPI / SKGP - Guapi Airport
 GUZ / SNGA - Guarapari
+GYA / SLGY - Guayaramerin Airport
+GGJ / SSGY - Guaíra Airport
+ELU / DAUO - Guemar Airport
+GCI / EGJB - Guernsey Airport
 GUB / MMGR - Guerrero Negro
+PPN / SKPP - Guillermo Leon Valencia Airport
+GPT / KGPT - Gulfport-Biloxi International Airport
+GKN / PAGK - Gulkana
+ULU / HUGU - Gulu
+GUC / KGUC - Gunnison Airport
+KUV / RKJK - Gunsan Airport
+GNS / WIMB - Gunungsitoli Airport
+URY / OEGT - Gurayat Airport
+GUR / AYGN - Gurney Airport
+GST / PAGS - Gustavus Airport
 KBU / WAOK - Gusti Syamsir Alam Airport
+GYU / ZLGY - Guyuan Liupanshan Airport
+GWD / OPGD - Gwadar Airport
+GWL / VIGR - Gwalior Airport
 AKS / AGGA - Gwaunaru'u
 SMQ / WAGS - H. Asan Airport
 ENE / WATE - H. Hasan Aroeboesman Airport
+HAC / RJTH - Hachijo Jima Airport
 HFS / ESOH - Hagfors Airport
+IWJ / RJOW - Hagi-Iwami Airport
+HFA / LLHA - Haifa Airport
+HAS / OEHL - Hail Airport
+HNS / PAHN - Haines Municipal Airport
+YKO / LTCW - Hakkari–Yüksekova Airport
 HAL / FYHI - Halali
 ABU / WATA - Haliwen Airport
+YUX / CYUX - Hall Beach
+HAD / ESMT - Halmstad Airport
 KDI / WAWW - Haluoleo Airport
+HDM / OIHH - Hamadan Airport
+YHM / CYHM - Hamilton Airport
+HLZ / NZHN - Hamilton International Airport
+HTI / YBHM - Hamilton Island Airport
+HFT / ENHF - Hammerfest Airport
+HNM / PHHN - Hana Airport
+HNA / RJSI - Hanamaki Airport
+IUE / NIUE - Hanan Airport
+HDG / ZBHD - Handan Airport
+HAQ / VRMH - Hanimaadhoo Airport
+HZG / ZLHZ - Hanzhong Airport
+HOI / NTTO - Hao Island
+HGA / HCMH - Hargeisa Airport
+
+EVE / ENEV - Harstad/Narvik Airport Evenes
+EUN / GMML - Hassan I Airport
 HAA / ENHK - Hasvik Airport
+HTG / UOHH - Hatanga Airport
+HTY / LTDA - Hatay Airport
+PIB / KPIB - Hattiesburg-Laurel Regional Airport
+HAU / ENHD - Haugesund Airport
+HVR / KHVR - Havre City County Airport
+YGV / CYGV - Havre St Pierre
+NPE / NZNR - Hawkes Bay Airport
+YHY / CYHY - Hay River
+HYS / KHYS - Hays Municipal Airport
+HSA / UAIT - Hazret Sultan International Airport
+HCJ / ZGHC - Hechi Jinchengjiang Airport
+HEH / VYHH - Heho Airport
 HEI / EDXB - Heide-Buesum
+HEK / ZYHE - Heihe Airport
+HLN / KHLN - Helena Regional Airport
 HGL / EDXH - Helgoland
+SVJ / ENSH - Helle Airport
 HMV / ESUT - Hemavan Airport
-HNY / ZGHY - Hengyang Nanyue Airport
+STX / TISX - Henry E. Rohlsen Airport
+HEA / OAHR - Herat International Airport
+HDF / EDAH - Heringsdorf Airport
+HVB / YHBA - Hervey Bay Airport
+UVF / TLPL - Hewanorra Airport
+VDE / GCHI - Hierro Airport
 HHZ / NTGH - Hikueru
+HHH / KHXD - Hilton Head Airport
+HSS / VIHR - Hissar
+AUQ / NTMN - Hiva Oa Airport
 HRF / VRAH - Hoarafushi Airport
+HDS / FAHS - Hoedspruit Airport
+HKK / NZHK - Hokitika Airport
+WKJ / RJCW - Hokkaido Airport
+HUO / ZBHZ - Holingol Huolinhe Airport
 YHI / CYHI - Holman
+HCR / PAHC - Holy Cross Airport
+HOM / PAHO - Homer Airport
 HMS / --- - Homeshore
+HIR / AGGH - Honiara International Airport
 HOK / YHOO - Hooker Creek
 HNH / PAOH - Hoonah Airport
 HPB / PAHP - Hooper Bay Airport
 YHO / CYHO - Hopedale
+HID / YHID - Horn Island Airport
+HFN / BIHN - Hornafjordur
+HOR / LPHR - Horta Airport
+HKN / AYHK - Hoskins Airport
+CMX / KCMX - Houghton County Airport
+HOV / ENOV - Hovden Airport
+HHQ / VTPH - Hua Hin Airport
+HUH / NTTH - Huahine Airport
+HUN / RCYU - Hualien Airport
+NOV / FNHU - Huambo
+TXN / ZSTX - Huangshan Tunxi International Airport
+HUU / SPNC - Huanuco Airport
+HTT / ZLHX - Huatugou Airport
+HBX / VOHB - Hubli Airport
 HUG / MGHT - Huehuetenango
 HGD / YHUG - Hughenden
 HUS / PAHU - Hughes Municipal Airport
+CXJ / SBCX - Hugo Cantergiani Regional Airport
+HUY / EGNJ - Humberside Airport
 HUE / HAHU - Humera Airport
+BDO / WICC - Husein Sastranegara Airport
+HSL / PAHL - Huslia Airport
 HDD / OPKD - Hyderabad
+TLN / LFTH - Hyeres Airport
+IBA / DNIB - Ibadan Airport
+IBE / SKIB - Ibague Airport
+IBR / RJAH - Ibaraki Airport
+IDA / KIDA - Idaho Falls Regional Airport
+IAA / UOII - Igarka Airport
+IGD / LTCT - Igdir
 IGG / PAIG - Igiugig Airport
 YGT / CYGT - Igloolik Airport
+CMW / MUCM - Ign Agramonte International Airport
 JIK / LGIK - Ikaria Airport
+IKI / RJDB - Iki Airport
+ILP / NWWE - Ile Des Pins Airport
 PFR / FZVS - Ilebo
+YGR / CYGR - Iles De La Madeleine
 ILF / CZBD - Ilford
+IOS / SBIL - Ilheus/Bahia-Jorge Amado Airport
+ILI / PAIL - Iliamna Airport
+VVZ / DAAP - Illizi Airport
+ILQ / SPLO - Ilo
+ILS / --- - Ilopango International Airport
+ILR / DNIL - Ilorin International Airport
+JAV / BGJN - Ilulissat Airport
+IMP / SBIZ - Imperatriz Airport
+IPL / KIPL - Imperial County Airport
+IAM / DAUZ - In Amenas Airport
+INZ / DAUI - In Salah Airport
+IGA / MYIG - Inagua Airport
 SHC / --- - Indaselassie
 INB / MZSV - Independence
+DJG / DAAJ - Inedbirenne Airport
+INH / FQIN - Inhambane Airport
 INQ / EIIR - Inisheer
 IIA / EIMN - Inishmaan
 INO / FZBA - Inongo
 MHM / --- - Intermediate
+ADE / OYAA - International
 YPH / CYPH - Inukjuak
+YEV / CYEV - Inuvik Mike Zubko Airport
+IVC / NZNV - Invercargill Airport
+INV / EGPE - Inverness Airport
+IOA / LGIO - Ioannina Airport
+IPH / WMKI - Ipoh Airport
+YFB / CYFB - Iqaluit Airport
+NOC / EIKN - Ireland West Airport Knock
+IFJ / BIIS - Isafjordur Airport
 PKN / WAGI - Iskandar Airport
+SIG / TJIG - Isla Grande
+YIV / CYIV - Island Lake Airport
 COL / EGEL - Isle Of Coll
 CSA / EGEY - Isle Of Colonsay
+IOM / EGNS - Isle of Man Airport
+ISE / LTFC - Isparta Suleyman Demirel Airport
+IKU / UCFL - Issyk-Kul International Airport
+ITB / SBIH - Itaituba
+ITH / KITH - Ithaca Tompkins Regional Airport
 ITU / UHSI - Iturup
+IVL / EFIV - Ivalo Airport
+IWA / UUBI - Ivanovo Yuzhny Airport
 YIK / CYIK - Ivujivik
+IWK / RJOI - Iwakuni Kintaikyo Airport
+IZT / MMIT - Ixtepec
+IJK / USII - Izhevsk Airport
+BQU / TVSB - J. F. Mitchell
+SAB / TNCS - J. Yrausquin Airport
+JLR / VAJB - Jabalpur Airport
+YYB / CYYB - Jack Garland Airport
 JGB / --- - Jagdalpur
 JJG / SBJA - Jaguaruna Regional Airport
+CFG / MUCF - Jaime Gonzalez Airport
+JSA / VIJR - Jaisalmer
 UIT / --- - Jaluit Island
+DMB / UADD - Jambyl Airport
+JMS / KJMS - Jamestown Airport
+JKR / VNJP - Janakpur Airport
+CCC / MUCC - Jardines del Rey Airport
+JAU / SPJJ - Jauja Airport
+BPT / KBPT - Jefferson County Airport
 JEJ / --- - Jeh
+JEE / MTJE - Jeremie
+XRY / LEJR - Jerez Airport
+JJD / SBJE - Jericoacoara
+JSR / VGJR - Jessore Airport
 JRG / VEJH - Jharsuguda Airport
+JGS / ZSJA - Ji'An/Jing Gang Shan Airport
 JPR / SBJI - Ji-Parana Airport
+JGD / ZYJD - Jiagedaqi Airport
+JMU / ZYJM - Jiamusi Airport
+JSJ / ZYJS - Jiansanjiang Shidi Airport
+JIJ / HAJJ - Jigiga Airport
+GJL / DAAV - Jijel Ferhat Abbas Airport
+JIM / HAJM - Jimma Airport
+JIC / ZLJC - Jinchuan Airport
+JDZ / ZSJD - Jingdezhen Airport
+BCO / HABC - Jinka
 JIU / ZSJJ - Jiujiang
+JZH / ZUJZ - Jiuzhai Huanglong Airport
+JXA / ZYJX - Jixi Airport
+CPV / SBKG - Joao Suassuna Airport
+JDH / VIJO - Jodhpur Airport
+JOE / EFJO - Joensuu Airport
+JOI / SBJV - Joinville-Lauro Carneiro de Loyola Airport
+JOL / RPMJ - Jolo
 JMO / VNJS - Jomsom
+JBR / KJBR - Jonesboro Airport
+JLN / KJLN - Joplin Airport
+JOS / DNJO - Jos Airport
+MUN / SVMT - Jose Tadeo Monagas International Airport
+LSP / SVJC - Josefa Camejo Airport
+AJF / OESK - Jouf Airport
+SRE / SLAL - Juana Azurduy de Padilla International Airport
+JUB / HSSJ - Juba International Airport
 JUI / EDWJ - Juist
 JCK / YJLC - Julia Creek
+JUL / SPJL - Juliaca Airport
 JUM / VNJL - Jumla
+JNU / PAJN - Juneau International Airport
+GAJ / RJSC - Junmachi Airport
+TRK / WAQQ - Juwata International Airport
+JYV / EFJY - Jyvaskyla Airport
+KDM / VRMT - Kaadedhdhoo
+ABK / HAKD - Kabri Dar
+KDO / VRMK - Kadhdhoo
+KAD / DNKA - Kaduna Airport
 KGE / AGKG - Kagau
+KCM / LTCN - Kahramanmaras Airport
+KAI / SYKA - Kaieteur
+KJH / ZUKJ - Kaili Huangping Airport
+KNG / WASK - Kaimana Airport
+KAT / NZKT - Kaitaia
+KAJ / EFKI - Kajaani Airport
+KLX / LGKL - Kalamata Airport
+AZO / KAZO - Kalamazoo Battle Creek International Airport
 LUP / PHLU - Kalaupapa
 KAX / YKBR - Kalbarri
+FMI / FZRF - Kalemie Airport
+KGI / YPKG - Kalgoorlie Airport
+BEJ / WAQT - Kalimarau Airport
 KFG / YKKG - Kalkurung
+RNB / ESDF - Kallinge Airport
+KLR / ESMQ - Kalmar Oland Airport
 KLG / PALG - Kalskag Municipal Airport
 KAL / PAKV - Kaltag Airport
 JKL / LGKY - Kalymnos Island National Airport
+CAH / VVCM - Kamau
+KME / HRZA - Kamembe
+KAC / OSKL - Kameshly Airport
 KMN / FZSA - Kamina
+YKA / CYKA - Kamloops Airport
+MUE / PHMU - Kamuela
+KGA / FZUA - Kananga
+KJI / ZWKN - Kanasi Airport
+KDH / OAKN - Kandahar Airport
 KDV / NFKD - Kandavu Airport
+IXY / VAKE - Kandla
+KGT / ZUKD - Kangding Airport
+SFJ / BGSF - Kangerlussuaq Airport
 XGR / CYLU - Kangiqsualujjuaq Airport
 YWB / CYKG - Kangiqsujuaq Airport
 YKG / CYAS - Kangirsuk Airport
+JAF / VCCJ - Kankesanturai
+KNU / VICX - Kanpur Airport
+JHM / PHJH - Kapalua Airport
 KRY / ZWKM - Karamay Airport
 KQR / --- - Karara Airport
+KDL / EEKA - Kardla Airport
+CHT / NZCI - Karewa
+KAB / FVKB - Kariba
 KWB / WARU - Karimunjawa
+KLV / LKKV - Karlovy Vary Airport
+KSD / ESOK - Karlstad Airport
 KYK / PAKY - Karluk
+AOK / LGKP - Karpathos Airport
+KTA / YPKA - Karratha Airport
+KSY / LTCF - Kars Airport
 KSQ / UTSK - Karshi Airport
 KRB / YKMB - Karumba Airport
+KRP / EKKA - Karup Airport
+XKS / CYAQ - Kasabonika
 KAA / FLKS - Kasama Airport
+BBK / FBKE - Kasane Airport
 ZKE / CZKE - Kaschechewan
+KKS / OIFK - Kashan Airport
 KUK / PFKA - Kasigluk Airport
 KSJ / LGKS - Kasos Island Airport
+KSL / HSKA - Kassala Airport
+KSF / EDVK - Kassel-Calden Airport
+KFS / LTAL - Kastamonu Airport
 KZS / LGKJ - Kastellorizo Airport
+DKA / --- - Katsina
 KHZ / NTKA - Kauehi Airport
 EUA / NFTE - Kaufana
+KKR / NTGK - Kaukura Atoll Airport
+KVA / LGKV - Kavala International Airport
+KVG / AYKV - Kavieng Airport
+KAW / VYKT - Kawthaung Airport
+KYS / GAKY - Kayes
+RDP / VEDG - Kazi Nazrul Islam Airport
+EAR / KEAR - Kearney Regional Airport
 KEW / CPV8 - Keewaywin
+EFL / LGKF - Kefallinia Airport
 KLP / --- - Kelp Bay
+KEM / EFKE - Kemi/Tornio Airport
+ENA / PAEN - Kenai Municipal Airport
+KET / VYKG - Keng Tung Airport
+YQK / CYQK - Kenora Airport
+KPW / UHMK - Keperveyem Airport
+KMA / AYKM - Kerema
+KKE / NZKK - Kerikeri Airport
 KRC / WIPH - Kerinci
+KSH / OICC - Kermanshah Airport
+KIR / EIKY - Kerry County Airport
+KJT / WICA - Kertajati International Airport
+IXK / VAKS - Keshod
+KTG / WIOK - Ketapang Airport
+KTN / PAKT - Ketchikan International Airport
+MEI / KMEI - Key Field
+HJR / VAKJ - Khajuraho Airport
 KHM / VYKI - Khamti
+HMA / USHH - Khanty-Mansiysk Airport
+KHK / OIBQ - Khark Island
+KRT / HSSS - Khartoum International Airport
+KHS / OOKB - Khasab Airport
+AGR / VIAG - Kheria
+KHD / OICK - Khorramabad
+KHT / --- - Khost
+HVD / ZMKD - Khovd Airport
+KXK / UHKK - Khurba Airport
 KDD / OPKH - Khuzdar
+TNJ / WIDN - Kidjang Airport
 TKQ / HTKA - Kigoma Airport
+KKX / RJKI - Kikaiga Shima
 KRI / AYKK - Kikori
+KKW / FZCA - Kikwit
 KIO / --- - Kili Island
 IOR / EIIM - Kilronan
+KIM / FAKM - Kimberley Airport
 YLC / CYLC - Kimmirut
+KND / FZOA - Kindu
 KVC / PAVC - King Cove
+AQJ / OJAQ - King Hussein International Airport
+KNS / YKII - King Island Airport
+SHO / RKND - King Mswati III International Airport
+AKN / PAKN - King Salmon Airport
 KIF / CNM5 - Kingfisher Lake
-KPN / PAKI - Kipnuk SPB
+KGC / YKSC - Kingscote Airport
 IRA / AGGK - Kirakira Airport
+KKN / ENKR - Kirkenes Airport Hoeybuktmoen
+IRK / KIRK - Kirksville Municipal Airport
+KIK / ORKK - Kirkuk
+KOI / EGPA - Kirkwall Airport
+KVX / USKK - Kirov Airport
 KVK / ULMK - Kirovsk Airport
+KRN / ESNQ - Kiruna Airport
 KRE / HBBO - Kirundo
+KQH / VIKG - Kishangarh Airport
+KIS / HKKI - Kisumu Airport
+KTD / RORK - Kitadaito
 KIT / LGKC - Kithira Airport
+KTT / EFKT - Kittila Airport
 UNG / AYKI - Kiunga
 KVL / PAVL - Kivalina Airport
+MJF / ENMS - Kjaerstad Airport
+KLU / LOWK - Klagenfurt Airport
+KLW / PAKW - Klawock Airport
+RKD / KRKD - Knox County Regional Airport
 OBU / PAOB - Kobuk/Wien Airport
+ADQ / PADQ - Kodiak Benny Benson State Airport
+CND / LRCK - Kogalniceanu Airport
+KGP / USRK - Kogalym International Airport
+KCT / VCCK - Koggala Airport
 KNK / PFKK - Kokhanok Airport
+KOV / UACK - Kokshetau Airport
+KLH / VAKP - Kolhapur
+KWZ / FZQM - Kolwezi
 LBJ / WATO - Komodo Airport
+KNQ / NWWD - Kone
 KKH / PADY - Kongiganak Airport
+KYA / LTAN - Konya Airport
 GKK / VRMO - Kooddoo Airport
+HGO / DIKO - Korhogo Airport
 KXF / NFNO - Koro Island
+KSA / PTSA - Kosrae Airport
+KSN / UAUU - Kostanay Airport
+KSZ / ULKK - Kotlas Airport
 KOT / PFKO - Kotlik Airport
 KOC / NWWK - Koumac
+KWM / YKOW - Kowanyama
 KKA / PAKK - Koyuk Airport
 KYU / PFKU - Koyukuk Airport
+KRF / ESNK - Kramfors Airport
+KSU / ENKB - Kristiansund Airport Kvernberget
+MQP / FAKN - Kruger Mpumalanga International Airport
+KOK / EFKK - Kruunupyy Airport
 KUG / YKUB - Kubin Island
 KUD / WBKT - Kudat Airport
+AKF / HLKF - Kufrah
 YBB / CYBB - Kugaaruk
 YCO / CYCO - Kugluktuk Airport
 NTT / NFTP - Kuini Lavenia
 HDK / VRBK - Kulhudhuffushi Airport
+KUS / BGKK - Kulusuk Airport
+TJU / UTDK - Kulyab Airport
+KMS / DGSI - Kumasi Airport
+IXS / VEKU - Kumbhirgram Airport
+UEO / ROKJ - Kume-jima Airport
+NRK / ESSP - Kungsangen Airport
+KNX / YPKU - Kununurra Airport
+KUO / EFKU - Kuopio Airport
 KCA / ZWKC - Kuqa Airport
+URE / EEKE - Kuressaare Airport
+KRO / USUU - Kurgan Airport
+KUH / RJCK - Kushiro Airport
+YVP / CYVP - Kuujjuaq Airport
+YGW / CYGW - Kuujjuarapik Airport
+KAO / EFKS - Kuusamo Airport
+KWA / PKWA - Kwajalein Airport
 KWT / PFKW - Kwethluk Airport
 KWK / PAGG - Kwigillingok Airport
 KWN / PAQH - Kwinhagak Airport
+KYP / VYKP - Kyaukpyu Airport
+KYZ / UNKY - Kyzyl Airport
+KZO / UAOO - Kzyl-Orda Airport
+LOO / DAUL - L'Mekrareg Airport
+BDA / TXKF - L.F. Wade International Airport
+LAQ / HLLQ - La Braq Airport
+ZCL / MMZC - La Calera Airport
+MAR / SVMC - La Chinita Airport
 LCR / --- - La Chorrera
+LSE / KLSE - La Crosse Regional Airport
 DSD / TFFA - La Desirade
+LSC / SCSE - La Florida Airport
 GMZ / GCGM - La Gomera Airport
+YGL / CYGL - La Grande Airport
+JBQ / MDJB - La Isabela International Airport
 LTT / LFTZ - La Mole
+MZL / SKMZ - La Nubia Airport
 LPD / SKLP - La Pedrera
+IRJ / SANL - La Rioja Airport
+LRM / MDLR - La Romana Airport
+YVC / CYVC - La Ronge
 ZLT / CTU5 - La Tabatiere
+VVC / SKVV - La Vanguardia Airport
+RLG / ETNL - Laage Airport
+LBS / NFNL - Labasa Airport
+OZC / RPMO - Labo Airport
 LBR / SWLB - Labrea
+LBU / WBKL - Labuan Airport
 XLB / CZWH - Lac Brochet
 BYR / EKLS - Laeso Airport
+LFT / KLFT - Lafayette Regional Airport
+LDU / WBKD - Lahad Datu Airport
+TER / LPLA - Lajes Field
+LCH / KLCH - Lake Charles Regional Airport
 LEL / YLEV - Lake Evella
 LMA / PAMH - Lake Minchumina
 LMY / AYLM - Lake Murray
+YLK / CYLS - Lake Simcoe Regional
 LKB / NFNK - Lakeba Airport
-LKI / --- - Lakeside USAF
+LRH / LFBH - Laleu Airport
 LMC / SKNA - Lamacarena
 LPM / NVSL - Lamap
 LNB / NVSM - Lamen Bay
+LFM / OISR - Lamerd Airport
+LPT / VTCL - Lampang Airport
+LMP / LICD - Lampedusa Airport
+LAU / HKLU - Lamu
+LNY / PHNY - Lanai Airport
+JMJ / ZPJM - Lancang Jingmai Airport
+LNS / KLNS - Lancaster Airport
 LEQ / EGHC - Lands End
+LUV / WAPF - Langgur Airport
+DDG / ZYDD - Langtou Airport
+LZG / --- - Langzhong Airport
 LLK / UBBL - Lankaran International Airport
 YLH / CYLH - Lansdowne House
-KLN / PALB - Larsen SPB
+LAO / RPLI - Laoag Airport
+LPP / EFLP - Lappeenranta
+LRR / OISL - Lar Airport
+LRD / KLRD - Laredo International Airport
+BVE / LFSL - Laroche Airport
+LHS / SAVH - Las Heras
+VTU / MUVT - Las Tunas
+LSH / VYLS - Lashio
+LTK / OSLK - Latakia
+LTU / VALT - Latur
 LVO / YLTN - Laverton
 LWY / WBGW - Lawas Airport
+LAW / KLAW - Lawton-Fort Sill Regional Airport
+HOB / KHOB - Lea County Airport
+LEA / YPLM - Learmonth Airport
+LEB / KLEB - Lebanon Regional Airport
+LBF / KLBF - Lee Bird Field
+CBH / DAOR - Leger
 LGZ / --- - Leguizamo
+ABE / KABE - Lehigh Valley International Airport
+LER / YLST - Leinster
+LKN / ENLK - Leknes Airport
+LWN / UDSG - Leninakan Airport
+ULK / UERL - Lensk Airport
+LNO / YLEO - Leonora
 LRS / LGLE - Leros Airport
 LWK / EGET - Lerwick/Tingwall
+GBJ / TFFM - Les Bases
+CYA / MTCA - Les Cayes
 LDG / ULAL - Leshukonskoye
+YQL / CYQL - Lethbridge Airport
+LTM / SYLT - Lethem
+CUF / LIMZ - Levaldigi Airport
 LEV / NFNB - Levuka Airfield
+MCN / KMCN - Lewis B Wilson
+LWS / KLWS - Lewiston-Nez Perce County Regional Airport
+LCX / ZSLD - Liancheng Airport
+JNZ / ZYJZ - Liaoning Province Airport
+LBL / KLBL - Liberal Municipal Airport
 LLB / ZULB - Libo County Libo City Airport
+UPN / MMPN - Licenciado y General Ignacio Lopez Rayon Airport
+VXC / FQLC - Lichinga Airport
+LGG / EBLG - Liege Airport
+LIF / NWWL - Lifou Airport
+LHG / YLRD - Lightning Ridge
 LNV / AYKY - Lihir Island
 LIK / --- - Likiep Island
+IXI / VELR - Lilabari Airport
+LLW / FWKI - Lilongwe International Airport
+LMN / WBGJ - Limbang Airport
 LXS / LGLM - Limnos Airport
+LIO / MRLM - Limon International Airport
+LNJ / ZPLC - Lincang Airport
+LNK / KLNK - Lincoln Airport
+LFQ / ZBLF - Linfen Qiaoli Airport
+LLF / ZGLG - Lingling Airport
+LPI / ESSL - Linkoping City Airport
+LNZ / LOWL - Linz Airport
+HZH / ZUNP - Liping Airport
+LSY / YLIS - Lismore Airport
+LPF / ZUPS - Liupanshui Yuezhao Airport
+LVI / FLHN - Livingstone Airport
+PGF / LFMP - Llabanere Airport
+ILD / LEDA - Lleida-Alguaire Airport
+YLL / CYLL - Lloydminster
+IRG / YLHR - Lockhart River
+LCJ / EPLL - Lodz Lublinek Airport
+LOE / VTUL - Loei Airport
+LIW / VYLK - Loikaw Airport
+YXU / CYXU - London International Airport
+SEN / EGMC - London Southend Airport
 LPU / WALP - Long Apung
 LBP / --- - Long Banga Airfield
 LBW / WALB - Long Bawan
+ISP / KISP - Long Island MacArthur Airport
 LGL / WBGF - Long Lellang
+YLX / --- - Long Point
 ODN / WBGI - Long Seridan Airport
 LOD / NVSG - Longana
+LNL / ZLLN - Longnan Chengzhou Airport
+LRE / YLRE - Longreach Airport
 LNE / NVSO - Lonorore
 LPS / S31 - Lopez Island
 LDH / YLHI - Lord Howe Island Airport
+LTO / MMLT - Loreto Airport
 RVE / SKSA - Los Colonizadores
 LRV / SVRS - Los Roques
+LSR / --- - Lost River
 LSA / AYKA - Losuia
 LPY / LFHP - Loudes Airport
 LXG / VLLN - Luang Namtha Airport
+LPQ / VLLB - Luang Prabang International Airport
+SDD / FNUB - Lubango Airport
+LBC / EDHL - Lubeck Blankensee
+LUZ / EPLB - Lublin Airport
+FBM / FZQA - Lubumbashi International Airport
+LUD / FYLZ - Luderitz Airport
+LUG / LSZA - Lugano Airport
+FRL / LIPK - Luigi Ridolfi
+LUA / VNLK - Lukla
+FNA / GFLL - Lungi International Airport
+LYA / ZHLY - Luoyang Beijiao Airport
+VAV / NFTV - Lupepau'u Airport
 YSG / CYLK - Lutselke
+LYC / ESNL - Lycksele Airport
+IPT / KIPT - Lycoming County Airport
+YYL / CYYL - Lynn Lake
+LLV / ZBLL - Lüliang Airport
+SSY / FNBC - M'banza Congo
+NMF / VRDA - Maafaru International Airport
+MST / EHBK - Maastricht Aachen Airport
 RUL / VRQM - Maavaarulaa Airport
 UBB / YMAA - Mabuiag Island
+MCP / SBMQ - Macapa International Airport
+XMS / SEMC - Macas
+CAL / EGEC - Machrihanish Airport
+MKY / YBMK - Mackay Airport
+MAG / AYMD - Madang Airport
+HGN / VTCH - Mae Hong Son Airport
+MAQ / VTPM - Mae Sot Airport
 MFA / HTMA - Mafia
+GDX / UHMM - Magadan Airport
+IGT / URMS - Magas Airport
+TWF / KTWF - Magic Valley Regional Airport
+MQF / USCM - Magnitogorsk Airport
 MWQ / VYMW - Magwe
+UDR / VAUD - Maharana Pratap Airport
+MRX / OIAM - Mahshahr Airport
+MIU / DNMA - Maiduguri
+THQ / ZLTS - Maijishan
 MJE / --- - Majkin
+MQX / HAMK - Makale Airport
+MKP / NTGM - Makemo
 YMN / CYFT - Makkovik Airport
+MKU / FOOK - Makokou
+MDI / DNMK - Makurdi
+SSG / FGSL - Malabo Airport
+MKZ / WMKM - Malacca International Airport
+MAK / HSSM - Malakal
+MEG / FNMA - Malange
+MLX / LTAT - Malatya Airport
 MOH / --- - Maleo Airport
 LSW / WITM - Malikus Saleh Airport
+MYD / HKML - Malindi Airport
+KAN / DNKN - Mallam Aminu Kano International Airport
 PTF / NFFO - Malololailai
+CGM / RPMH - Mambajao
+MMH / KMMH - Mammoth Lakes Airport
+MNJ / FMSM - Mananjary
+MDL / VYMD - Mandalay International Airport
 MXW / ZMMG - Mandalgobi
 MJY / --- - Mangunjaya
+MHK / KMHK - Manhattan Municipal Airport
+MNX / SBMY - Manicore
+XMH / NTGI - Manihi
 MHX / NCMH - Manihiki Island
+MNG / YMGD - Maningrida Airport
 MLY / PAML - Manley Hot Springs
-KMO / PAMB - Manokotak SPB
+MHG / EDFM - Mannheim Airport
+MEC / SEMT - Manta Airport
+PZO / SVPR - Manuel Carlos Piar Guayana Airport
+ZLO / MMZO - Manzanillo Airport
+NZH / ZBMZ - Manzhouli Airport
+MDQ / SAZM - Mar Del Plata Airport
+MRE / --- - Mara Lodges Airport
+MAB / SBMA - Maraba Airport
 RUS / AGGU - Marau Sound
+RDZ / LFCR - Marcillac Airport
+PAC / MPMG - Marcos A. Gelabert International Airport
+MQM / LTCR - Mardin Airport
+MEE / NWWR - Mare Airport
+MGH / FAMG - Margate Airport
+NZC / SPZA - Maria Reiche Neuman Airport
+MBX / LJMB - Maribor International Airport
+MMD / ROMD - Maridor
+MHQ / EFMA - Mariehamn Airport
+FTU / FMSD - Marillac Airport
+EBA / LIRJ - Marina Di Campo Airport
 RJM / WASN - Marinda Airport
+MPY / SOOA - Maripasoula
+CUE / SECU - Mariscal Lamar International Airport
+ADJ / OJAM - Marka International Airport
 KVM / UHMO - Markovo Airport
+WMN / FMNR - Maroantsetra
+MHH / MYAM - Marsh Harbour International Airport
 MLL / PADM - Marshall Don Hunter Sr. Airport
 MVY / KMVY - Martha's Vineyard Airport
+MUR / WBGM - Marudi Airport
+MYP / UTAM - Mary Airport
 YMH / CYMH - Mary's Harbour
+MBT / RPVJ - Masbate Airport
+MCW / KMCW - Mason City Airport
+ZMT / CZMT - Masset Airport
+SLM / LESA - Matacan Airport
+WNI / WAWD - Matahora Airport
+MVT / NTGV - Mataiva
+MAM / MMMA - Matamoros Airport
+IRP / FZJH - Matari
+IPC / SCIP - Mataveri International Airport
 TVU / NFNM - Matei Airport
+MFK / RCMT - Matsu Beigan Airport
+LZN / RCFG - Matsu Nangan Airport
+MMJ / RJAF - Matsumoto Airport
+HRI / VCRI - Mattala Rajapaksa International Airport
+TET / FQTT - Matundo Airport
 MUK / NCMK - Mauke Island
 MNU / VYMM - Maulmyine
+MUB / FBMN - Maun Airport
+MAU / NTTP - Maupiti
+GND / TGPY - Maurice Bishop International Airport
 MYK / MYK - May Creek
+MYG / MYMM - Mayaguana Airport
+STD / SVSO - Mayo Guerrero
+DCM / LFCK - Mazamet Airport
+MZR / OAMS - Mazar-I-Sharif Airport
+MDK / FZEA - Mbandaka
+MBI / HTGW - Mbeya Airport
+MBS / KMBS - MBS International Airport
+MJM / FZWA - Mbuji-Mayi
+MCK / KMCK - Mc Cook Airport
 MCV / YMHU - Mcarthur River Airport
+MYL / KMYL - Mccall
+CLD / KCRQ - McClellan-Palomar Airport
+MCG / PAMC - McGrath Airport
+MKL / KMKL - Mckellar Airport
+SLE / KSLE - Mcnary Field
+BFL / KBFL - Meadows Field Airport
+MZW / DAAY - Mechria
+YXH / CYXH - Medicine Hat Regional Airport
+MKR / YMEK - Meekatharra
+MEH / ENMH - Mehamn Airport
 MXZ / ZGMX - Mei Xian Airport
+MLN / GEML - Melilla Airport
+DOM / TDPD - Melville Hall Airport
+MMB / RJCM - Memanbetsu Airport
+HOT / KHOT - Memorial Field
 DEE / UHSM - Mendeleyevo Airport
+MDU / AYMN - Mendi Airport
+SPP / FNME - Menongue
+MCE / KMCE - Merced Municipal Airport
+PSE / TJPS - Mercedita Airport
+MIM / YMER - Merimbula Airport
+MUH / HEMM - Mersa Matruh
+MZH / LTAP - Merzifon Airport
+ETZ / LFJL - Metz-Nancy-Lorraine Airport
+MFU / FLMF - Mfuwe
+YGP / CYGP - Michel-Pouliot Gaspe Airport
+YGJ / RJOH - Miho Airport
+MQL / YMIA - Mildura Airport
 MIJ / MLIP - Mili Island
 MGT / YMGB - Milingimbi
 MLO / LGML - Milos Airport
+MTT / MMMT - Minatitlan Airport
+MOT / KMOT - Minot International Airport
 MNT / --- - Minto
 MQC / LFVM - Miquelon Airport
+RMI / LIPR - Miramare Airport
+MJZ / UERR - Mirnyj Airport
+MSJ / RJSM - Misawa
 MIS / AYMS - Misima Island
 MRA / HLMS - Misurata Airport
 MOI / NCMR - Mitiaro Island
+MVP / SKMU - Mitu
+MYE / RJTQ - Miyake Jima
 MTF / HAMT - Mizan Teferi
+MZQ / FAMU - Mkuze
+MBD / FAMM - Mmabatho International Airport
+MQN / ENRA - Mo i Rana Airport
 MFJ / NFMO - Moala
+MOB / KMOB - Mobile Regional Airport
 MHC / SCPQ - Mocopulli Airport
 MOJ / SMMO - Moengo
+MVQ / UMOO - Mogilev
+OHE / ZYMH - Mohe Airport
+BIK / WABB - Mokmer Airport
+MOL / ENML - Molde Airport Aro
+MKK / PHMK - Molokai Airport
+MQJ / UEMA - Moma
+MAS / AYMO - Momote Airport
+MBE / RJEB - Monbetsu Airport
+MOG / VYMS - Mong Hsat
 MNY / AGGO - Mono
+MLU / KMLU - Monroe Regional Airport
+YYY / CYYY - Mont Joli Airport
 MTP / KMTP - Montauk Airport
+MRY / KMRY - Monterey Regional Airport
+MOC / SBMK - Montes Claros Airport
+CEZ / KCEZ - Montezuma County Airport
+MGM / KMGM - Montgomery Regional Airport
+VBS / LIPO - Montichiari Airport
+MTJ / KMTJ - Montrose Regional Airport
+YMO / CYMO - Moosonee
+MKQ / WAKK - Mopah Airport
+MZI / GAMB - Mopti
+MXX / ESKM - Mora Airport
+MOV / YMRB - Moranbah Airport
+KVO / LYKV - Morava Airport
+MRZ / YMOR - Moree Airport
+MGW / KMGW - Morgantown Airport
 ONG / YMTI - Mornington Airport
 MXH / AYMR - Moro Airport
+MXV / ZMMN - Moron
+MOQ / FMMV - Morondava Airport
+MYA / YMRY - Moruya Airport
+PUW / KPUW - Moscow Regional Airport
+MSU / FXMM - Moshoeshoe International Airport
+OSR / LKMT - Mosnov Airport
+OMO / LQMO - Mostar Airport
+MZS / --- - Mostyn
+BOB / NTTB - Motu Mute Airport
+ERH / GMFK - Moulay Ali Cherif Airport
+MGB / YMTG - Mount Gambier Airport
+HGU / AYMH - Mount Hagen Airport
+MHU / YHOT - Mount Hotham
+ISA / YBMA - Mount Isa Airport
+MMG / YMOG - Mount Magnet
+MPN / EGYP - Mount Pleasant
 MOU / PAMO - Mountain Village Airport
+MPA / FYKM - Mpacha
+MYW / HTMT - Mtwara Airport
+MWX / RKJB - Muan International Airport
 BUU / WIPI - Muara Bungo Airport
+HMB / HESG - Mubarak International Airport
+MDG / ZYMD - Mudanjiang Airport
+CDV / PACV - Mudhole Smith Airport
+MKM / WBGK - Mukah Airport
 MPC / WIPU - Muko-Muko
 JJM / HKMK - Mulika Lodge Airport
+MZV / WBMU - Mulu Airport
+MUA / AGGM - Munda Airport
+FMO / EDDG - Munster Osnabruck International Airport
 MYI / YMAE - Murray Island
+MSR / LTCK - Mus Airport
+MKG / KMKG - Muskegon Airport
+YQA / CYQA - Muskoka
 MSA / CZMD - Muskrat Dam
 MUZ / HTMU - Musoma Airport
+MQS / TVSM - Mustique
+PLW / WAML - Mutiara Airport
 MFG / OPMF - Muzaffarabad
+MWZ / HTMW - Mwanza Airport
+MGZ / VYME - Myeik Airport
+MYT / VYMK - Myitkyina Airport
+MYQ / VOMY - Mysore
+MJT / LGMT - Mytilene International Airport
+MNC / FQNC - Nacala
+NYM / USMM - Nadym Airport
+LAE / AYNZ - Nadzab Airport
+WNP / RPUN - Naga Airport
 JPE / SNEB - Nagib Demachki Airport
+NKM / RJNA - Nagoya Airport
+NAH / WAMH - Naha
 YDP / CYDP - Nain
+SHB / RJCN - Nakashibetsu Airport
+NAJ / UBBN - Nakhichevan Airport
+KOP / VTUW - Nakhon Phanom Airport
+YQN / CYQN - Nakina
+NLT / ZWNL - Nalati Airport
+NAL / URMN - Nalchik Airport
+NMA / UTFN - Namangan Airport
+NAM / WAPR - Namlea
+APL / FQNP - Nampula Airport
 OSY / ENNM - Namsos Airport
-NAO / ZUNC - Nanchong Airport
+NNT / VTCN - Nan Airport
+YCD / CYCD - Nanaimo Airport
+NDC / VAND - Nanded
+NPO / WIOG - Nangapinoh
+ACK / KACK - Nantucket Memorial Airport
 KEB / KEB - Nanwalek
-NNY / ZHNY - Nanyang Airport
-WNA / PANA - Napakiak Sea Plane Base
-PKA / PAPK - Napaskiak Sea Plane Base
+NYK / HKNL - Nanyuki
 NAU / NTGN - Napuka Island
+NAW / VTSC - Narathiwat Airport
+NAA / YNBR - Narrabri
+NRA / YNAR - Narrandera
+NNM / ULAM - Naryan-Mar Airport
+YNA / CYNA - Natashquan
+CRM / RPVF - National Airport
+GCN / KGCN - National Park
 YNP / CNH2 - Natuashish Airport
+NTX / WIDO - Natuna Ranai
+INU / ANYN - Nauru International
+SUV / NFNA - Nausori Airport
+NVI / UTSA - Navoi Airport
+WNS / OPNH - Nawabshah
 JNX / LGNX - Naxos Airport
+NYT / VYNT - Nay Pyi Taw Airport
+NDJ / FTTJ - Ndjamena Airport
+VOL / LGBL - Nea Anchialos
+NEC / SAZO - Necochea
+CNP / BGCO - Neerlerit Inaat Airport
+GXG / FNNG - Negage
+ALP / OSAP - Nejrab
+EAM / OENG - Nejran
+NSN / NZNS - Nelson Airport
 NLG / PAOU - Nelson Lagoon
+RAI / GVNP - Nelson Mandela International Airport
 YNS / CYHH - Nemiscau Airport
+NUM / OENN - Neom Airport
+KEP / VNNG - Nepalganj Airport
+NER / UELL - Neryungri Airport
+NAV / LTAZ - Nevsehir
+EWB / KEWB - New Bedford Airport
+TBI / MYCB - New Bright
 NCN / PFCB - New Chenega
 KGK / PAJZ - New Koliganek
+NPL / NZNP - New Plymouth Airport
 KNW / PANW - New Stuyahok
+NEV / TKPN - Newcastle Airport
+ZNE / YNWN - Newman Airport
+PHF / KPHF - Newport News/Williamsburg International Airport
+NQY / EGHQ - Newquay Cornwall Airport
 WWT / PAEW - Newtok
+NGE / FKKN - Ngaoundéré
+NGQ / ZUAL - Ngari Gunsa/Ali Kunsha
 NGI / NFNG - Ngau Island
+GOV / YPGV - Nhulunbuy Airport
+YCM / CYSN - Niagara District Airport
+IAG / KIAG - Niagara Falls International Airport
+NIM / DRRN - Niamey Airport
 NIU / NTKN - Niau
 NME / PAGT - Nightmute Airport
+NLI / UHNN - Nikolaevsk-na-Amure
 NIB / PAFS - Nikolai
 IKO / PAKO - Nikolski AFS
+NLH / ZPNL - Ninglang Luguhu Airport
+INI / LYNI - Nis Constantine the Great Airport
 WTK / PAWN - Noatak
 NGK / UHSN - Nogliki Airport
+NOJ / USRO - Nojabrxsk Airport
+OME / PAOM - Nome Airport
 DEX / WAVD - Nop Goliat Airport
 NOD / EDWS - Norden Norddeich Airport
 NRD / EDWY - Norderney
+NLK / YSNF - Norfolk Island Airport
+YVQ / CYVQ - Norman Wells
+NTN / YNTN - Normanton Airport
 NUS / NVSP - Norsup Airport
+BRR / EGPR - North Bay Airport
+NCA / MBNC - North Caicos
+ELH / MYEH - North Eleuthera International Airport
+GIB / LXGB - North Front Airport
+YXJ / CYXJ - North Peace Regional Airport
 NRL / EGEN - North Ronaldsay Airport
 YNO / CKQ3 - North Spirit Lake
 ABM / YNPE - Northern Peninsula Airport
+YYE / CYYE - Northern Rockies Regional Airport
+ORT / PAOR - Northway
+MSL / KMSL - Northwest Alabama Regional Airport
+YXT / CYXT - Northwest Regional Airport
 YNE / CYNE - Norway House Airport
+NWI / EGSH - Norwich International Airport
+NOB / MRNS - Nosara Beach
+NTQ / RJNW - Noto Airport
 JBB / WARE - Notohadinegoro Airport
+NDB / GQPP - Nouadhibou Airport
+NKC / GQNO - Nouakchott International Airport
+GEA / NWWM - Noumea Magenta Airport
+GHA / DAUG - Noumerate Airport
+NOZ / UNWW - Novokuznetsk Airport
+NSH / OINN - Now Shahr Airport
+NSI / FKYS - Nsimalen Airport
+NUI / PAQT - Nuiqsut Airport
+NHV / NTMD - Nuku Hiva Airport
+NCU / UTNN - Nukus Airport
 NUL / PANU - Nulato Airport
 NUP / PPIT - Nunapitchuk
 NQU / SKNQ - Nuqui
+GOH / BGGH - Nuuk Airport
+NYA / USHN - Nyagan Airport
+UYL / HSNN - Nyala
 NYU / VYBG - Nyaung U Airport
+LZY / ZUNZ - Nyingchi Mainling Airport
+OKY / YBOK - Oakey
 OBN / EGEO - Oban Airport
 OBX / AYOB - Obo
+OEC / WPOC - Ocussi
+ONJ / RJSR - Odate Noshiro Airport
+OGS / KOGS - Ogdensburg Airport
+OGL / SYEC - Ogle Airport
 YOG / CYKP - Ogoki
+OHD / LWOH - Ohrid Airport
+OKD / RJCO - Okadama Airport
+OHO / UHOO - Okhotsk
+OKI / RJNO - Oki Island
+OKE / RJKB - Okino Erabu
+OKL / WAJO - Oksibil
+OIR / RJEO - Okushiri Airport
 YOC / CYOC - Old Crow
-OLH / --- - Old Harbor SPB
+OLZ / UEMO - Olokminsk Airport
 OLJ / NVSZ - Olpoi
+SZY / EPSY - Olsztyn-Mazury Airport
+OLM / KOLM - Olympia
 OLP / YOLD - Olympic Dam Airport
+OND / FYOA - Ondangwa Airport
+VPE / FNGI - Ondjiva
+RHI / KRHI - Oneida County Airport
+OMR / LROD - Oradea Airport
+RGO / ZKHM - Orang
 ORZ / --- - Orange Walk
+OMD / FYOG - Oranjemund Airport
+ESD / KORS - Orcas Island Airport
+KYD / RCLY - Orchid Island
+ORB / ESOE - Orebro-Bofors Airport
+REN / UWOO - Orenburg Airport
+OLA / ENOL - Orland
 JDO / SBJU - Orlando Bezerra de Menezes Airport
+MLB / KMLB - Orlando Melbourne International Airport
+OER / ESNO - Ornskoldsvik Airport
+OSW / UWOR - Orsk Airport
+ORU / SLOR - Oruro
+OIM / RJTO - Oshima
+OSI / LDOS - Osijek Airport
+OST / EBOS - Ostend-Bruges International Airport
+OXB / GGOV - Osvaldo Vieira Airport
+OUA / DFFD - Ouagadougou International Airport
+AJN / FMCV - Ouani
+OZZ / GMMZ - Ouarzazate Airport
 ODY / VLOS - Oudomxay Airport
-KOZ / --- - Ouzinkie SPB
+HME / DAUH - Oued Irara Airport
+ATW / KATW - Outagamie County Regional Airport
+UVE / NWWV - Ouvea Airport
 YOH / CYOH - Oxford House
+OYE / FOGO - Oyem
 PBJ / NVSI - Paama
 JFR / BGPT - Paamiut Airport
+PAD / EDLP - Paderborn Lippstadt Airport
+PAG / RPMP - Pagadian Airport
+PGA / KPGA - Page Airport
+PPG / NSTU - Pago Pago International Airport
 PJA / ESUP - Pajala Airport
+PKZ / VLPS - Pakse Airport
+YIF / CYIF - Pakuashipi
+PLQ / EYPA - Palanga International Airport
 PMK / YPAM - Palm Island Airport
+PMW / SBPJ - Palmas Airport
+PMR / NZPM - Palmerston North Airport
+PNA / LEPP - Pamplona Airport
+PZI / ZUZH - Pan Zhi Hua Bao An Ying
 BLB / MPPA - Panama Pacifico Airport
+EAT / KEAT - Pangborn Field
 PKG / WMPA - Pangkor Airport
 YXP / CYXP - Pangnirtung Airport
+PNL / LICG - Pantelleria Airport
+PGH / VIPT - Pantnagar Airport
 PPW / EGEP - Papa Westray Airport
+PBO / YPBO - Paraburdoo Airport
+PED / LKPD - Pardubice Airport
+PKE / YPKS - Parkes Airport
+PMF / LIMP - Parma Airport
+EPU / EEPU - Parnu
+PBH / VQPR - Paro Airport
 PAS / LGPA - Paros Airport
 PFQ / OITP - Parsabad
+PFB / SBPF - Passo Fundo Airport
+IXP / VIPK - Pathankot
 PTO / SBPO - Pato Branco
 YPC / CYPC - Paulatuk
+PAV / SBUF - Paulo Afonso Airport
+PWQ / UASP - Pavlodar Airport
+RKZ / ZURK - Peace
+YPE / CYPE - Peace River
 YPO / CYPO - Peawanuck
+PEX / UUYP - Pechora Airport
+PEV / LHPP - Pecs Pogany
 PDM / MP00 - Pedasí Airport
 PDB / 4K0 - Pedro Bay
-KPV / PAPE - Perryville SPB
+POL / FQPB - Pemba Airport
+PDO / WIPQ - Pendopo
+YYF / CYYF - Penticton Airport
+PEZ / UWPP - Penza Airport
+PIA / KPIA - Peoria International Airport
+PMQ / SAWP - Perito Moreno
+YPQ / CYPQ - Peterborough
+PSG / PAPG - Petersburg Municipal Airport
+PNZ / SBPL - Petrolina International Airport
+PPK / UACP - Petropavlovsk Airport
+PES / ULPB - Petrozavodsk Airport
+PWE / UHMP - Pevek Airport
+PHW / FAPH - Phalaborwa Airport
+PHH / --- - Phan Thiet
+PHY / VTPB - Phetchabun
+KZI / LGKZ - Philippos Airport
+PHS / VTPP - Phitsanulok Airport
+ZAL / SCVD - Pichoy Airport
+YPL / CYPL - Pickle Lake
+PIX / LPPI - Pico Island Airport
 PCN / NZPN - Picton Aerodrome
+PDS / MMPG - Piedras Negras International Airport
+PIR / KPIR - Pierre Regional Airport
+PZB / FAPM - Pietermaritzburg Airport
 YPM / CYPM - Pikangikum
 PIP / PAPN - Pilot Point
 PQS / --- - Pilot Station Airport
+DUM / WIBD - Pinang Kampai
+PIF / RCSQ - Pingtung
+PGV / KPGV - Pitt-Greenville Airport
+PLJ / --- - Placencia
+SLW / MMIO - Plan de Guadalupe International Airport
 TLY / UHWP - Plastun Airport
+PTU / PAPM - Platinum Airport
+PBG / KPBG - Plattsburgh International Airport
+
+PDV / LBPD - Plovdiv Airport
+PIH / KPIH - Pocatello Regional Airport
+KPO / RKTH - Pohang Airport
+PNI / PTPN - Pohnpei Airport
 PHO / PAPO - Point Hope Airport
+YNL / CYNL - Points North Landing
+PIS / LFBI - Poitiers-Biard Airport
+PKR / VNPK - Pokhara Airport
+PTG / FAPP - Polokwane Airport
+PYJ / UERP - Polyarnyj Airport
+PUM / WAWP - Pomala
 YIO / CYIO - Pond Inlet Airport
+PNY / VOPC - Pondicherry
+QSR / LIRI - Pontecagnano
 YHP / CYHP - Poplar Hill
+TAT / LZTT - Poprad/Tatry Airport
+PBD / VAPR - Porbandar
+POR / EFPO - Pori Airport
 PTA / PALJ - Port Alsworth
+PUG / YPAG - Port Augusta
+POG / FOOG - Port Gentil
 PGM / PGM - Port Graham
+PHG / --- - Port Harcourt City
+YZT / CYZT - Port Hardy Airport
+PHE / YPPD - Port Hedland International Airport
+PTH / PAPH - Port Heiden
 YHA / CCP4 - Port Hope Simpson
-ORI / --- - Port Lions SPB
+PLO / YPLC - Port Lincoln Airport
+PQQ / YPMQ - Port Macquarie Airport
 YMP / CAT5 - Port McNeil
+YPN / CYPN - Port Menier
+PSD / HEPS - Port Said
 PSY / SFAL - Port Stanley
+PRM / LPPM - Portimao Airport
+PTJ / YPOD - Portland
+PXO / LPPS - Porto Santo Airport
+PSS / SARP - Posadas Airport
 YSO / CCD4 - Postville Airport
+YPW / CYPW - Powell River
+PRI / FSPP - Praslin Island Airport
+SNE / GVSN - Preguica
+RBR / SBRB - Pres. Medici Airport
+PRC / KPRC - Prescott Airport
+GEM / FGMY - President Obiang Nguema International Airport
+PQI / KPQI - Presque Isle Municipal Airport
+LYH / KLYH - Preston-Glenn Field
+ULH / OEAO - Prince Abdul Majeed bin Abdulaziz Airport
+YXS / CYXS - Prince George Airport
+HAH / FMCH - Prince Said Ibrahim Internatonal Airport
+PCP / FPPR - Principe
 PXH / YPMH - Prominent Hill
+PVA / SKPV - Providencia
+PVU / KPVU - Provo Airport
+SCC / PASC - Prudhoe Bay/Deadhorse Airport
+PKV / ULOO - Pskov Airport
 SYM / ZPSM - Pu'er Simao Airport
 ZPC / SCPC - Pucon
+PUB / KPUB - Pueblo Memorial Airport
+PUU / SKAS - Puerto Asis Airport
+PBR / MGPB - Puerto Barrios
+PUZ / MNPC - Puerto Cabezas
+PCR / SKPC - Puerto Carreno Airport
+PUD / SAWD - Puerto Deseado
+PXM / MMPS - Puerto Escondido Airport
+PDA / SKPD - Puerto Inirida
+PJM / MRPJ - Puerto Jimenez
 LQM / SKLG - Puerto Leguizamo
 PEU / MHPL - Puerto Lempira
+PEM / SPTU - Puerto Maldonado Airport
 PPE / MMPE - Puerto Penasco
 PUR / SLPR - Puerto Rico
+PSZ / SLPS - Puerto Suarez
 PKP / NTGP - Puka Puka
 XPK / CZFG - Pukatawagan
+PUY / LDPL - Pula Airport
 PND / --- - Punta Gorda
+LAF / KLAF - Purdue University
+PBU / VYPT - Putao
+PSU / WIOP - Putussibau Airport
+YPX / CYPX - Puvirnituq
+FNJ / ZKPY - Pyongyang Sunan International Airport
+NAQ / BGQQ - Qaanaaq Airport
 JQA / BGUQ - Qaarsut Airport
+AQI / OEPA - Qaisumah Airport
+JIQ / ZUQJ - Qianjiang Wulingshan Airport
+IQM / ZWCM - Qiemo Airport
 YVM / CYVM - Qikiqtarjuaq
 HBQ / --- - Qilian Airport
+IQN / ZLQY - Qingyang Airport
+BPE / ZBDH - Qinhuangdao Beidaihe Airport
+NDG / ZYQQ - Qiqihar Airport
+MLI / KMLI - Quad City International Airport
+XQU / CAT4 - Qualicum
 YQC / CYHA - Quaqtaq
+UEL / FQQL - Quelimane Airport
+XQP / MRQP - Quepos Airport
+YQZ / CYQZ - Quesnel Airport
+UET / OPQT - Quetta Airport
+NLD / MMNL - Quetzalcoatl International Airport
 AAZ / MGQZ - Quetzaltenango
+ULP / YQLP - Quilpie
+UIN / KUIN - Quincy Municipal Airport
+KQT / UTDT - Qurghonteppa International Airport
+BVC / GVBA - Rabil Airport
+VKG / VVRG - Rach Gia Airport
+RDO / EPRA - Radom Airport
 YRA / CYRA - Rae Lakes
+GER / MUNG - Rafael Cabrera Airport
+BQN / TJBQ - Rafael Hernandez Airport
+RAH / OERF - Rafha Airport
+RJN / OIKR - Rafsanjan
+BHS / YBTH - Raglan Airport
+RYK / OPRK - Rahim Yar Khan Airport
+RFP / NTTR - Raiatea Airport
 RVV / NTAV - Raivavae
+RJA / VORY - Rajahmundry Airport
+RJH / VGRJ - Rajshahi Airport
 TAL / PATA - Ralph Calhoun
+OTZ / PAOT - Ralph Wien Memorial Airport
 RBV / AGRM - Ramata
 RAM / YRNG - Ramingining
+ETM / LLER - Ramon Airport
 RMP / --- - Rampart
+RZR / OINR - Ramsar
+RGI / NTTG - Rangiroa Airport
+YRT / CYRT - Rankin Inlet Airport
+UNN / VTSR - Ranong Airport
+RAP / KRAP - Rapid City Regional Airport
 RRR / NTKO - Raroia
+RAR / NCRG - Rarotonga Airport
+RAS / OIGG - Rasht Airport
+RML / VCCC - Ratmalana
 RDV / RDV - Red Devil
+YRL / CYRL - Red Lake Airport
 YRS / CYRS - Red Sucker Lake
+RDD / KRDD - Redding Municipal Airport
+YQR / CYQR - Regina International Airport
+YKF / CYKF - Region of Waterloo International Airport
+MGF / SBMG - Regional De Maringa
+TXE / WITK - Rembele Airport
+MKW / WAUU - Rendani Airport
 RNL / AGGR - Rennell
+RNS / LFRN - Rennes Airport
 YUT / CYUT - Repulse Bay
+RES / SARE - Resistencia Airport
+YRB / CYRB - Resolute Bay Airport
+REW / VA1G - Rewa
+RKV / BIRK - Reykjavik International Airport
+RCB / FARB - Richards Bay Airport
+MSS / KMSS - Richards Field
+SDY / KSDY - Richland Municipal Airport
 RCM / YRMD - Richmond
+AMA / KAMA - Rick Husband Amarillo International Airport
+LCK / KLCK - Rickenbacker International Airport
 YRG / CCZ2 - Rigolet
+RJK / LDRI - Rijeka Airport
 RMT / NTAM - Rimatara
+RIZ / ZSRZ - Rio Alzucar
+RGL / SAWG - Rio Gallegos Internacional Airport
+RGA / SAWE - Rio Grande Airport
+RHD / SANR - Rio Hondo Airport
 RYO / SAWT - Rio Turbio
+RCH / SKRH - Riohacha Airport
+RIS / RJER - Rishiri Airport
+RVY / SURV - Rivera
+RIW / KRIW - Riverton Airport
+RIY / OYRN - Riyan Mukalla
+ROA / KROA - Roanoke-Blacksburg Regional Airport
+RTB / MHRO - Roatan Airport
 ORV / PFNO - Robert (Bob) Curtis Memorial Airport
 LNU / WAQM - Robert Atty Bessing Airport
+SKB / TKPK - Robert L. Bradshaw International Airport
+ROB / GLRB - Roberts International Airport
+YRJ / CYRJ - Roberval
 RCE / WA09 - Roche Harbor
+RST / KRST - Rochester International Airport
+RKS / KRKS - Rock Springs-Sweetwater County Airport
+ROK / YBRK - Rockhampton Airport
+RRG / FIMR - Rodrigues Island Airport
+ROI / VTUV - Roi Et Airport
 RKI / --- - Rokot
+RMA / YROM - Roma Airport
+TBH / RPVU - Romblon
+ROO / SBRD - Rondonopolis Airport
+PXU / VVPK - Pleiku Airport
+
 RNP / --- - Rongelap Island
+WVB / FYWB - Rooikop Airport
+RRS / ENRO - Roros Airport
+RKE / EKRK - Roskilde Airport
+ROW / KROW - Roswell International Air Center
+ROP / PGRO - Rota Airport
 RTI / WATR - Roti
+ROT / NZRO - Rotorua International Airport
 RTA / NFNR - Rotuma Island
+EGC / LFBE - Roumanieres Airport
 ZRJ / CZRJ - Round Lake Airport
+YUY / CYUY - Rouyn-Noranda Airport
+JRH / VEJT - Rowriah Airport
+RXS / RPVR - Roxas City Airport
+URG / SBUG - Ruben Berta Airport
+RBY / PARY - Ruby Airport
+BHJ / VABJ - Rudra Mata Airport
+NDU / FYRU - Rundu
+RQA / ZWRQ - Ruoqiang Loulan Airport
 RBQ / SLRQ - Rurrenabaque
-RSH / PARS - Russian SPB
+RUR / NTAR - Rurutu
 RTG / WATG - Ruteng
+RUT / KRUT - Rutland Airport
+RVK / ENRM - Ryumsjoen Airport
 SNX / OIIS - Sabana De Mar
+SBT / USDA - Sabetta
+AFZ / OIMS - Sabzevar
+HIN / RKPS - Sacheon Airport
 ZPB / CZPB - Sachigo Lake Airport
 YSY / CYSY - Sachs Harbour
+SDS / RJSD - Sado Shima
+HSG / RJFS - Saga Airport
+YBG / CYBG - Saguenay-Bagotville Airport
 SBR / YSII - Saibai Island
+SPD / VGSD - Saidpur Airport
+STC / KSTC - Saint Cloud Regional
+DOL / LFRG - Saint Gatien Airport
+SGU / KSGU - Saint George Municipal Airport
+ASI / FHAW - Saint Helena Airport
+YSJ / CYSJ - Saint John Airport
 KSM / PASM - Saint Mary's Airport
+SNP / PASN - Saint Paul Island Airport
+FSP / LFVP - Saint Pierre Airport
+CLY / LFKC - Sainte Catherine Airport
+SMS / FMMS - Sainte Marie
+SPN / PGSN - Saipan International Airport
 SUK / UEBS - Sakkyryr Airport
+SNO / VTUI - Sakon Nakhon Airport
+MVR / FKKL - Salam
+SLY / USDD - Salekhard Airport
+SLN / KSLN - Salina Regional Airport
 OPP / SNSM - Salinópolis Airport
 YZG / CYZG - Salluit
+SMN / KSMN - Salmon
+HPA / NFTL - Salote Pilolevu
 SLX / MBSY - Salt Cay
+QOW / DNIM - Sam Mbakwe International Airport
+AZS / MDCY - Samaná El Catey International
+SVB / FMNS - Sambava
+SMI / LGSM - Samos Airport
+SAQ / MYAN - San Andros
+SJT / KSJT - San Angelo Regional Airport
+SVZ / SVSA - San Antonio
 OES / SAVN - San Antonio Oeste
 SCY / SEST - San Cristobal Airport
 SET / --- - San Esteban
+SJI / RPUH - San Jose
+SJE / SKSJ - San Jose Del Gua
+UAQ / SANU - San Juan Airport
+IPI / SKIP - San Luis Airport
+SBP / KSBP - San Luis County Regional Airport
+SLP / MMSP - San Luis Potosi Airport
+SPR / MZSP - San Pedro
+AFA / SAMR - San Rafael Airport
+ZSA / MYSM - San Salvador Airport
+EAS / LESO - San Sebastian Airport
+SVI / SKSV - San Vicente
+SAH / OYSN - Sana'a International Airport
+SQN / WAPN - Sanana
+SDG / OICS - Sanandaj Airport
+SDP / PASD - Sand Point Municipal Airport
 SDN / ENSD - Sandane Airport
 NDY / EGES - Sanday
+YZP / CYZP - Sandspit Airport
+ZSJ / CZSJ - Sandy Lake
+KXB / WAWP - Sangia Nibandera Airport
+TTU / GMTN - Sania Ramel
 YSK / CYSK - Sanikiluaq Airport
+SQJ / ZSSM - Sanming Shaxian Airport
+PEG / LIRZ - Sant Egidio Airport
 NNB / AGGT - Santa Ana Airport
+SNU / MUSC - Santa Clara Airport
+FLW / LPFL - Santa Cruz Airport
 SCZ / AGGL - Santa Cruz Island
+SNV / SVSE - Santa Elena
+FRS / MGMM - Santa Elena Airport
+SAF / KSAF - Santa Fe
+SFN / SAAV - Santa Fe Airport
+RIA / SBSM - Santa Maria Airport
+SMX / KSMX - Santa Maria Public Airport
 SRA / SSZR - Santa Rosa
+RSA / SAZR - Santa Rosa Airport
 SRL / --- - Santa Rosalia
+SST / SAZL - Santa Teresita
+STM / SBSN - Santarem-Maestro Wilson Fonseca Airport
+SDE / SANE - Santiago Del Estero Airport
+PMV / SVMG - Santiago Marino International Airport
+SON / NVSS - Santo Pekoa International Airport
+PHB / SBPB - Santos Dumont
 SFL / GVSF - Sao Filipe
+SJZ / LPSJ - Sao Jorge Island Airport
+SJK / SBSJ - Sao Jose Dos Campos
+TMS / FPST - Sao Tome Island Airport
 SSR / NVSH - Sara
+SKX / UWPS - Saransk Airport
 TDS / AYSS - Sasereme
+SUJ / LRSM - Satu Mare International Airport
+YAM / CYAM - Sault Ste. Marie Airport
 SXK / WAPI - Saumlaki Olilit Airport
+SVL / EFSA - Savonlinna Airport
+SVA / PASA - Savoonga Airport
 SVU / NFNS - Savusavu Airport
+MQT / KSAW - Sawyer International Airport
 IAO / RPNS - Sayak (Siargao)
+SCR / ESKS - Scandinavian Mountains Airport
 RIH / MPSM - Scarlett Martínez International Airport
+YKL / CYKL - Schefferville Airport
+SWO / KSWO - Searcy Field
+SEB / HLLS - Sebha
+GXF / OYSY - Seiyun
 WLK / PASK - Selawik Airport
 SOV / PASO - Seldovia
+XSP / WSSL - Seletar
 SZE / HASM - Semera Airport
+PLX / UASS - Semipalatinsk Airport
+GUP / KGUP - Senator Clark
+SZH / --- - Senipah
+LEU / LESU - Seo de Urgel
+GEL / SBNM - Sepe Tiaraju
+YZV / CYZV - Sept-Iles Airport
+QSF / DAAS - Setif Airport
+MEQ / WITC - Seunagan
+SFA / DTTX - Sfax El Maou Airport
+QSZ / ZWSC - Shache Airport
 SWX / FBSW - Shakawe
 EKS / UHSK - Shakhtyorsk Airport
 SKK / PFSH - Shaktoolik Airport
 ZTM / CZTM - Shamattawa Airport
-SXP / --- - Sheldon Sea Plane Base
+SQD / ZSSR - Shangrao Sanqingshan Airport
+HSC / --- - Shaoguan
+MJK / YSHK - Shark Bay
+SHW / OESH - Sharurah Airport
+SHD / KSHD - Shenandoah Valley Airport
+HPG / ZHSN - Shennongjia Hongping Airport
+SHR / KSHR - Sheridan
+DDR / --- - Shigatse Tingri Airport
 SHF / ZWHZ - Shihezi Huayuan Airport
 HIL / HASL - Shillavo
+SHL / VEBI - Shillong Airport
+SHI / RORS - Shimojishima
 SHY / HTSY - Shinyanga
+SHM / RJBD - Shirahama Airport
+SAG / VASD - Shirdi
+NKT / LTCV - Shirnak
 SHH / PASH - Shishmaref Airport
+FSZ / RJNS - Shizuoka Airport
+SYO / RJSY - Shonai Airport
+SOW / KSOW - Show Low Airport
+SHV / KSHV - Shreveport Regional Airport
+JAE / SPJE - Shumba Airport
 SHG / PAGH - Shungnak Airport
+SBZ / LRSB - Sibiu Airport
+MZO / MUMZ - Sierra Maestra Airport
+KOS / VDSV - Sihanouk International Airport
 SIH / VNDT - Silgadi Doti
 SIF / VNSI - Simara
 IMK / VNST - Simikot
+NLA / FLSK - Simon Mwansa Kapwepwe International Airport
+SDW / VOSR - Sindhudurg Airport
 OPS / SBSI - Sinop Airport
+NOP / LTCM - Sinop Airport - Turkey
+SUX / KSUX - Sioux Gateway Airport
+YXL / CYXL - Sioux Lookout Airport
+GBE / FBSK - Sir Seretse Khama International Airport
+SIS / FASS - Sishen Airport
+JHS / BGSS - Sisimiut Airport
 DTB / WIMN - Sisingamangaraja XII International Airport
+JSH / LGST - Sitia Airport
+SIT / PASI - Sitka Airport
+VAS / LTAR - Sivas Airport
 SGY / PAGY - Skagway Municipal
+KDU / OPSD - Skardu Airport
+SFT / ESNS - Skelleftea Airport
+JSI / LGSK - Skiathos Airport
 SKU / LGSY - Skiros Airport
+SZK / FASZ - Skukuza Airport
 SLQ / PASL - Sleetmute
+SLD / LZSL - Sliac
+SMW / GMMA - Smara
+YYD / CYYD - Smithers Airport
+SNB / YSNB - Snake Bay
 YFJ / CYWE - Snare Lake
+PAE / KPAE - Snohomish County - Paine Field
+OOM / YCOM - Snowy Mountains Airport
 DWB / FMNO - Soalala
+SCT / OYSQ - Socotra
 SOG / ENSG - Sogndal Airport
+OHS / OOSH - Sohar Airport
+KMW / UUBA - Sokerkino
+SKO / DNSO - Sokoto
 SLH / NVSC - Sola
 CSH / ULAS - Solovky
 SLI / FLSW - Solwezi
+SGD / EKSB - Sonderborg Airport
+DSO / ZKSD - Sondok
+STS / KSTS - Sonoma County Airport
+SOJ / ENSR - Sorkjosen Airport
 SOD / SDCO - Sorocaba
+SQG / WIOS - Sorong Airport
+SRT / HUSO - Soroti
+TZN / MYAK - South Andros
+ELD / KELD - South Arkansas Regional Airport
+SBN / KSBN - South Bend Regional
+RSD / MYER - South Eleuthera Airport
 XSI / CZSN - South Indian Lake
 WSN / PFWS - South Naknek
+BRO / KBRO - South Padre Island International Airport
 ZFL / --- - South Trout Lake
+SOU / EGHI - Southampton Airport
+ABY / KABY - Southwest Georgia Regional Airport
+OTH / KOTH - Southwest Oregon Regional Airport
+OVS / USHS - Sovetsky Airport
+SZA / FNSO - Soyo Airport
 SWL / RPSV - Spanish Wells
-SCM / PACM - SPB
+MLW / GLMR - Sprigg Payne
+YSQ / ZYSQ - Spring Island
+AXP / MYAP - Springpoint Airport
+SEK / UESK - Srednekolymsk Airport
+YAY / CYAY - St Anthony
 SFC / TFFC - St Francois
 SGO / YSGE - St George
 ISC / EGHE - St Marys
+ZSE / FMEP - St Pierre dela Reunion
+LDX / SOOM - St-Laurent du Maroni
+UST / KSGJ - St. Augustine Airport
+SBH / TFFJ - St. Barthelemy Airport
+STG / PAPB - St. George Island Airport
+YHU / CYHU - St. Hubert Airport
 SMK / PAMK - St. Michael Airport
+STW / URMT - Stavropol Airport
 YST / CYST - Ste Therese Point
 WBB / WBB - Stebbins Airport
 SVS / SVS - Stevens Village
+SWF / KSWF - Stewart International Airport
+NYO / ESKN - Stockholm Skavsta Airport
+SCK / KSCK - Stockton Airport
+SSJ / ENST - Stokka Airport
+SKN / ENSK - Stokmarknes Skagen Airport
 RET / ENRS - Stolport Airport
+YSF / CYSF - Stony Rapids
 SRV / SRV - Stony River
+SRP / ENSO - Stord Airport
+SYY / EGPO - Stornoway Airport
 SOY / EGER - Stronsay Airport
 SSW / 7WA5 - Stuart Island
+UAI / WPDB - Suai
+SFS / RPLB - Subic Bay International
+SCV / LRSV - Suceava Airport
+FSC / LFKF - Sud Corse Airport
+YSB / CYSB - Sudbury Airport
+THS / VTPO - Sukhothai Airport
+SKZ / OPSK - Sukkur Airport
+ISU / ORSU - Sulaimaniyah International Airport
+AOR / WMKA - Sultan Abdul Halim Airport
+KUA / WMKD - Sultan Haji Ahmad Shah Airport
+BTJ / WITT - Sultan Iskandar Muda International Airport
+TGG / WMKN - Sultan Mahmud Airport
 SWQ / WADS - Sultan Muhammad Kaharuddin III Airport
+BMU / WADB - Sultan Muhammad Salahuddin Airport
 DJB / WIJJ - Sultan Thaha Airport
+LSI / EGPB - Sumburgh Airport
 SUR / CJV7 - Summer Beaver
 SMT / SBSO - Sun Moon Lake
+SDL / ESNN - Sundsvall-Timra Airport
 SUY / UENS - Suntar
+NYI / DGSN - Sunyani
+SUG / RPMS - Surigao Airport
+PXR / VTUJ - Surin
 SKH / VNSK - Surkhet
+LYR / ENSB - Svalbard Airport
 EVG / ESND - Sveg Airport
+YQY / CYQY - Sydney Airport
+SCW / UUYY - Syktyvkar Airport
 JSY / LGSO - Syros Island Airport
+SOB / LHSM - Sármellék/Balaton
+TCP / HETB - Taba International
+TBJ / DTKA - Tabarka
+TBT / SBTT - Tabatinga International Airport
 TBO / HTTB - Tabora Airport
 TBG / AYTB - Tabubil Airport
 TCG / ZWTC - Tacheng
+THL / VYTL - Tachilek Airport
+TCQ / SPTN - Tacna Airport
 XTL / CYBQ - Tadoule Lake
+TNN / RCNN - Tainan Airport
+TTT / RCFN - Taitung Airport
+TJH / RJBT - Tajima
+TKP / NTGT - Takapoto
+TKX / NTKR - Takaroa
+TKD / DGTK - Takoradi Airport
 TCT / PPCT - Takotna
+ARH / ULAA - Talagi Airport
+TDK / UAAT - Taldy-Kurgan
+TLH / KTLH - Tallahassee International Airport
 YYH / CYYH - Taloyoak
+TML / DGLE - Tamale Airport
+TMM / FMMT - Tamatave
 WTA / FMMU - Tambohorano
 TMC / WATK - Tambolaka Airport
+TMP / EFTP - Tampere-Pirkkala Airport
+TAM / MMTM - Tampico International Airport
+TMW / YSTW - Tamworth Airport
+TTA / GMAT - Tan Tan Airport
+TMH / WAKT - Tanahmerah
+TNE / RJFG - Tanegashima
+TGT / HTTG - Tanga Airport
 TGQ / SWTS - Tangara da Serra
 TVS / ZBTS - Tangshan Sannuhe Airport
 OJU / --- - Tanjung Api Airport
 TJS / WALG - Tanjung Selor
+TJG / WAON - Tanjung Warukin
+TAH / NVVW - Tanna Airport
+TSM / KSKX - Taos
+TAP / MMTP - Tapachula International Airport
 TPI / AYTI - Tapini
+TPJ / VNTJ - Taplejung Suketar
 IRZ / SWTP - Tapuruquara
+TRA / RORT - Tarama
 TCD / SKRA - Tarapaca
+LDE / LFBT - Tarbes Ossun Lourdes Airport
 TIZ / AYTA - Tari Airport
+TAY / EETU - Tartu Airport
+HQL / --- - Tashkurgan Airport
 YTQ / CYTQ - Tasiujuaq Airport
 TKV / NTGO - Tatakoto
 TEK / PAKA - Tatitlek
+TUO / NZAP - Taupo Airport
+TRG / NZTG - Tauranga City Airport
+TWT / RPMN - Tawitawi
+TFF / SBTF - Tefe Airport
 TLA / PATE - Teller Airport
+TEX / KTEX - Telluride Regional
+MOZ / NTTM - Temae Airport
+TCZ / ZUTC - Tengchong Tuofeng Airport
+PNT / SCNT - Teniente J. Gallardo
+TDD / SLTR - Teniente Jorge Henrich Arauz Airport
+ENO / SGEN - Teniente Prim Alarcon
+BBA / SCBA - Teniente Vidal Airport
+TCA / YTNK - Tennant Creek
+TPQ / MMEP - Tepic Airport
+TMJ / UTST - Termez Airport
+EIS / TUPJ - Terrance B. Lettsome International Airport
 ZTB / CTB6 - Tete-a-La Baleine
+TXK / KTXK - Texarkana Municipal Airport
+TEZ / VETZ - Tezpur Airport
+SNW / VYTD - Thandwe Airport
+THG / YTNG - Thangool
+XTG / YTGM - Thargomindah
+PUF / LFBP - The Pau-Pyrenees International Airport
+TVF / KTVF - Thief River Falls Regional Airport
 TMF / VRNT - Thimarafushi Airport
+YTH / CYTH - Thompson
 THO / BITN - Thorshofn
-TNC / PATC - Tin City Afs
+YQT / CYQT - Thunder Bay International Airport
+TGJ / NWWA - Tiga
+TIH / NTGC - Tikehau Atoll Airport
+IKS / UEST - Tiksi Airport
+TIU / NZTU - Timaru Airport
+TIM / WAYY - Timika Airport
+TMX / DAUT - Timimoun Airport
+YTS / CYTS - Timmins Victor M. Power Airport
+TIN / DAOF - Tindouf Airport
+TIQ / PGWT - Tinian International
+KTP / MKTP - Tinson
+TOD / WMBT - Tioman
 TIE / HATP - Tippi
+TRE / EGPU - Tiree Airport
+REG / LICR - Tito Menniti Airport
+PKY / WAOP - Tjilik Riwut Airport
+SYQ / MRPV - Tobias Bolaños International
+RMZ / USTJ - Tobolsk Remezov Airport
+YAZ / CYAZ - Tofino Airport
 TOG / PATG - Togiak Village
 TKJ / PFTO - Tok
+OBO / RJCB - Tokachi-Obihiro Airport
+TJK / LTAW - Tokat
 OOK / PAOO - Toksook Bay Airport
+RAB / AYTK - Tokua Airport
+TKN / RJKN - Tokunoshima
 TOW / SBTD - Toledo
+TOL / KTOL - Toledo Express Airport
 TLI / WAMI - Tolitoli
 GTO / WAMG - Tolotio Airport
 TLU / SKTL - Tolu
 TMG / WBKM - Tomanggong
+TOM / GATB - Tombouctou
+TGU / MHTG - Toncontin Airport
+TNH / ZYTN - Tonghua Sanyuanpu Airport
 TGH / NVST - Tongoa
+TEN / ZUTR - Tongren Airport
+NOU / NWWW - Tontouta Airport
+WTB / YBWW - Toowoomba Wellcamp Airport
+TYF / ESST - Torsby Airport
+TTQ / MRAO - Tortuquero
+TTJ / RJOR - Tottori Airport
+TGR / DAUK - Touggourt Airport
+TOU / NWWU - Touho
+PAP / MTPP - Toussaint Louverture International Airport
+TOY / RJNT - Toyama Airport
+TOE / DTTZ - Tozeur Airport
 YZZ / CAD4 - Trail Regional Airport
+TST / VTST - Trang Airport
+TGM / LRTM - Transilvania
+TDX / VTBO - Trat Airport
+TCB / MYAT - Treasure Cay Airport
+REL / SAVT - Trelew Airport
+TTN / KTTN - Trenton-Mercer Airport
+PSC / KPSC - Tri-Cities Airport
+TRI / KTRI - Tri-Cities Regional Airport
+HTS / KHTS - Tri-State/Milton Airport
+TND / MUTD - Trinidad
+THN / ESGT - Trollhattan Airport
+TMT / SBTB - Trombetas
+TKF / KTRK - Truckee-Tahoe
 TJL / SBTG - Três Lagoas Airport
 TTS / FMNT - Tsaratanana
+TSJ / RJDT - Tsushima Airport
+TUB / NTAT - Tubuai
+TUR / SBTU - Tucurui
 TFI / AYTU - Tufi
+TUG / RPUT - Tuguegarao Airport
+TUA / SETU - Tulcan
+TLE / FMST - Tulear
 ZFN / CZFN - Tulita
 TLT / TLT - Tuluksak Airport
 TBM / WAOW - Tumbang Samba
 TMI / VNTR - Tumling Tar Airport
 TWC / --- - Tumxuk Tangwangcheng Airport
+CXP / WIHL - Tunggul Wulung
+IAR / UUDL - Tunoshna Airport
 WTL / A61 - Tuntutuliak
 TNK / 4KA - Tununak
+TUP / KTUP - Tupelo Regional Airport
+TUI / OETR - Turaif Airport
+BRQ / LKTB - Turany Airport
+TUK / OPTU - Turbat Airport
+KRW / UTAK - Turkmanbashi Airport
+CRZ / UTAV - Turkmenabad
+TKU / EFTU - Turku Airport
+TLQ / ZWTP - Turpan Jiaohe Airport
 THX / UOTT - Turukhansk Airport
 TCR / VOTK - Tuticorin Airport
+TBB / VVTH - Tuy Hoa Airport
 TWA / A63 - Twin Hills
+TYR / KTYR - Tyler Pounds Regional Airport
 UAH / NTMU - Ua Huka
 UAP / NTMP - Ua Pou
+UBA / SBUR - Uberaba Airport
 UJE / --- - Ujae Island
-HLH / ZBUL - Ulanhot Airport
+UCT / UUYH - Ukhta Airport
+ULO / ZMUG - Ulaangom
+UCB / ZBUC - Ulanqab Jining Airport
+ULG / ZMUL - Ulgit
 ULZ / ZMDN - Uliastai
+USN / RKPU - Ulsan Airport
+ULY / UWLW - Ulyanovsk Vostochny Airport
 YUD / CYMU - Umiujaq
+UTT / FAUT - Umtata Airport
 UNA / SBTC - Una
+UNK / PAUN - Unalakleet Airport
+DUT / PADU - Unalaska Airport
+UNI / TVSU - Union Island
+SCE / KUNV - University Park Airport
 UVI / --- - União da Vitória Airport
+UTN / FAUP - Upington Airport
+URJ / USHU - Uraj Airport
+URA / UARR - Uralsk Airport
 YBE / CYBE - Uranium City
+UGC / UTNU - Urgench Airport
+OMH / OITR - Urmia Airport
 UZR / UASU - Urzhar Airport
 USJ / UAAL - Usharal
+IPN / SBIP - Usiminas Airport
+USK / UUYS - Usinsk Airport
+UKK / UASK - Ust-Kamenogorsk Airport
 UKG / UEBT - Ust-Kuiga
+UKX / UITT - Ust-Kut Airport
 UMS / UEMU - Ust-Maya
+USR / UEMT - Ust-Nera Airport
 UII / MHUT - Utila
 UTK / K03N - Utirik Island
+UYU / SLUY - Uyuni
+KJB / VOKU - Uyyalawada Narasimha Reddy Airport
+VAA / EFVA - Vaasa Airport
+VDS / ENVD - Vadso Airport
+FAE / EKVG - Vagar Airport
+TUF / LFOT - Val de Loire Airport
+YVO / CYVO - Val-d'Or Airport
+HVG / ENHV - Valan Airport
+VDZ / PAVD - Valdez Municipal Airport
+VLD / KVLD - Valdosta Regional Airport
 VAL / SNVB - Valenca
 VLS / NVSV - Valesdir
+VLL / LEVD - Valladolid Airport
+VUP / SKVP - Valledupar Airport
+HRL / KHRL - Valley International Airport
+VDO / VVVD - Van Don
+VAI / AYVN - Vanimo Airport
 VBV / NFVB - Vanuabalavu
+VAW / ENSS - Vardoe Airport
+EJA / SKEJ - Variguies Airport
+VST / ESOW - Vasteras/Hasslo Airport
+VXO / ESMX - Vaxjo Airport
+VUS / ULWU - Velikij Ustyug Airport
 VEE / PAVE - Venetie
 VHV / UENI - Verhnevilyuisk
+VEL / KVEL - Vernal Regional Airport
+VRB / KVRB - Vero Beach Municipal Airport
+VFA / FVFA - Victoria Falls Airport
+MMO / GVMA - Vila Do Maio
+SMA / LPAZ - Vila Do Porto Airport
+VRL / LPVR - Vila Real Airport
+VNX / FQVL - Vilanculos Airport
+VHM / ESNV - Vilhelmina Airport
+BVH / SBVH - Vilhena Airport
+VAM / VRMV - Villa International Airport Maamigili
+VYI / UENW - Vilyuisk
+VRC / RPUV - Virac Airport
+VIJ / TUPW - Virgin Gorda Airport
+VBY / ESSV - Visby Airport
+VSE / LPVZ - Viseu Airport
+VIT / LEVT - Vitoria Airport
+VDC / SBVC - Vitoria Da Conquista Airport
+OGZ / URMO - Vladikavkaz Airport
+VPN / BIVO - Vopnafjordur
+VKT / UUYW - Vorkuta Airport
+YWK / CYWK - Wabush Airport
+ACT / KACT - Waco Municipal Airport
+WAE / OEWD - Wadi Ad Dawasir Airport
 AGI / SMWA - Wageningen
+WGA / YSWG - Wagga Wagga Airport
 MOF / WATC - Wai Oti Airport
 WGP / WATU - Waingapu Airport
+AIN / PAWI - Wainwright
+WGN / ZGSY - Waitangi
+WJR / HKWJ - Wajir Airport
 WLH / NVSW - Walaha
 WDN / 90WA - Waldron Island
 WAA / PAIW - Wales Airport
+WGE / YWLG - Walgett
+ALW / KALW - Walla Walla Airport
+WLS / NLWW - Wallis Island Airport
 WMX / WAJW - Wamena Airport
+WKA / NZWF - Wanaka
+WAG / NZWU - Wanganui Airport
 WXN / ZUWX - Wanxian Airport
+WBM / AYWD - Wapenamanda Airport
 SYU / YWBS - Warraber Island
+QRW / DNSU - Warri
+HGR / KHGR - Wash. County Regional Airport
 YKQ / CYKQ - Waskaganish Airport
+ALO / KALO - Waterloo Airport
+ART / KART - Watertown Airport
+YQH / CYQH - Watson Lake
+WUU / HSWW - Wau
 YWP / CYWP - Webequie
+EJH / OEWJ - Wedjh Airport
+WEF / ZSWF - Weifang Airport
+WEI / YBWP - Weipa Airport
 YNC / CYNC - Wemindji
 WNH / ZPWS - Wenshan Puzhehei Airport
+GWT / EDXW - Westerland - Sylt Airport
+WST / KWST - Westerly State
+BFF / KBFF - Western Nebraska Regional Airport
+LBE / KLBE - Westmoreland County Airport
+WSZ / NZWS - Westport Airport
 WRY / EGEW - Westray Airport
 YLE / CEM3 - Wha Ti
+WHK / NZWK - Whakatane Airport
 YXN / CYXN - Whale Cove
+WRE / NZWR - Whangarei Airport
 WMO / PAWM - White Mountain Airport
+YZU / CYZU - Whitecourt
+YXY / CYXY - Whitehorse Airport
+PPP / YBPN - Whitsunday Coast Airport
+WYA / YWHA - Whyalla Airport
+YVV / CYVV - Wiarton/Keppel Airport
+WIC / EGPC - Wick Airport
+SBY / KSBY - Wicomico Regional Airport
+BRW / PABR - Wiley Post-Will Rogers Memorial Airport
+AVP / KAVP - Wilkes-Barre/Scranton International Airport
+CMI / KCMI - Willard University Airport
 YWM / CCA6 - Williams Harbour
+YWL / CYWL - Williams Lake Airport
+MWA / KMWA - Williamson County Airport
+XWA / KXWA - Williston Basin International Airport
+WIL / HKNW - Wilson Airport
+WUN / YWLU - Wiluna
+WNR / YWDH - Windorah
+YQG / CYQG - Windsor International Airport
+WIN / YWTN - Winton Airport
+OLF / KOLF - Wolf Point International Airport
 ZWL / CZWL - Wollaston Lake
+WJU / RKNW - Wonju Airport
+WOS / ZKWS - Wonsan
+PKB / KPKB - Wood County Airport
+BHE / NZWB - Woodbourne Airport
+ORH / KORH - Worcester Regional Airport
 WTO / --- - Wotho Island
 WTE / --- - Wotje Island
+WRG / PAWG - Wrangell Airport
+DTU / ZYDU - Wudalianchi Dedu Airport
+WUA / ZBUH - Wuhai Airport
+WHA / --- - Wuhu Xuanzhou Airport
 WNN / CKL3 - Wunnummin Lake Airport
+WUS / ZSWY - Wuyishan Airport
 VJB / FQXA - Xai Xai
+XIC / ZUXC - Xichang Airport
 XKH / VLXK - Xieng Khouang Airport
+XAI / ZHXY - Xinyang Minggang Airport
 WUT / ZBXZ - Xinzhou Wutaishan Airport
+YKM / KYKM - Yakima Air Terminal
+KUM / RJFC - Yakushima Airport
+YAK / PAYA - Yakutat Airport
 XMY / YYMI - Yam Island
+UBJ / RJDC - Yamaguchi Ube Airport
+HDN / KHDN - Yampa Valley Airport
+AYP / SPHO - Yanamilla Airport
+YNB / OEYN - Yanbu Airport
 XYA / AGGY - Yandina
+YNY / RKNY - Yangyang Airport
+YAP / PTYA - Yap International Airport
 YAS / NFSW - Yasawa Island
+AZD / OIYY - Yazd Airport
+CRW / KCRW - Yeager Airport
+YZF / CYZF - Yellowknife Airport
+WYS / KWYS - Yellowstone Airport
+COD / KCOD - Yellowstone Regional Airport
+YEI / LTBR - Yenisehir Airport
+SYS / UERS - Yeosu
+RSU / RKJY - Yeosu Airport
+YIC / ZSYC - Yichun Mingyueshan Airport
+LDS / ZYLD - Yichun Shi Airport
+YKH / ZYYK - Yingkou Lanqi Airport
+YOL / DNYO - Yola Airport
+OGN / ROYN - Yonaguni Jima
 YON / VQTY - Yongphulla Airport
 OKR / YYKI - Yorke Island
+RNJ / RORY - Yoron Airport
+AEB / ZGBS - Youjiang
+YUM / KNYL - Yuma International Airport
+BJL / GBYD - Yundum International Airport
+MSZ / FNMO - Yuri Gagarin Airport
+YMS / SPMS - Yurimaguas
+YUS / ZYLS - Yushu Batang Airport
 YTW / ZWYT - Yutian Wanfang Airport
+KZR / LTBZ - Zafer Airport
+OZG / GMAZ - Zagora Airport
+ZAH / OIZH - Zahedan Airport
 SZI / UASZ - Zaisan
+PBM / SMJP - Zanderij International Airport
+ZAZ / LEZG - Zaragoza Airport
+TLM / DAON - Zenata Airport
+NZL / ZBZL - Zhalantun Chengjisihan Airport
+ZQZ / ZBZJ - Zhangjiakou Ningyuan Airport
+YZY / ZLZY - Zhangye Ganzhou Airport
+ZAT / ZPZT - Zhaotong Airport
+DZN / UAKD - Zhezhazgan Airport
+ZIX / UEVV - Zhigansk Airport
+HJJ / ZGCJ - Zhijiang Airport
+PZH / OPZB - Zhob
+ZHY / ZLZW - Zhongwei Airport
+IEG / EPZG - Zielona Gora-Babimost Airport
+ZIG / GOGG - Ziguinchor
+ZND / DRZR - Zinder
+IZA / SBZM - Zona da Mata Regional Airport
+ONQ / LTAS - Zonguldak
 ORG / SMZO - Zorg En Hoop
+OUZ / GQPZ - Zouerate
+UGU / WABV - Zugapa
+ZKP / UESU - Zyryanka Airport
+LDB / SBLO - Londrina Airport
+KER / OIKK - Kerman Airport
+GUW / UATG - Atyrau Airport
+KGF / UAKK - Karaganda Airport
+GRZ / LOWG - Graz Airport

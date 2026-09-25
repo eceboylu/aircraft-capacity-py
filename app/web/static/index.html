@@ -864,7 +864,13 @@
     var ceiling = Math.max(10, maxReal * 1.25);
     var values = windows.map(function (w) { return chartValue(w, ceiling); });
     var colors = windows.map(colorForWindow);
-    var axisMax = Math.max(ceiling * 1.1, 10);
+    // ADIM (Clean Axis Ceiling) - `ceiling * 1.1` çoğu zaman çirkin bir
+    // ondalık üretir (ör. "22.4125 min") - Chart.js bunu OLDUĞU GİBİ en
+    // üst eksen etiketine basar (kendi "nice number" mantığı `max`
+    // AÇIKÇA verildiğinde devreye girmiyor). En yakın 5'e YUKARI
+    // yuvarlanır - grafiğin GERÇEK verisi/oranları DEĞİŞMEZ, sadece
+    // eksenin üst sınırı/etiketi temiz bir sayı olur.
+    var axisMax = Math.ceil(Math.max(ceiling * 1.1, 10) / 5) * 5;
 
     state.charts[canvasId] = new Chart(canvas, {
       // ADIM (Bar Shape Kept, Height Now Continuous) - kullanıcı

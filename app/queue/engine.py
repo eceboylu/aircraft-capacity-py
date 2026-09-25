@@ -385,15 +385,17 @@ def _predict_window_core(
     server_count_override
         : ADIM (Dynamic Capacity / Scoring Consistency) - verilirse
           (None DEĞİLSE), `config`'ten çözülen `server_count` YERİNE
-          bu değer kullanılır - SADECE LARGE dynamic havuzlar için
-          `engine.py`'nin o pencere için hesapladığı GERÇEK, zaman-
-          ağırlıklı aktif server ortalamasını (`domain/dynamic_
-          staffing.py:effective_capacity_by_hour()`) taşımak amacıyla.
-          `queue_pressure`/risk eşikleri/formülü HİÇ DEĞİŞMEDİ - sadece
-          bu ÇAĞRIDA hangi kapasite SAYISININ kullanıldığı değişiyor.
-          Verilmezse (None, MEDIUM/SMALL/UNKNOWN, override'lı LARGE
-          alanları VE legacy PROCESS_PASSPORT dahil diğer TÜM yollarda
-          hep None) eski davranış (config-derived, statik) birebir korunur.
+          bu değer kullanılır - SADECE dynamic çalışan havuzlar (bkz.
+          `domain/airport_scale.py:SCALE_RESOURCES` - şu an SADECE
+          MEGA'nın `_max` anahtarı var) için `engine.py`'nin o pencere
+          için hesapladığı GERÇEK, zaman-ağırlıklı aktif server
+          ortalamasını (`domain/dynamic_staffing.py:effective_capacity_
+          by_hour()`) taşımak amacıyla. `queue_pressure`/risk eşikleri/
+          formülü HİÇ DEĞİŞMEDİ - sadece bu ÇAĞRIDA hangi kapasite
+          SAYISININ kullanıldığı değişiyor. Verilmezse (None, statik
+          kalan LARGE/MEDIUM/SMALL/UNKNOWN, override'lı MEGA alanları VE
+          legacy PROCESS_PASSPORT dahil diğer TÜM yollarda hep None)
+          eski davranış (config-derived, statik) birebir korunur.
     """
     window_end = window_start + timedelta(minutes=window_minutes)
 
@@ -685,8 +687,9 @@ def _hourly_backlog_chain(
     değişmedi, sadece girdi kaynağı farklı.
 
     ADIM (Analytic Backlog = Dynamic Capacity) - `capacity_rate` ARTIK
-    sabit bir `float` OLMAK ZORUNDA DEĞİL - dynamic LARGE passport
-    havuzları için saat-bazlı DEĞİŞEN kapasiteyi yansıtan bir
+    sabit bir `float` OLMAK ZORUNDA DEĞİL - dynamic çalışan (şu an
+    SADECE MEGA) passport havuzları için saat-bazlı DEĞİŞEN kapasiteyi
+    yansıtan bir
     `Callable[[datetime], float]` da kabul eder (bkz. çağıran taraf -
     `_event_driven_queue_demand`'in `_dynamic_capacity_rate_fn()`'i).
     ESKİDEN bu fonksiyon HER ZAMAN `config.passport_departure_server_
@@ -801,13 +804,23 @@ def _dynamic_staffing_params_for(
     config: AirportConfigView, pool: str,
 ) -> DynamicStaffingParams | None:
     """
-    ADIM (Dynamic LARGE Passport Staffing) - `pool` ("departure" veya
+    ADIM (Dynamic MEGA Passport Staffing) - `pool` ("departure" veya
     "arrival") için, config'in ÇÖZÜLMÜŞ `passport_*_dynamic` bayrağı
     True ise `DynamicStaffingParams` (sabit kontrol parametreleriyle -
-    Bölüm 2, RANDOM YOK) döner; False ise (MEDIUM/SMALL/UNKNOWN VE
-    explicit override'lı LARGE alanları) `None` döner - çağıran taraf
+    Bölüm 2, RANDOM YOK) döner; False ise `None` döner - çağıran taraf
     (`simulate_passport`) `None`'ı "bu havuz sabit" olarak okur, eski
     `simulate_fifo_queue()` yoluna gider.
+
+    ADIM (4-Tier Resource Contract) - bu bayrak SADECE `domain/airport_
+    scale.py:SCALE_RESOURCES`'ta `_max` anahtarı TAŞIYAN tier'lar için
+    `True` olabilir - bugünkü contract'ta bu TEK tier MEGA'dır (departure
+    taban=30/tavan=45, arrival taban=35/tavan=45). LARGE/MEDIUM/SMALL
+    HİÇBİR `_max` anahtarı TAŞIMAZ, bu yüzden bu üçü için `departure_max`/
+    `arrival_max` HER zaman `None`, dynamic HER zaman `False` kalır -
+    LARGE artık dynamic DEĞİLDİR (eski davranış, `_max` MEGA'ya taşındı).
+    Kontrol KASITLI olarak `scale == "mega"` gibi sabit bir tier adına
+    değil, `_max is not None`'a bağlı (scale-agnostik) - `_max` başka bir
+    tier'a taşınır/eklenirse bu fonksiyon DEĞİŞTİRİLMEDEN doğru çalışır.
     """
     if pool == "departure":
         enabled = config.passport_departure_dynamic
@@ -899,7 +912,11 @@ def _event_driven_queue_demand(
           YAKLAŞIKLIĞI (saat içi tekdüze varış varsayımı) gerekmiyor,
           çünkü artık her sürecin GERÇEK event zaman damgası elimizde.
     """
-    from .domain.flows import is_international_arrival, is_international_departure
+    from .domain.flows import (
+        is_international_arrival,
+        is_international_departure,
+        is_schengen_departure_skipping_passport,
+    )
 
     _now = now if now is not None else domain_now()
 
@@ -932,8 +949,13 @@ def _event_driven_queue_demand(
         yolcularını (international VEYA domestic - hangisi olduğu
         ÇAĞIRANIN verdiği `flight_list`/`predicate`'e bağlı) artık TEK
         bir `effective_time()` noktası DEĞİL, her flight'ın KENDİ
-        `departure_show_up_events()` çıktısı (12 adet deterministic
-        15dk batch) besler. SADECE `departure_arrivals`/`domestic_
+        `departure_show_up_events()` çıktısı besler - 4 adet 1 saatlik
+        bandın (%10/%35/%45/%10), mutlak saat ızgarasına hizalı 5
+        dakikalık bucket'larla GERÇEK interval overlap'i kullanılarak
+        projekte edilmiş, deterministic event listesi (bkz. o
+        fonksiyonun docstring'i - event sayısı flight'ın departure
+        dakikasının saat ızgarasına hizalı olup olmamasına göre değişir,
+        sabit bir sayı DEĞİLDİR). SADECE `departure_arrivals`/`domestic_
         arrivals` için kullanılır - `arrival_arrivals` bu fonksiyonu HİÇ
         ÇAĞIRMAZ (yukarıdaki `_arrivals()` ile üretilmeye devam eder).
 
@@ -958,20 +980,35 @@ def _event_driven_queue_demand(
     arrival_arrivals = _arrival_release_arrivals(passport_flights(flights), is_international_arrival)
     domestic_arrivals = _departure_show_up_arrivals(security_domestic_flights(flights))
 
+    # ADIM (Schengen-Aware Passport Routing) - `passport_flights()` ARTIK
+    # Schengen->Schengen kalkışları HARİÇ TUTUYOR (bkz. domain/flows.py),
+    # bu yüzden `departure_arrivals` bunları hiç İÇERMEZ - passport
+    # demand'ine KATKI VERMEZLER (Bölüm 20/22). Ama bu yolcular international
+    # security'yi HÂLÂ kullanır (Bölüm 9/13) - show-up zamanları DOĞRUDAN
+    # security arrival_time'ı olur, passport completion_time'ından ASLA
+    # TÜRETİLMEZ (Bölüm 23 - var olmayan bir passport gecikmesi icat
+    # edilmez). `flights` (TÜM uçuşlar) üzerinden filtrelenir - `passport_
+    # flights(flights)` DEĞİL, çünkü o küme bu uçuşları artık İÇERMİYOR.
+    schengen_direct_security_arrivals = _departure_show_up_arrivals(
+        flights, is_schengen_departure_skipping_passport
+    )
+
     # ADIM (Airport-Scale Queue Capacity) - departure/arrival passport
     # ARTIK AYRI fiziksel havuz, kendi server sayısıyla (bkz.
     # core/event_queue.py:simulate_passport docstring'i).
     #
-    # ADIM (Dynamic LARGE Passport Staffing) - `config.passport_
+    # ADIM (Dynamic MEGA Passport Staffing) - `config.passport_
     # departure_dynamic`/`passport_arrival_dynamic` (config.py'nin
-    # öncelik zincirinden - SADECE LARGE ölçek VE airport-specific bir
+    # öncelik zincirinden - SADECE scale'in `SCALE_RESOURCES`'ta `_max`
+    # anahtarı olması - bugün SADECE MEGA - VE airport-specific bir
     # override YOKSA True) True ise, sabit `passport_departure_server_
     # count(config)` SAYISI yerine `DynamicStaffingParams` inşa edilip
     # `simulate_passport`'a geçirilir - o havuz artık backlog+lookahead
     # demand'e göre 10dk'lık control noktalarında [default,max] arası
-    # ayarlanır (bkz. `_dynamic_staffing_params_for` docstring'i). MEDIUM/
-    # SMALL/UNKNOWN VE override'lı LARGE alanları BU DALA HİÇ GİRMEZ -
-    # `simulate_fifo_queue()`'nun ESKİ, sabit-server yoluna aynen gider.
+    # ayarlanır (bkz. `_dynamic_staffing_params_for` docstring'i).
+    # LARGE/MEDIUM/SMALL/UNKNOWN VE override'lı MEGA alanları BU DALA
+    # HİÇ GİRMEZ - `simulate_fifo_queue()`'nun ESKİ, sabit-server yoluna
+    # aynen gider.
     passport_result = simulate_passport(
         departure_arrivals,
         arrival_arrivals,
@@ -984,9 +1021,17 @@ def _event_driven_queue_demand(
 
     # AŞAMA 9 - passport'un GERÇEK completion timestamp'i security'nin
     # arrival timestamp'i olur (saatlik-oransal tahmin DEĞİL).
+    #
+    # ADIM (Schengen-Aware Passport Routing, Bölüm 23/24) - Schengen->
+    # Schengen kalkışlar `passport_result["departure"]`'da HİÇ YOK
+    # (yukarıda filtrelendi), bu yüzden `schengen_direct_security_
+    # arrivals` ile TOPLAMA hiçbir passenger'ı İKİ KEZ SAYMAZ - her
+    # international kalkış yolcusu security_intl_arrivals'a TAM OLARAK
+    # BİR KEZ girer: ya passport completion'ından (non-Schengen), ya da
+    # kendi show-up zamanından (Schengen, doğrudan).
     security_intl_arrivals = [
         (event.completion_time, event.count) for event in passport_result["departure"]
-    ]
+    ] + schengen_direct_security_arrivals
     security_intl_events = simulate_security(
         security_intl_arrivals,
         config.international_security_lane_count,
@@ -1104,17 +1149,17 @@ def _event_driven_queue_demand(
         PROCESS_SECURITY_INTL: international_security_capacity_rate(config),
     }
 
-    # ADIM (Analytic Backlog = Dynamic Capacity) - dynamic LARGE passport
-    # havuzları için PROCESS_PASSPORT_DEPARTURE/ARRIVAL'ın yukarıdaki
-    # SABİT (taban server sayısından türeyen) `capacity_rate`'i, o
-    # havuzun GERÇEK event-driven simülasyonunun (`simulate_fifo_queue_
-    # dynamic`) o saat ne kullandığına göre DEĞİŞEN bir fonksiyonla
-    # DEĞİŞTİRİLİR - `_hourly_backlog_chain`'in ("analytic" backlog,
-    # reported wait'i besler) REAL SIMÜLASYONUN KENDİSİYLE AYNI
-    # kapasiteyi kullanması için (bkz. rapor - static-vs-dynamic capacity
-    # mismatch bulgusu). Dynamic DEĞİLSE (`schedule is None` - MEDIUM/
-    # SMALL/UNKNOWN veya explicit override'lı LARGE) yukarıdaki SABİT
-    # değer AYNEN kalır - davranış HİÇ DEĞİŞMEZ.
+    # ADIM (Analytic Backlog = Dynamic Capacity) - dynamic çalışan (şu an
+    # SADECE MEGA) passport havuzları için PROCESS_PASSPORT_DEPARTURE/
+    # ARRIVAL'ın yukarıdaki SABİT (taban server sayısından türeyen)
+    # `capacity_rate`'i, o havuzun GERÇEK event-driven simülasyonunun
+    # (`simulate_fifo_queue_dynamic`) o saat ne kullandığına göre
+    # DEĞİŞEN bir fonksiyonla DEĞİŞTİRİLİR - `_hourly_backlog_chain`'in
+    # ("analytic" backlog, reported wait'i besler) REAL SIMÜLASYONUN
+    # KENDİSİYLE AYNI kapasiteyi kullanması için (bkz. rapor - static-
+    # vs-dynamic capacity mismatch bulgusu). Dynamic DEĞİLSE (`schedule
+    # is None` - LARGE/MEDIUM/SMALL/UNKNOWN veya explicit override'lı
+    # MEGA) yukarıdaki SABİT değer AYNEN kalır - davranış HİÇ DEĞİŞMEZ.
     def _dynamic_capacity_rate_fn(
         schedule: list[tuple[datetime, int]],
     ) -> Callable[[datetime], float]:

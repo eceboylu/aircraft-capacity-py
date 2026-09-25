@@ -1,1142 +1,312 @@
-﻿BÜYÜK ÖLÇEKLİ HAVAALANLARI
-Toplam: 1.138
+BÜYÜK ÖLÇEKLİ HAVAALANLARI
+Toplam: 307
+Kriter: 5-40 milyon yolcu/yıl
 Biçim: IATA / ICAO - Havaalanı adı
 
-GUM / PGUM - A.B. Won Pat International Airport
-TAB / TTCP - A.N.R. Robinson International Airport
-AAL / EKYT - Aalborg Airport
-AAR / EKAH - Aarhus Airport
-DIR / HADR - Aba Tenna D Yilma Airport
-ABD / OIAA - Abadan Airport
-ABA / UNAA - Abakan Airport
-ABZ / EGPD - Aberdeen International Airport
-AHB / OEAB - Abha Regional Airport
-CJS / MMCS - Abraham Gonzalez International Airport
-PSR / LIBP - Abruzzo Airport
 AUH / OMAA - Abu Dhabi International Airport
-ACA / MMAA - Acapulco International Airport
-SRG / WAHS - Achmad Yani International Airport
 ADD / HAAB - Addis Ababa Bole International Airport
 ADL / YPAD - Adelaide Airport
-SOC / WAHQ - Adi Sumarmo International Airport
-MAD / LEMD - Adolfo Suarez Madrid-Barajas Airport
 CWB / SBCT - Afonso Pena International Airport
-AGA / GMAD - Agadir Al Massira Airport
-AGU / MMAS - Aguascalients International Airport
-TMR / DAAT - Aguenar - Hadj Bey Akhamok Airport
 AMD / VAAH - Ahmedabad Airport
-AWZ / OIAW - Ahwaz Airport
-CZL / DABC - Ain El Bey Airport
-ROR / PTRO - Airai Airport
-SCO / UATE - Aktau International Airport
-AKX / UATT - Aktyubinsk Airport
-AEY / BIAR - Akureyri Airport
-AAN / OMAL - Al Ain Airport
-HOF / OEAH - Al-Ahsa Airport
-FJR / OMFJ - Al-Fujairah International
-NJF / ORNI - Al-Najaf International Airport
-DBB / HEAL - Alalamain International
-ALB / KALB - Albany International Airport
 ABQ / KABQ - Albuquerque International Sunport
-CUZ / SPZO - Alejandro Velasco Astete International Airport
-AGT / SGES - Alejo Garcia Airport
 CLO / SKCL - Alfonso B. Aragon Airport
 ALC / LEAL - Alicante-Elche Airport
 LHE / OPLA - Allama Iqbal International Airport
 ALA / UAAA - Almaty Airport
-MAJ / PKMJ - Amata Kabua International Airport
-MJN / FMNM - Amborovy
-AHT / PHKO - Amchitka
-SID / GVAC - Amilcar Cabral International Airport
-AMS / EHAM - Amsterdam Airport Schiphol
-AOE / LTBY - Anadolu University
 AYT / LTAI - Antalya Airport
-TNR / FMMI - Antananarivo Airport
-SCU / MUCU - Antonio Maceo Airport
-AOJ / RJSA - Aomori Airport
-SVD / TVSV - Argyle International Airport
 SCL / SCEL - Arturo Merino Benitez Airport
-VLN / SVVA - Arturo Michelena International Airport
-ABB / DNAS - Asaba International Airport
-ASB / UTAA - Ashgabat Airport
-ATZ / HEAT - Assiut Airport
-ASF / URWA - Astrakhan Airport
-OVD / LEAS - Asturias Airport
-ASW / HESN - Aswan Airport
-GUW / UATG - Atyrau Airport
 AKL / NZAA - Auckland Airport
-MGA / MNMG - Augusto C Sandino International Airport
 AUS / KAUS - Austin-Bergstrom International Airport
-AVV / YMAV - Avalon Airport
-CLJ / LRCL - Avram Iancu Cluj International Airport
-AWA / HALA - Awassa
-BCM / LRBC - Bacau Airport
-PEW / OPPS - Bacha Khan International Airport
-BCD / RPVB - Bacolod-Silay International Airport
-FKB / EDSB - Baden-Airpark
-IXB / VEBD - Bagdogra Airport
-BGW / ORBI - Baghdad International Airport
 BAH / OBBI - Bahrain International Airport
-BXY / UAOL - Baikonur Krayniy Airport
-EDO / LTFD - Balikesir Koca Seyit Airport
 BWI / KBWI - Baltimore/Wash International Thurgood Marshall Airport
-BKO / GABS - Bamako-Senou International Airport
-BND / OIKB - Bandar Abbas International Airport
-BBU / LRBS - Baneasa
-FKI / FZIC - Bangoka International Airport
-BGF / FEFF - Bangui Airport
-BNX / LQBK - Banja Luka Airport
-BAV / ZBOW - Baotou Airport
-BCN / LEBL - Barcelona-El Prat Airport
-BAX / UNBB - Barnaul Gherman Titov International Airport
-BRM / SVBM - Barquisimeto Airport
-BSZ / --- - Bartletts
-BSR / ORMM - Basra International Airport
-BIA / LFKB - Bastia Poretta Airport
-BSG / FGBT - Bata Airport
-BLJ / DABT - Batna Airport
-BUS / UGSB - Batumi Airport
-BCU / DNBC - Bauchi
-VLI / NVVV - Bauerfield Airport
 BVA / LFOB - Beauvais-Tille Airport
-PEK / ZBAA - Beijing Capital International Airport
-PKX / ZBAD - Beijing Daxing International Airport
-BEW / FQBR - Beira Airport
 BEY / OLBA - Beirut-Rafic Hariri International Airport
-BJA / DAAE - Bejaia Airport
-ODE / EKOD - Beldringe
 BFS / EGAA - Belfast International Airport
 BEG / LYBE - Belgrad Nikola Tesla Airport
 TLV / LLBG - Ben Gurion International Airport
-BEM / GMMD - Beni Mellal Airport
-BEN / HLLB - Benina International
-MEX / MMMX - Benito Juarez International Airport
-TUC / SANT - Benj Matienzo
 BGO / ENBR - Bergen Airport
 BER / EDDB - Berlin Brandenburg Airport
-BWA / VNBW - Bhairawa Airport
-BBI / VEBS - Biju Patnaik International Airport
 BIO / LEBB - Bilbao Airport
-BLL / EKBI - Billund Airport
-XBJ / OIMB - Birjand Airport
 BHX / EGBB - Birmingham International Airport
-BHM / KBHM - Birmingham-Shuttlesworth International Airport
-BSK / DAUB - Biskra Airport
-DSS / GOBD - Blaise Diagne International Airport
-BVB / SBBV - Boa Vista Airport
 BUR / KBUR - Bob Hope Airport
-BOO / ENBO - Bodo Airport
-TAG / RPVT - Bohol-Panglao
 BOI / KBOI - Boise Air Terminal (Gowen Field)
-TRW / NGTA - Bonriki Airport
 BOD / LFBD - Bordeaux Airport
-HBE / HEBA - Borg El Arab Airport
-BOY / DFOO - Borgo
-BSA / HCMF - Bossaso
-BOJ / LBBG - Bourgas Airport
 BDL / KBDL - Bradley International Airport
-BFN / FABL - Bram Fischer International Airport
-MNI / TRPM - Bramble Airport
 BSB / SBBR - Brasilia International Airport
-BTS / LZIB - Bratislava Airport
-BRE / EDDW - Bremen Airport
-BQT / UMBB - Brest Airport
-BES / LFRB - Brest Bretagne Airport
-BDS / LIBR - Brindisi - Salento Airport
 BNE / YBBN - Brisbane Airport
 BRS / EGGD - Bristol Airport
-BME / YBRM - Broome Airport
-BWN / WBSB - Brunei International Airport
 BRU / EBBR - Brussels Airport
 OTP / LROP - Bucharest Henri Coanda International Airport
 BUD / LHBP - Budapest Ferenc Liszt International Airport
-BUF / KBUF - Buffalo Niagara International Airport
-BJM / HBBA - Bujumbura International Airport
-BHK / UTSB - Bukhara Airport
-BUQ / FVJN - Bulawayo Airport
-IQT / SPQT - C.F. Secada Vignetta International Airport
 CAG / LIEE - Cagliari Elmas Airport
 CNS / YBCS - Cairns Airport
 CAI / HECA - Cairo International Airport
 YYC / CYYC - Calgary International Airport
-CCJ / VOCL - Calicut International Airport
 CXR / VVCR - Cam Ranh International Airport
-VCA / VVCT - Can Tho Airport
 CUN / MMUN - Cancun International Airport
-CAP / MTCH - Cap Haitien Airport
 CPT / FACT - Cape Town International Airport
-PCL / SPCL - Capitan Rolden Airport
-CWL / EGFF - Cardiff Airport
-VSA / MMVA - Carlos Rovirosa Perez International Airport
-MVD / SUMU - Carrasco International Airport
-CCP / SCIE - Carriel Sur Airport
-HPH / VVCI - Cat Bi International Airport
 CTA / LICC - Catania-Fontanarossa Airport
-IGU / SBFI - Cataratas International Airport
-ANF / SCFA - Cerro Moreno International Airport
-VXE / GVSV - Cesaria Evora International Airport
-IXC / VICG - Chandigarh Airport
 CGQ / ZYCC - Changchun Longjia International Airport
-SIN / WSSS - Changi International Airport
 FOC / ZSFZ - Changle International Airport
 CSX / ZGHA - Changsha Huanghua Airport
-CHQ / LGSA - Chania International Airport
+CZX / ZSCG - Changzhou Airport
 CRL / EBCI - Charleroi Brussels South Airport
-CDG / LFPG - Charles de Gaulle Airport
 CHS / KCHS - Charleston International Airport
-CLT / KCLT - Charlotte Douglas International Airport
 LKO / VILK - Chaudhary Charan Singh International Airport
-GEO / SYCJ - Cheddi Jagan International Airport
-CEK / USCC - Chelyabinsk International Airport
 CTU / ZUUU - Chengdu Shuangliu International Airport
-TFU / ZUTF - Chengdu Tianfu International Airport
 MAA / VOMM - Chennai Airport
-CJJ / RKTU - Cheongju Airport
-BOM / VABB - Chhatrapati Shivaji International Airport
 CNX / VTCC - Chiang Mai International Airport
-CEI / VTCT - Chiang Rai International Airport
 MDW / KMDW - Chicago Midway International Airport
-BLZ / FWCL - Chileka Airport
 KIV / LUKK - Chisinau International Airport
-HTA / UIAA - Chita Airport
-CFK / DAOI - Chlef International Airport
-CKG / ZUCK - Chongqing Jiangbei International Airport
 CHC / NZCH - Christchurch International Airport
-CXI / PLCH - Christmas Island Airport
 NGO / RJGG - Chubu Centrair International Airport
-TKK / PTKK - Chuuk International Airport
-CIA / LIRA - Ciampino-G. B. Pastine International Airport
-STI / MDST - Cibao International Airport
 CVG / KCVG - Cincinnati/Northern Kentucky Airport
-CFE / LFLC - Clermont-Ferrand Auvergne Airport
 CLE / KCLE - Cleveland Hopkins International Airport
 COK / VOCI - Cochin International Airport
-CCK / YPCC - Cocos Islands Airport
-CJB / VOCB - Coimbatore International Airport
 CGN / EDDK - Cologne Bonn Airport
-COS / KCOS - Colorado Springs Airport
-DIL / WPDL - Comoro Airport
-CKY / GUCY - Conakry Airport
 CPH / EKCH - Copenhagen Airport
-OCS / --- - Corisco International Airport
-ORK / EICK - Cork Airport
-CIX / SPHI - Cornel Ruiz Airport
-XPL / MHSC - Coronel Enrique Soto Cano AB
-RMU / LEMI - Corvera International
 NCE / LFMN - Cote D'Azur Airport
-COO / DBBB - Cotonou Airport
-COV / --- - Covilha
-CZM / MMCZ - Cozumel Airport
-CRA / LRCV - Craiova Airport
-CUL / MMCL - Culiacan International Airport
-CUR / TNCC - Curacao International Airport
-STT / TIST - Cyril E. King Airport
+COV / LTDB - Cukurova International Airport (Mersin)
 DAD / VVDN - Da Nang International Airport
-GOI / VOGO - Dabolim Airport
-TAE / RKTN - Daegu International Airport
-VIL / GMMH - Dakhla Airport
 DLM / LTBS - Dalaman Airport
 DLC / ZYTL - Dalian Zhoushuizi International Airport
 DAL / KDAL - Dallas Love Field
-DFW / KDFW - Dallas/Fort Worth International Airport
-DAM / OSDI - Damascus International Airport
-DSY / --- - Dara Sakor International Airport
-DRW / YPDN - Darwin International Airport
-TAZ / UTAT - Dashoguz
-DAT / ZBDT - Datong Airport
-GSM / OIKQ - Dayrestan Airport
-DEB / LHDC - Debrecen Airport
-DEN / KDEN - Denver International Airport
 SSA / SBSV - Deputado Luis Eduardo Magalhaes International Airport
-DSM / KDSM - Des Moines International Airport
 DTW / KDTW - Detroit Metropolitan Wayne County Airport
-IDR / VAID - Devi Ahilya Bai Holkar Airport
-IQQ / SCDA - Diego Aracena International Airport
-CRK / RPLC - Diosdado Macapagal International (Clark International)
-JIB / HDAM - Djibouti-Ambouli International Airport
-DIA / OTBD - Doha International Airport
 GDL / MMGL - Don Miguel Hidal Y Costilla International Airport
 DMK / VTBD - Don Mueang International Airport
-DTM / EDLW - Dortmund Airport
-DLA / FKKD - Douala Airport
-NAG / VANP - Dr. Babasaheb Ambedkar International Airport
-DRS / EDDC - Dresden International Airport
-DXB / OMDB - Dubai Airport
-DWC / OMDW - Dubai World Central - Al Maktoum International Airport
 DUB / EIDW - Dublin Airport
-DBV / LDDU - Dubrovnik Airport
-DNH / ZLDH - Dunhuang Airport
-DQM / OODQ - Duqm International Airport
-DYU / UTDD - Dushanbe Airport
 DUS / EDDL - Dusseldorf International Airport
-DZA / FMCZ - Dzaoudzi Airport
-BAQ / SKBQ - E Cortissoz Airport
-ELS / FAEL - East London Airport
-EMA / EGNX - East Midlands Airport
 EDI / EGPH - Edinburgh Airport
 YEG / CYEG - Edmonton International Airport
-MAO / SBEG - Eduardo Gomes International Airport
-GRQ / EHGG - Eelde Airport
 EIN / EHEH - Eindhoven Airport
-LPB / SLLP - El Alto International Airport
-AAC / HEAR - El Arish International Airport
-JUJ / SASJ - El Cadillal Airport
-BOG / SKBO - El Dorado International Airport
-ALY / HEAX - El Nohza
-ELP / KELP - El Paso International Airport
-MDZ / SAME - El Plumerillo International Airport
-SAL / MSLP - El Salvador International Airport
-PMC / SCTE - El Tepual Airport
-EDL / HKEL - Eldoret Airport
 ATH / LGAV - Eleftherios Venizelos International Airport
-EBB / HUEN - Entebbe International Airport
-ENU / DNEN - Enugu Airport
 OMA / KOMA - Eppley Airfield
-EBL / ORER - Erbil International Airport
-ECN / LCEN - Ercan Airport
-ERF / EDDE - Erfurt Airport
-ORN / DAOO - Es Senia Airport
 ESB / LTAC - Esenboga International Airport
-ESM / SETN - Esmeraldas Airport
-VIX / SBVT - Eurico de Aguiar Salles Airport
 BSL / LFSB - EuroAirport Swiss
-EHU / ZHEC - Ezhou Huahu Airport
-LYP / OPFA - Faisalabad Airport
 PMO / LICJ - Falcone-Borsellino Airport
-APW / NSFA - Faleolo Airport
 FAO / LPFR - Faro Airport
-NOS / FMNN - Fascene Airport
-CAY / SOCA - Felix Eboue Airport
-ABJ / DIAP - Felix Houphouet Boigny Airport
-FEZ / GMFF - Fes-Saiss Airport
-FLR / LIRQ - Firenze-Peretola Airport
-ROS / SAAR - Fisherton Airport
-BON / TNCB - Flamingo International Airport
 FLL / KFLL - Fort Lauderdale-Hollywood International Airport
-DVO / RPMD - Francisco Bangoy Intl Airport
-FRW / FBFT - Francistown Airport
-HOG / MUHG - Frank Pais Airport
-HHN / EDFH - Frankfurt - Hahn Airport
-FRA / EDDF - Frankfurt Airport
-MUC / EDDM - Franz Josef Strauss Airport
 WAW / EPWA - Frederic Chopin Airport
-FAT / KFAT - Fresno Yosemite International Airport
-FDH / EDNY - Friedrichshafen Airport
-TBU / NFTF - Fua'amotu International Airport
 FUE / GCFV - Fuerteventura Airport
 FUK / RJFF - Fukuoka Airport
 GIG / SBGL - Galeao Antonio Carlos Jobim International Airport
-GAN / VRMG - Gan/Seenu Airport
-ISK / VAOZ - Gandhinagar Airport
-GNJ / UBBG - Ganja International Airport
-GOU / FKKR - Garoua Airport
-GZT / LTAJ - Gaziantep Airport
 GDN / EPGD - Gdansk Lech Walesa Airport
-CUU / MMCU - Gen Fierro Villalobos Airport
 MTY / MMMY - Gen Mariano Escobedo Airport
-HMO / MMHO - Gen Pesqueira Garcia Airport
-CRD / SAVC - General E. Mosconi International Airport
-BLA / SVBC - General Jose Antonio Anzoategui International Airport
 MKE / KMKE - General Mitchell International Airport
-GES / RPMR - General Santos International Airport
-SNC / SESA - General Ulpiano Paez Airport
 GVA / LSGG - Geneve Airport
-GOA / LIMJ - Genoa Cristoforo Colombo Airport
-GRJ / FAGG - George Airport
-IAH / KIAH - George Bush Intercontinental Airport
-GRR / KGRR - Gerald R. Ford International Airport
 PUS / RKPK - Gimhae International Airport
 GMP / RKSS - Gimpo International Airport
-GRO / LEGE - Girona-Costa Brava Airport
-PIK / EGPK - Glasgow Prestwick Airport
+GLA / EGPF - Glasgow International Airport
 OOL / YBCG - Gold Coast Airport
-SZZ / EPSC - Goleniow Airport
-GOM / FZNA - Goma Airport
 GOT / ESGG - Goteborg Landvetter Airport
 LPA / GCLP - Gran Canaria Airport
-FPO / MYGF - Grand Bahama International Airport
-BGI / TBPB - Grantley Adams International Airport
-GRZ / LOWG - Graz Airport
-ROC / KROC - Greater Rochester International Airport
-GRV / URMG - Groznyy Airport
-BJX / MMLO - Guanajuato International Airport
-CAN / ZGGG - Guangzhou Baiyun International Airport
 REC / SBRF - Guararapes-Gilberto Freyre International Airport
 BLQ / LIPE - Guglielmo Marconi Airport
 KWL / ZGKL - Guilin Liangjiang International Airport
 KWE / ZUGY - Guiyang Longdongbao International Airport
 PVR / MMPR - Gustavo Diaz Ordaz International Airport
-ADZ / SKSP - Gustavo Rojas Pinilla Airport
-GWD / OPGD - Gwadar Airport
-KVD / UBBG - Gyandzha Airport
 HAK / ZJHK - Haikou Airport
-HAS / OEHL - Hail Airport
-HKD / RJCH - Hakodate Airport
-YHZ / CYHZ - Halifax Stanfield International Airport
-HLP / WIHH - Halim Perdanakusuma Airport
-DOH / OTHH - Hamad International Airport
 HAM / EDDH - Hamburg Airport
-YHM / CYHM - Hamilton Airport
-SYR / KSYR - Hancock International Airport
-HND / RJTT - Haneda Airport
-BTH / WIDD - Hang Nadim International Airport
-HGH / ZSHC - Hangzhou Xiaoshan International Airport
-HAQ / VRMH - Hanimaadhoo Airport
 HAJ / EDDV - Hannover Airport
-HRE / FVRG - Harare International Airport
 HRB / ZYHB - Harbin Taiping International Airport
-HGA / HCMH - Hargeisa Airport
-EVE / ENEV - Harstad/Narvik Airport Evenes
-ATL / KATL - Hartsfield-Jackson Atlanta International Airport
-EUN / GMML - Hassan I Airport
-HDY / VTSS - Hat Yai International Airport
 DAC / VGHS - Hazrat Shahjalal International Airport
-HSA / UAIT - Hazret Sultan International Airport
 HFE / ZSOF - Hefei Xinqiao Airport
 HEL / EFHK - Helsinki-Vantaa Airport
 HER / LGIR - Heraklion Airport
-HEA / OAHR - Herat International Airport
-FLN / SBFL - Hercilio Luz International Airport
-UVF / TLPL - Hewanorra Airport
 GYD / UBBB - Heydar Aliyev International Airport
-HIJ / RJOA - Hiroshima Airport
-HSS / VIHR - Hissar
-HBA / YMHB - Hobart International Airport
 HET / ZBHH - Hohhot Baita International Airport
-HKG / VHHX - Hong Kong International Airport
-HIR / AGGH - Honiara International Airport
 HNL / PHNL - Honolulu International Airport
-WDH / FYWH - Hosea Kutako International Airport
 ALG / DAAG - Houari Boumediene Airport
-SPX / HESX - Houston Gulf Airport
-HIA / ZSSH - Huai'an Lianshui Airport
-HUN / RCYU - Hualien Airport
-TXN / ZSTX - Huangshan Tunxi International Airport
-HUX / MMBT - Huatulco Airport
-PBC / MMPB - Huejotsingo Airport
-HLD / ZBLA - Hulunbuir Hailar Airport
 HRG / HEGN - Hurghada International Airport
-IAS / LRIA - Iasi Airport
-IBR / RJAH - Ibaraki Airport
 IBZ / LEIB - Ibiza Airport
-CMW / MUCM - Ign Agramonte International Airport
-ILR / DNIL - Ilorin International Airport
 IKA / OIIE - Imam Khomeini International Airport
-IMF / VEIM - Imphal Municipal Airport
-ICN / RKSI - Incheon International Airport
 IND / KIND - Indianapolis International Airport
-DEL / VIDP - Indira Gandhi International Airport
-DJG / DAAJ - Inedbirenne Airport
-COR / SACO - Ingeniero Aeronautico Ambrosio L.V. Taravella International Airport
-INN / LOWI - Innsbruck Airport
-ADE / OYAA - International
-CFU / LGKR - Ioannis Kapodistrias Airport
-IPH / WMKI - Ipoh Airport
-NOC / EIKN - Ireland West Airport Knock
-IKT / UIII - Irkutsk International Airport
-IFN / OIFM - Isfahan International Airport
-ISB / OPIS - Islamabad International Airport
-IOM / EGNS - Isle of Man Airport
-IKU / UCFL - Issyk-Kul International Airport
-IST / LTFM - Istanbul Airport
 ITM / RJOO - Itami Airport
-IVL / EFIV - Ivalo Airport
-ZIH / MMZH - Ixtapa/Zihuatanejo Internacional Airport
 ADB / LTBJ - Izmir Adnan Menderes Airport
-CBB / SLCB - J Wilsterman Airport
 KRK / EPKK - J. Paul II International Airport Krakow-Balice
-POM / AYPY - Jacksons International Airport
 JAX / KJAX - Jacksonville International Airport
 JAI / VIJP - Jaipur Airport
-DMB / UADD - Jambyl Airport
 CJU / RKPC - Jeju International Airport
-JGN / ZLJQ - Jiayuguan Airport
 SWA / ZGOW - Jieyang Chaoshan Airport
-JIJ / HAJJ - Jigiga Airport
-GJL / DAAV - Jijel Ferhat Abbas Airport
 TNA / ZSJN - Jinan Yaoqiang International Airport
 KHI / OPKC - Jinnah International Airport
-PDL / LPPD - Joao Paulo II Airport
-JFK / KJFK - John F. Kennedy International Airport
 CMH / KCMH - John Glenn Columbus International Airport
 SNA / KSNA - John Wayne Airport
 NBO / HKJK - Jomo Kenyatta International Airport
 LIM / SPJC - Jorge Chavez International Airport
 AEP / SABE - Jorge Newbery Airport
-GYE / SEGU - Jose Joaquin de Olmedo Airport
 MDE / SKRG - Jose Maria Cordova International Airport
-HAV / MUHA - Jose Marti International Airport
-AJF / OESK - Jouf Airport
-VRA / MUVR - Juan Gualberto Gomez Airport
 SJO / MROC - Juan Santamaria International Airport
-SRE / SLAL - Juana Azurduy de Padilla International Airport
 SUB / WARR - Juanda International Airport
-JUB / HSSJ - Juba International Airport
-JUL / SPJL - Juliaca Airport
-DAR / HTDA - Julius Nyerere International Airport
-KBL / OAKB - Kabul International Airport
-KAD / DNKA - Kaduna Airport
 KOJ / RJFK - Kagoshima Airport
 OGG / PHOG - Kahului Airport
-KLO / RPVK - Kalibo International Airport
-KDH / OAKN - Kandahar Airport
-JAF / VCCJ - Kankesanturai
-CNN / VOKN - Kannur International Airport
 KIX / RJBB - Kansai International Airport
 MCI / KMCI - Kansas City International Airport
 KHH / RCKH - Kaohsiung International Airport
-KGF / UAKK - Karaganda Airport
-KLV / LKKV - Karlovy Vary Airport
-BBK / FBKE - Kasane Airport
 KHG / ZWSH - Kashi Airport
-KSF / EDVK - Kassel-Calden Airport
 KTW / EPKT - Katowice International Airport
-KUN / EYKA - Kaunas Airport
-KVA / LGKV - Kavala International Airport
-ASR / LTAU - Kayseri Airport
 KZN / UWKD - Kazan International Airport
 KEF / BIKF - Keflavik International Airport
-YLW / CYLW - Kelowna International Airport
-KEJ / UNEE - Kemerovo Airport
-BLR / VOBL - Kempegowda International Airport
-LUN / FLKK - Kenneth Kaunda International Airport
-KER / OIKK - Kerman Airport
-KRT / HSSS - Khartoum International Airport
 KGD / UMKK - Khrabrovo Airport
-LBD / UTDL - Khujand Airport
-KGL / HRYR - Kigali International Airport
-JRO / HTKJ - Kilimanjaro International Airport
-KIM / FAKM - Kimberley Airport
-JED / OEJN - King Abdulaziz International Airport
 DMM / OEDF - King Fahd International Airport
-AQJ / OJAQ - King Hussein International Airport
 RUH / OERK - King Khaled International Airport
-SHO / RKND - King Mswati III International Airport
 DUR / FALE - King Shaka International Airport
-KIK / ORKK - Kirkuk
-KRN / ESNQ - Kiruna Airport
-KIH / OIBK - Kish International Airport
-KIS / HKKI - Kisumu Airport
-KKJ / RJFR - Kitakyushu Airport
-KTT / EFKT - Kittila Airport
-KLU / LOWK - Klagenfurt Airport
-UKB / RJBE - Kobe Airport
-KCZ / RJOK - Kochi Ryoma Airport
-CND / LRCK - Kogalniceanu Airport
-USM / VTSM - Koh Samui Airport
-KOV / UACK - Kokshetau Airport
 SVX / USSS - Koltsovo International Airport
-KMQ / RJNK - Komatsu Airport
-KOA / PHKO - Kona International Airport at Keahole
-KYA / LTAN - Konya Airport
-KGS / LGKO - Kos Airport
-KSA / PTSA - Kosrae Airport
-KSN / UAUU - Kostanay Airport
 BKI / WBKK - Kota Kinabalu International Airport
-ACC / DGAA - Kotoka International Airport
-KBV / VTSG - Krabi Airport
-KRR / URKK - Krasnodar International Airport
-KTI / VDKT - Kratie
-KRS / ENCN - Kristiansand Airport
-MQP / FAKN - Kruger Mpumalanga International Airport
-KUL / WMKK - Kuala Lumpur International Airport
 KNO / WIMM - Kuala Namu International Airport
-KCH / WBGG - Kuching International Airport
-TJU / UTDK - Kulyab Airport
-KMJ / RJFT - Kumamoto Airport
-KMS / DGSI - Kumasi Airport
-KMG / ZPPP - Kunming Changshui International Airport
-KUO / EFKU - Kuopio Airport
-KUF / UWWW - Kurumoch International Airport
-KUT / UGKO - Kutaisi International Airport
 KWI / OKBK - Kuwait International Airport
-KZO / UAOO - Kzyl-Orda Airport
-BDA / TXKF - L.F. Wade International Airport
-GUA / MGGT - La Aurora International Airport
-LAQ / HLLQ - La Braq Airport
-MAR / SVMC - La Chinita Airport
-LRM / MDLR - La Romana Airport
 LGA / KLGA - LaGuardia Airport
-CGY / RPMY - Laguindingan International Airport
-VNS / VEBN - Lal Bahadur Shastri International Airport
 STL / KSTL - Lambert-St. Louis International Airport
-SUF / LICA - Lamezia Terme International Airport
-LGK / WMKL - Langkawi International Airport
-HLA / FALA - Lanseria International Airport
 ACE / GCRR - Lanzarote Airport
 LHW / ZLLL - Lanzhou Zhongchuan International Airport
-LAO / RPLI - Laoag Airport
-LPP / EFLP - Lappeenranta
 LCA / LCLK - Larnaca International Airport
 SDQ / MDSD - Las Americas International Airport
-LBA / EGNM - Leeds Bradford International Airport
-LEJ / EDDP - Leipzig/Halle Airport
-LWN / UDSG - Leninakan Airport
-FCO / LIRF - Leonardo da Vinci-Fiumicino Airport
-OUD / GMFO - Les Angades Airport
-AAE / DABB - Les Salines Airport
 LXA / ZULS - Lhasa Gonggar Airport
-LYG / ZSLG - Lianyungang Airport
-LIR / MRLB - Liberia Airport
-LBV / FOOL - Libreville Airport
-LIH / PHLI - Lihue Airport
 LJG / ZPLJ - Lijiang Airport
-LIL / LFQQ - Lille Airport
-LLW / FWKI - Lilongwe International Airport
-LPI / ESSL - Linkoping City Airport
-LNZ / LOWL - Linz Airport
 LIS / LPPT - Lisbon Portela Airport
 LPL / EGGP - Liverpool John Lennon Airport
-LVI / FLHN - Livingstone Airport
-LJU / LJLJ - Ljubljana Joze Pucnik Airport
-LCJ / EPLL - Lodz Lublinek Airport
-BOS / KBOS - Logan International Airport
 GAU / VEGT - Lokpriya Gopinath Bordoloi International Airport
-LOP / WADL - Lombok International Airport
-LFW / DXXX - Lome Airport
-LGW / EGKK - London Gatwick Airport
-LHR / EGLL - London Heathrow Airport
 LTN / EGGW - London Luton Airport
-LGB / KLGB - Long Beach Airport
-LTO / MMLT - Loreto Airport
-LAX / KLAX - Los Angeles International Airport
 SJD / MMSD - Los Cabos International Airport
 MSY / KMSY - Louis Armstrong New Orleans International Airport
-SDF / KSDF - Louisville International Airport
-LPQ / VLLB - Luang Prabang International Airport
-LUZ / EPLB - Lublin Airport
-FBM / FZQA - Lubumbashi International Airport
 SJU / TJSJ - Luis Munoz Marin International Airport
-LLA / ESPA - Lulea Airport
-FNA / GFLL - Lungi International Airport
-LYA / ZHLY - Luoyang Beijiao Airport
-VAV / NFTV - Lupepau'u Airport
 LUX / ELLX - Luxembourg Airport
-LXR / HELX - Luxor International Airport
-NAS / MYNN - Lynden Pindling International Airport
 LYS / LFLL - Lyon Saint-Exupery International Airport
-MST / EHBK - Maastricht Aachen Airport
 MFM / VMMC - Macau International Airport
-MCZ / SBMO - Maceio-Zumbi dos Palmares International Airport
 CEB / RPVM - Mactan-Cebu International Airport
-FNC / LPMA - Madeira Airport
-MQF / USCM - Magnitogorsk Airport
-MZG / RCQC - Magong Airport
-MIU / DNMA - Maiduguri
-MCX / URML - Makhachkala Airport
-SSG / FGSL - Malabo Airport
 AGP / LEMG - Malaga Airport
 MLE / VRMM - Male International Airport
-KAN / DNKN - Mallam Aminu Kano International Airport
-MMX / ESMS - Malmo Airport
 MLA / LMML - Malta International Airport
-FRU / UCFM - Manas International Airport
 MAN / EGCC - Manchester Airport
-MDL / VYMD - Mandalay International Airport
-ILO / RPVI - Mandurriao Airport
-IXE / VOML - Mangalore Airport
-PZO / SVPR - Manuel Carlos Piar Guayana Airport
-MID / MMMD - Manuel Crescencio Rejon International Airport
-MPM / FQMA - Maputo International Airport
-SLZ / SBSL - Marechal Cunha Machado International Airport
-CGB / SBCY - Marechal Rondon International Airport
 UIO / SEQM - Mariscal Sucre International Airport
-ADJ / OJAM - Marka International Airport
-RMF / HEMA - Marsa Alam International Airport
 MRS / LFML - Marseille Provence Airport
-SLA / SASA - Martin Miguel de Guemes International Airport
-FDF / TFFF - Martinique Aime Cesaire International Airport
 MHD / OIMM - Mashhad International Airport
-IPC / SCIP - Mataveri International Airport
-MYJ / RJOM - Matsuyama Airport
-TET / FQTT - Matundo Airport
-MUB / FBMN - Maun Airport
-GND / TGPY - Maurice Bishop International Airport
-BZV / FCBB - Maya Maya Airport
-MZR / OAMS - Mazar-I-Sharif Airport
-MZT / MMMZ - Mazatlan International Airport
-LAS / KLAS - McCarran International Airport
-TYS / KTYS - McGhee Tyson Airport
 THR / OIII - Mehrabad International Airport
-DJE / DTTJ - Melita Airport
-FMM / EDJA - Memmingen Allgau Airport
-MEM / KMEM - Memphis International Airport
 RAK / GMMX - Menara Airport
-MAH / LEMH - Menorca Airport
-MUH / HEMM - Mersa Matruh
 OAK / KOAK - Metropolitan Oakland International Airport
-MFU / FLMF - Mfuwe
-MIA / KMIA - Miami International Airport
 LIN / LIML - Milano Linate Airport
 MXP / LIMC - Milano Malpensa Airport
-BJV / LTFE - Milas-Bodrum Airport
-PDG / WIEE - Minangkabau International Airport
-MRV / URMM - Mineralnye Vody Airport
 EZE / SAEZ - Ministro Pistarini Airport
 MSP / KMSP - Minneapolis-St. Paul International Airport
-MSQ / UMMS - Minsk National Airport
-RMI / LIPR - Miramare Airport
-MJI / HLLM - Mitiga Tripoli Airport
-KMI / RJFM - Miyazaki Airport
-MGQ / HCMM - Mogadishu International Airport
 CMN / GMMN - Mohamed V International Airport
-MBA / HKMO - Moi International Airport
-MPL / LFMT - Montpellier Mediterranee Airport
 YUL / CYUL - Montreal-Pierre Elliott Trudeau International Airport
-GOX / VOGA - Mopa Airport
-MLM / MMMM - Morelia Airport
 DME / UUDD - Moscow Domodedovo Airport
-MSU / FXMM - Moshoeshoe International Airport
-OSR / LKMT - Mosnov Airport
-OMO / LQMO - Mostar Airport
-MWX / RKJB - Muan International Airport
-HMB / HESG - Mubarak International Airport
-MUX / OPMT - Multan Airport
-FMO / EDDG - Munster Osnabruck International Airport
-MMK / ULMM - Murmansk Airport
 LOS / DNMM - Murtala Muhammed International Airport
 MCT / OOMS - Muscat International Airport
-MWZ / HTMW - Mwanza Airport
-MYR / KMYR - Myrtle Beach International Airport
-FIH / FZAA - N'djili Airport
-NAN / NFFN - Nadi International Airport
-NDR / GMMW - Nador International Airport
-LAE / AYNZ - Nadzab Airport
-NGS / RJFU - Nagasaki Airport
 OKA / ROAH - Naha Airport
-NAJ / UBBN - Nakhichevan Airport
-NMA / UTFN - Namangan Airport
-APL / FQNP - Nampula Airport
 KHN / ZSCN - Nanchang Changbei International Airport
 NKG / ZSNJ - Nanjing Lukou International Airport
 NNG / ZGNN - Nanning Airport
 NTE / LFRS - Nantes Atlantique Airport
 NAP / LIRN - Naples International Airport
-NRT / RJAA - Narita International Airport
 BNA / KBNA - Nashville International Airport
-SUV / NFNA - Nausori Airport
-NVT / SBNF - Navegantes Airport
-NYT / VYNT - Nay Pyi Taw Airport
-NDJ / FTTJ - Ndjamena Airport
-ALP / OSAP - Nejrab
-RAI / GVNP - Nelson Mandela International Airport
-NUM / OENN - Neom Airport
 CCU / VECC - Netaji Subhas Chandra Bose Airport
-NAV / LTAZ - Nevsehir
 CTS / RJCC - New Chitose Airport
-UBN / ZMCK - New Ulaanbaatar International Airport
-EWR / KEWR - Newark Liberty International Airport
 NCL / EGNT - Newcastle International Airport
 DPS / WADD - Ngurah Rai International Airport
-NIM / DRRN - Niamey Airport
-KIJ / RJSN - Niigata Airport
 NGB / ZSNB - Ningbo Airport
-MNL / RPLL - Ninoy Aquino International Airport
-INI / LYNI - Nis Constantine the Great Airport
-NJC / USNN - Nizhnevartovsk Airport
-GOJ / UWGG - Nizhny Novgorod International Airport
-ABV / DNAA - Nnamdi Azikiwe International Airport
 HAN / VVNB - Noi Bai International Airport
-ORF / KORF - Norfolk International Airport
-NSK / UOOO - Noril'sk Airport
-KIN / MKJP - Norman Manley International Airport
 SJC / KSJC - Norman Y. Mineta San Jose International Airport
-GIB / LXGB - North Front Airport
-NDB / GQPP - Nouadhibou Airport
-NKC / GQNO - Nouakchott International Airport
 OVB / UNNT - Novosibirsk Tolmachevo Airport
-NSI / FKYS - Nsimalen Airport
-NCU / UTNN - Nukus Airport
-NUE / EDDN - Nuremberg Airport
 NQZ / --- - Nursultan Nazarbayev International Airport
-GOH / BGGH - Nuuk Airport
 JNB / FAOR - O.R. Tambo International Airport
-ORD / KORD - O'Hare International Airport
-OEC / WPOC - Ocussi
-OHD / LWOH - Ohrid Airport
-OKJ / RJOB - Okayama Airport
-OLB / LIEO - Olbia Costa Smeralda Airport
-OMS / UNOO - Omsk Airport
 ONT / KONT - Ontario International Airport
-OMR / LROD - Oradea Airport
-DSN / ZBDS - Ordos Ejin Horo Airport
 BGY / LIME - Orio al Serio International Airport
-MCO / KMCO - Orlando International Airport
-SFB / KSFB - Orlando Sanford International Airport
-ORU / SLOR - Oruro
-OSS / UCFO - Osh Airport
 OSL / ENGM - Oslo Airport Gardermoen
-GEN / ENGM - Oslo Gardermoen Airport
-OST / EBOS - Ostend-Bruges International Airport
-OXB / GGOV - Osvaldo Vieira Airport
-YOW / CYOW - Ottawa/Macdonald-Cartier International Airport
-OUA / DFFD - Ouagadougou International Airport
-OZZ / GMMZ - Ouarzazate Airport
-OUL / EFOU - Oulu Airport
-GCM / MWCR - Owen Roberts International Airport
-PAD / EDLP - Paderborn Lippstadt Airport
-PPG / NSTU - Pago Pago International Airport
-PKZ / VLPS - Pakse Airport
-PLQ / EYPA - Palanga International Airport
 BRI / LIBD - Palese Airport
-PSP / KPSP - Palm Springs International Airport
+PBI / KPBI - Palm Beach International Airport
 PMI / LEPA - Palma de Mallorca Airport
-PFO / LCPH - Paphos International Airport
-PED / LKPD - Pardubice Airport
 ORY / LFPO - Paris Orly Airport
-PBH / VQPR - Paro Airport
-AMQ / WAPP - Pattimura Airport
-PWQ / UASP - Pavlodar Airport
-PYK / OIIP - Payam
-RKZ / ZURK - Peace
-YYZ / CYYZ - Pearson International Airport
-PEV / LHPP - Pecs Pogany
 PEN / WMKP - Penang International Airport
-PNS / KPNS - Pensacola International Airport
-PEE / USPP - Perm International Airport
 PER / YPPH - Perth Airport
-PPK / UACP - Petropavlovsk Airport
-PKC / UHPP - Petropavlovsk-Kamchatsky Airport
-PHH / --- - Phan Thiet
 PHL / KPHL - Philadelphia International Airport
-BZE / MZBZ - Philip S.W. Goldson International Airport
-PHX / KPHX - Phoenix Sky Harbor International Airport
-HUI / VVPB - Phu Bai International Airport
-PQC / VVPQ - Phu Quoc Airport
 HKT / VTSP - Phuket International Airport
-POS / TTPP - Piarco International Airport
-GSO / KGSO - Piedmont Triad International Airport
 FOR / SBFZ - Pinto Martins Airport
 PSA / LIRP - Pisa International Airport
 PIT / KPIT - Pittsburgh International Airport
-PDV / LBPD - Plovdiv Airport
-TGD / LYPG - Podgorica Airport
-PNR / FCPP - Pointe Noire Airport
-PTP / TFFR - Pointe-a-Pitre International Airport
-PTG / FAPP - Polokwane Airport
-IXZ / VOPB - Port Blair Airport
-PLZ / FAPE - Port Elizabeth International Airport
-POG / FOOG - Port Gentil
-PHC / DNPO - Port Harcourt International Airport
-PHE / YPPD - Port Hedland International Airport
-PSD / HEPS - Port Said
-PZU / HSPN - Port Sudan Airport
 PDX / KPDX - Portland International Airport
-PWM / KPWM - Portland International Jetport
 OPO / LPPR - Porto Airport
-BPS / SBPS - Porto Seguro Airport
-PVH / SBPV - Porto Velho International Airport
-POZ / EPPO - Poznan Airport
-PUQ / SCCI - Pres Ibanez Airport
-RBR / SBRB - Pres. Medici Airport
-JPA / SBJP - Presidente Castro Pinto International Airport
-NQN / SAZN - Presidente Peron International Airport
-ULH / OEAO - Prince Abdul Majeed bin Abdulaziz Airport
 MED / OEMA - Prince Mohammad Bin Abdulaziz International Airport
-ELQ / OEGS - Prince Nayef bin Abdulaziz Regional Airport
-HAH / FMCH - Prince Said Ibrahim Internatonal Airport
-SXM / TNCM - Princess Juliana International Airport
-PRN / BKPR - Pristina International Airport
-PLS / MBPV - Providenciales International Airport
-PPS / RPVP - Puerto Princesa International Airport
-PUY / LDPL - Pula Airport
 LED / ULLI - Pulkovo Airport
 PNQ / VAPO - Pune Airport
 PUJ / MDPC - Punta Cana International Airport
-HSN / ZSZS - Putuoshan Airport
-FNJ / ZKPY - Pyongyang Sunan International Airport
-AQI / OEPA - Qaisumah Airport
 TAO / ZSQD - Qingdao Liuting International Airport
-NDG / ZYQQ - Qiqihar Airport
 JJN / ZSQZ - Quanzhou Jinjiang International Airport
-LAD / FNLU - Quatro de Fevereiro Airport
-YQB / CYQB - Quebec City Jean Lesage International Airport
 AMM / OJAI - Queen Alia International Airport
-ZQN / NZQN - Queenstown Airport
-QRO / MMQT - Queretaro Intercontinental Airport
-UET / OPQT - Quetta Airport
-KQT / UTDT - Qurghonteppa International Airport
-BVC / GVBA - Rabil Airport
 CTG / SKCG - Rafael Nunez International Airport
-BHO / VABP - Raja Bhoj Airport
 HYD / VOHS - Rajiv Gandhi International Airport
 RDU / KRDU - Raleigh-Durham International Airport
-ETM / LLER - Ramon Airport
-SAP / MHLM - Ramon Villeda Morales International Airport
-RAR / NCRG - Rarotonga Airport
-RKT / OMRK - Ras Al Khaimah International Airport
-RML / VCCC - Ratmalana
-AUA / TNCA - Reina Beatrix International Airport
-RNO / KRNO - Reno/Tahoe International Airport
-RES / SARE - Resistencia Airport
-RUN / FMEE - Reunion Roland Garros Airport
-REU / LERS - Reus Airport
 RHO / LGRP - Rhodes Airport
-RIC / KRIC - Richmond International Airport (Byrd Field)
 RIX / EVRA - Riga International Airport
-RJK / LDRI - Rijeka Airport
-RGL / SAWG - Rio Gallegos Internacional Airport
-RSI / --- - Rio Sidra
-RIY / OYRN - Riyan Mukalla
-RTB / MHRO - Roatan Airport
-SKB / TKPK - Robert L. Bradshaw International Airport
-ROB / GLRB - Roberts International Airport
-AQP / SPQU - Rodriguez Ballon International Airport
 DCA / KDCA - Ronald Reagan National Airport
-WVB / FYWB - Rooikop Airport
-TJM / USTR - Roshchino International Airport
-ROP / PGRO - Rota Airport
-RTM / EHRD - Rotterdam The Hague Airport
-RVN / EFRO - Rovaniemi Airport
-RZE / EPRZ - Rzeszow International Airport
-SAW / LTFJ - Sabiha Gokcen International Airport
 SMF / KSMF - Sacramento International Airport
-HSG / RJFS - Saga Airport
-SLL / OOSA - Salalah International Airport
-RBA / GMME - Sale Airport
 POA / SBPA - Salgado Filho International Airport
 SLC / KSLC - Salt Lake City International Airport
-MDC / WAMM - Sam Ratulangi International Airport
-SKD / UTSS - Samarkand Airport
 SAT / KSAT - San Antonio International Airport
-BRC / SAZS - San Carlos de Bariloche International Airport
 SAN / KSAN - San Diego International Airport
-SFO / KSFO - San Francisco International Airport
-ZSA / MYSM - San Salvador Airport
-SAH / OYSN - Sana'a International Airport
 MBJ / MKJS - Sangster International Airport
-TTU / GMTN - Sania Ramel
-GNY / LTCS - Sanliurfa GAP Airport
-PEG / LIRZ - Sant Egidio Airport
-SNU / MUSC - Santa Clara Airport
-GYN / SBGO - Santa Genoveva Airport
 NLU / MMSM - Santa Lucia
-SCQ / LEST - Santiago De Compostela Airport
-PMV / SVMG - Santiago Marino International Airport
-JTR / LGSR - Santorini International Airport
 SDU / SBRJ - Santos Dumont Airport
 SYX / ZJSY - Sanya Phoenix International Airport
-NAT / SBSG - Sao Goncalo do Amarante-Governador Aluizio Alves Intl Airport
-GRU / SBGR - Sao Paulo-Guarulhos International Airport
 CGH / SBSP - Sao Paulo/Congonhas Airport
-TMS / FPST - Sao Tome Island Airport
-SJJ / LQSA - Sarajevo International Airport
-SKX / UWPS - Saransk Airport
-SRQ / KSRQ - Sarasota Bradenton International Airport
-GSV / --- - Saratov Gagarin Airport
-YXE / CYXE - Saskatoon International Airport
-SAV / KSAV - Savannah/Hilton Head Airport
-SCR / ESKS - Scandinavian Mountains Airport
-SEA / KSEA - Seattle-Tacoma International Airport
-GXF / OYSY - Seiyun
-PLX / UASS - Semipalatinsk Airport
-JHB / WMKJ - Senai Airport
-SDJ / RJSS - Sendai Airport
-DJJ / WAJJ - Sentani Airport
 SVQ / LEZL - Seville Airport
-SEZ / FSIA - Seychelles International Airport
-CGP / VGEG - Shah Amanat International Airport
-SHA / ZSSS - Shanghai Hongqiao International Airport
-PVG / ZSPD - Shanghai Pudong International Airport
-SNN / EINN - Shannon Airport
 SHJ / OMSJ - Sharjah International Airport
 SSH / HESH - Sharm El Sheikh Airport
 SHE / ZYTX - Shenyang Taoxian International Airport
-SZX / ZGSZ - Shenzhen Bao'an International Airport
-SVO / UUEE - Sheremetyevo International Airport
 SJW / ZBSJ - Shijiazhuang Daguocun Airport
-SYZ / OISS - Shiraz International Airport
-SAG / VASD - Shirdi
-FSZ / RJNS - Shizuoka Airport
-CIT / UAII - Shymkent Airport
-SKT / OPST - Sialkot Airport
-SBZ / LRSB - Sibiu Airport
-KOS / VDSV - Sihanouk International Airport
-ASU / SGAS - Silvio Pettirossi International Airport
-CCS / SVMI - Simon Bolivar International Airport
-NLA / FLSK - Simon Mwansa Kapwepwe International Airport
-MRU / FIMP - Sir Seewoosagur Ramgoolam International Airport
-GBE / FBSK - Sir Seretse Khama International Airport
-KDU / OPSD - Skardu Airport
-SKP / LWSK - Skopje Alexander the Great Airport
 AER / URSS - Sochi International Airport
-CGK / WIII - Soekarno-Hatta International Airport
 SOF / LBSF - Sofia Airport
-OHS / OOSH - Sohar Airport
-SKO / DNSO - Sokoto
 RSW / KRSW - Southwest Florida International Airport
-SPU / LDSP - Split Airport
-GEG / KGEG - Spokane International Airport
-ATQ / VIAR - Sri Guru Ram Dass Jee International Airport
-SXR / VISR - Srinagar International Airport
-ZSE / FMEP - St Pierre dela Reunion
-YYT / CYYT - St. John's International Airport
-PIE / KPIE - St. Petersburg-Clearwater International Airport
 STN / EGSS - Stansted Airport
-SVG / ENZV - Stavanger Airport Sola
 ARN / ESSA - Stockholm Arlanda Airport
-NYO / ESKN - Stockholm Skavsta Airport
-SXB / LFST - Strasbourg Airport
 STR / EDDS - Stuttgart Airport
-SFS / RPLB - Subic Bay International
-SCV / LRSV - Suceava Airport
-FSC / LFKF - Sud Corse Airport
-SZB / WMSA - Sultan Abdul Aziz Shah Airport
 BPN / WALL - Sultan Aji Muhamad Sulaiman Airport
 UPG / WAAA - Sultan Hasanuddin International Airport
-BTJ / WITT - Sultan Iskandar Muda International Airport
 WUX / ZSWX - Sunan Shuofang International Airport
-MCY / YBSU - Sunshine Coast Airport
-PNK / WIOO - Supadio International Airport
-STV / VASU - Surat Gujarat Airport
-SGC / USRR - Surgut Airport
-BKK / VTBS - Suvarnabhumi Airport
-BDJ / WAOO - Syamsudin Noor International Airport
-SYD / YSSY - Sydney (Kingsford Smith) Airport
-TBZ / OITT - Tabriz Airport
-TUU / OETB - Tabuk Regional Airport
-PPT / NTAA - Tahiti Faa'a Airport
-RMQ / RCMQ - Taichung International Airport
-TIF / OETF - Taif Airport
-TNN / RCNN - Tainan Airport
 TSA / RCSS - Taipei Songshan Airport
-TPE / RCTP - Taiwan Taoyuan International Airport
 TYN / ZBYN - Taiyuan Wusu International Airport
-TAK / RJOT - Takamatsu Airport
-TLL / EETN - Tallinn Airport
-TML / DGLE - Tamale Airport
-TMM / FMMT - Tamatave
 TPA / KTPA - Tampa International Airport
-TMP / EFTP - Tampere-Pirkkala Airport
-SGN / VVTS - Tan Son Nhat International Airport
 CNF / SBCF - Tancredo Neves International Airport
-TNG / GMTT - Tangier Ibn Battouta Airport
-TBS / UGTB - Tbilisi International Airport
+KTI / VDTI - Techo International Airport (Phnom Penh) [veritabanında hâlâ "Kratie" yazıyor]
 ANC / PANC - Ted Stevens Anchorage International Airport
-ZCO / SCQP - Temuco Airport
 TFN / GCXO - Tenerife North Airport
 TFS / GCTS - Tenerife South Airport
-ENO / SGEN - Teniente Prim Alarcon
-EIS / TUPJ - Terrance B. Lettsome International Airport
-PVD / KPVD - Theodore Francis Green Memorial State Airport
 SKG / LGTS - Thessaloniki International Airport
 TSN / ZBTJ - Tianjin Binhai International Airport
 TIJ / MMTJ - Tijuana Airport
-TSR / LRTR - Timisoara Traian Vuia International Airport
 TIA / LATI - Tirana International Airport
-TRZ / VOTR - Tiruchirapalli International Airport
-TIR / VOTP - Tirupati Airport
 PTY / MPTO - Tocumen International Airport
-TKS / RJOS - Tokushima Awaodori Airport
-TLC / MMTO - Toluca International Airport
-TOM / GATB - Tombouctou
-TOF / UNTT - Tomsk Airport
-NOU / NWWW - Tontouta Airport
-WTB / YBWW - Toowoomba Wellcamp Airport
-TRF / ENTO - Torp Sandefjord Airport
 TLS / LFBO - Toulouse-Blagnac Airport
-PAP / MTPP - Toussaint Louverture International Airport
-TSF / LIPH - Treviso Airport
 KTM / VNKT - Tribhuvan International Airport
-TRS / LIPQ - Trieste - Friuli Venezia Giulia Airport
-TRV / VOTV - Trivandrum International Airport
-TOS / ENTC - Tromso/Langnes Airport
-TRD / ENVA - Trondheim Airport Vaernes
-TRU / SPRU - Trujillo Airport
-TUS / KTUS - Tucson International Airport
 MEL / YMML - Tullamarine Airport
-TUL / KTUL - Tulsa International Airport
 TUN / DTTA - Tunis-Carthage International Airport
-IAR / UUDL - Tunoshna Airport
-TUK / OPTU - Turbat Airport
 TRN / LIMF - Turin Airport
-CRZ / UTAV - Turkmenabad
-TKU / EFTU - Turku Airport
-TZL / LQTZ - Tuzla International Airport
-UTH / VTUD - Udon Thani International Airport
-UFA / UWUU - Ufa International Airport
-UUD / UIUU - Ulan-Ude Airport
-UME / ESNU - Umea Airport
-URA / UARR - Uralsk Airport
-UGC / UTNU - Urgench Airport
 URC / ZWWW - Urumqi Diwopu International Airport
-UKK / UASK - Ust-Kamenogorsk Airport
-UTP / VTBU - Utapao Airport
-UYU / SLUY - Uyuni
-ANU / TAPA - V.C. Bird International Airport
-VAA / EFVA - Vaasa Airport
 PRG / LKPR - Vaclav Havel Airport Prague
-BDQ / VABO - Vadodara Airport
-FAE / EKVG - Vagar Airport
-BEL / SBBE - Val De Cans International Airport
 VLC / LEVC - Valencia Airport
 YVR / CYVR - Vancouver International Airport
-VAR / LBWN - Varna Airport
-VST / ESOW - Vasteras/Hasslo Airport
 VCE / LIPZ - Venice Marco Polo Airport
-VER / MMVR - Veracruz International Airport
-VRN / LIPX - Verona Villafranca Airport
-VFA / FVFA - Victoria Falls Airport
-YYJ / CYYJ - Victoria International Airport
 VIE / LOWW - Vienna International Airport
-AES / ENAL - Vigra Alesund Airport
-VGA / VOBZ - Vijayawada Airport
 VNO / EYVI - Vilnius International Airport
 VCP / SBKP - Viracopos Airport
-VVI / SLVR - Viru Viru International Airport
-VBY / ESSV - Visby Airport
-VTZ / VOVZ - Vishakhapatnam Airport
-VVO / UHWW - Vladivostok International Airport
 VKO / UUWW - Vnukovo Airport
-VOG / URWW - Volgograd International Airport
-SZG / LOWS - W. A. Mozart Salzburg Airport
-WLS / NLWW - Wallis Island Airport
-WMI / EPMO - Warsaw-Modlin Airport
 IAD / KIAD - Washington Dulles International Airport
-VTE / VLVT - Wattay International Airport
-NRN / EDLV - Weeze Airport
-WLG / NZWN - Wellington International Airport
 WNZ / ZSWZ - Wenzhou Longwan International Airport
-OKC / KOKC - Will Rogers World Airport
 HOU / KHOU - William P. Hobby Airport
-YQG / CYQG - Windsor International Airport
-YWG / CYWG - Winnipeg James Armstrong Richardson International Airport
-WRO / EPWR - Wroclaw Airport
 WUH / ZHHH - Wuhan Tianhe International Airport
 XMN / ZSAM - Xiamen Gaoqi International Airport
-XIY / ZLXY - Xianyang International Airport
 XNN / ZLXN - Xining Caojiabao Airport
 JHG / ZPJH - Xishuangbanna Gasa Airport
-OAX / MMOX - Xoxocotlan Airport
-YKS / UEEE - Yakutsk Airport
-YNB / OEYN - Yanbu Airport
-YNZ / ZSYN - Yancheng Nanyang International Airport
-RGN / VYYY - Yangon International Airport
-YNY / RKNY - Yangyang Airport
 YNT / ZSYT - Yantai Laishan International Airport
-YAP / PTYA - Yap International Airport
-KJA / UNKL - Yemelyanovo Airport
 INC / ZLIC - Yinchuan Hedong International Airport
-YIW / ZSYW - Yiwu Airport
 YIA / WAHI - Yogyakarta International Airport
-YCU / ZBYC - Yuncheng Airport
-BJL / GBYD - Yundum International Airport
-UUS / UHSS - Yuzhno-Sakhalinsk Airport
 TAS / UTTT - Yuzhny Airport
-ZAD / LDZD - Zadar Airport
-OZG / GMAZ - Zagora Airport
-ZAG / LDZA - Zagreb International Airport
-ZAH / OIZH - Zahedan Airport
-ZAM / RPMZ - Zamboanga International Airport
-PBM / SMJP - Zanderij International Airport
-ZNZ / HTZA - Zanzibar International Airport
-ZAZ / LEZG - Zaragoza Airport
-TLM / DAON - Zenata Airport
-DYG / ZGDY - Zhangjiajie Hehua Airport
-ZHA / ZGZJ - Zhanjiang Airport
 CGO / ZHCC - Zhengzhou Xinzheng Airport
-DZN / UAKD - Zhezhazgan Airport
 ZUH / ZGSD - Zhuhai Jinwan Airport
-ZIA / UUBW - Zhukovsky International Airport
 ZRH / LSZH - Zurich Airport
 EVN / UDYZ - Zvartnots International Airport
+ABV / DNAA - Nnamdi Azikiwe International Airport
+ISB / OPIS - Islamabad International Airport
+KCH / WBGG - Kuching International Airport
+SAL / MSLP - El Salvador International Airport

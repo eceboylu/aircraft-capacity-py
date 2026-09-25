@@ -6,11 +6,11 @@
 # (venv/Scripts/pip list --format=freeze).
 SQLAlchemy==2.0.52
 
-# MySQL sürücüsü - app/db.py'nin production notu
-# ("mysql+pymysql://user:pass@host:3306/dbname") PyMySQL bekliyor.
-# SQLite kullanan development/test ortamlarında GEREKMEZ (Python'un
-# yerleşik sqlite3 modülü yeterlidir) ama production MySQL hedefi için
-# zorunludur. Sürüm PyPI'daki güncel kararlı sürümdür (pip index
+# MySQL sürücüsü - app/db.py'nin ZORUNLU tuttuğu tek DB dialect'i
+# (mysql+pymysql://user:pass@host:3306/dbname) PyMySQL bekliyor. Bu
+# proje MySQL-only'dir (SQLite/Postgres app/db.py tarafından AÇIKÇA
+# reddedilir) - development/test dahil HER environment bu sürücüye
+# ihtiyaç duyar. Sürüm PyPI'daki güncel kararlı sürümdür (pip index
 # versions PyMySQL ile doğrulandı).
 PyMySQL==1.2.0
 

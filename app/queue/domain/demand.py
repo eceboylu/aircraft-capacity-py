@@ -14,11 +14,11 @@ from ..constants import (
     DEMAND_WINDOW_MINUTES,
     DEPARTURE_PASSENGER_ARRIVAL_OFFSET_MINUTES,
     DEPARTURE_SHOW_UP_PROFILE,
+    DEPARTURE_SHOWUP_BUCKET_MINUTES,
     DIRECTION_DEPARTURE,
     EXCLUDED_STATUSES,
     PASSPORT_RELEASE_BUFFER_MINUTES,
 )
-from .occupancy_calibration import occupancy_factor_for
 
 
 class DemandCalculator:
@@ -65,31 +65,30 @@ class DemandCalculator:
         """
         Bu uçuşun kuyruğa getireceği tahmini yolcu sayısı.
 
-        ADIM (ICAO Demand Kalibrasyonu): resolver'ın çözdüğü koltuk
-        kapasitesi (`AircraftCapacityService` - HİÇ DEĞİŞTİRİLMEDİ)
-        hâlâ TEK girdi; `route_based_load_factor()` (silinmedi, kendi
-        birim testlerinde geçerli, prediction zincirinden AYRI) hâlâ
-        KULLANILMIYOR.
+        ADIM (Passenger Demand = Resolved ICAO Capacity) - talep artık
+        DOĞRUDAN resolver'ın çözdüğü koltuk kapasitesinin KENDİSİDİR
+        (`AircraftCapacityService` - HİÇ DEĞİŞTİRİLMEDİ, hâlâ TEK
+        girdi). Hiçbir doluluk/occupancy çarpanı UYGULANMAZ:
 
-        ADIM (Passenger Demand Calibration) - resolve edilen koltuk
-        sayısı artık DOĞRUDAN talep DEĞİL; `occupancy_calibration.
-        occupancy_factor_for(flight.airport_iata)`'ın döndürdüğü,
-        SADECE bu turda gerçek kaynaktan araştırılmış 9 havalimanı için
-        tanımlı bir çarpanla ayarlanır (bkz. o modülün SOURCE/DATE/VALUE
-        metodolojisi). Araştırılmamış HERHANGİ bir havalimanı için bu
-        çarpan 1.0 (ESKİ %100-koltuk davranışı, DEĞİŞMEDEN) - production'daki
-        diğer tüm havalimanları (ve onları kullanan mevcut testler) bu
-        ADIM'dan HİÇ ETKİLENMEZ. `round()` ile deterministik tam sayıya
-        yuvarlanır (rastgelelik YOK - aynı girdi HER ZAMAN aynı çıktı).
+          - `occupancy_calibration.occupancy_factor_for()` (silinmedi,
+            modül olarak KORUNDU) bu zincirden ÇIKARILDI - havalimanına
+            özel (IST/SAW/AMS/... ) hiçbir çarpan artık production
+            talebini DEĞİŞTİRMEZ.
+          - `route_based_load_factor()`/`LOAD_FACTOR_*` sabitleri
+            (silinmedi, kendi birim testlerinde geçerli, prediction
+            zincirinden AYRI) hâlâ KULLANILMIYOR.
+
+        Yani: `passenger_demand(flight) == resolved_capacity` - A321 ->
+        220 koltuk ise talep DE 220'dir, 220 x herhangi bir katsayı
+        DEĞİLDİR.
 
         counts_toward_passenger_total False ise (genel havacılık)
-        talep hesabına HİÇ girmez.
+        talep hesabına HİÇ girmez, 0 döner.
         """
         result = self._resolve(flight)
         if not result.counts_toward_passenger_total:
             return 0
-        factor, _level = occupancy_factor_for(getattr(flight, "airport_iata", None))
-        return round(result.capacity * factor)
+        return result.capacity
 
 
 def effective_time(flight) -> datetime | None:
@@ -146,29 +145,68 @@ def _departure_show_up_base(flight) -> datetime | None:
     )
 
 
+def _floor_to_global_bucket(moment: datetime, bucket_minutes: int) -> datetime:
+    """
+    ADIM (5 Dakikalık Global Time Bucket) - `moment`'i flight'a/profile'a
+    GÖRE DEĞİL, mutlak saat ızgarasına (dakika % bucket_minutes == 0)
+    göre aşağı yuvarlar. Bilinçli olarak `_departure_show_up_base()`'e
+    veya herhangi bir flight alanına referans VERMEZ - iki farklı
+    flight'ın (departure dakikaları hizalı olsun olmasın) show-up
+    event'leri HER ZAMAN aynı global 5 dakikalık hücrelere düşsün diye
+    (bkz. `departure_show_up_events()` docstring'i - "12:43" gibi
+    hizasız bir departure, "12:40" ile AYNI bucket ızgarasını kullanır).
+    """
+    discard_minutes = moment.minute % bucket_minutes
+    return moment.replace(second=0, microsecond=0) - timedelta(minutes=discard_minutes)
+
+
 def departure_show_up_events(flight, total_demand: float) -> list[tuple[datetime, float]]:
     """
-    ADIM (Departure Show-Up Profile) - bir departure flight'ın TOPLAM
-    yolcu talebini (`DemandCalculator.passenger_demand(flight)` - bu
-    fonksiyon KENDİSİ hesaplamaz, dışarıdan ALIR), `DEPARTURE_SHOW_UP_
-    PROFILE`'a göre flight'ın KENDİ departure zamanından ÖNCEKİ 16 adet
-    (4 saat/T-240) 15 dakikalık deterministic batch'e böler.
+    ADIM (Departure Show-Up Profile + Gerçek Interval Overlap) - bir
+    departure flight'ın TOPLAM yolcu talebini (`DemandCalculator.
+    passenger_demand(flight)` - bu fonksiyon KENDİSİ hesaplamaz,
+    dışarıdan ALIR), `DEPARTURE_SHOW_UP_PROFILE`'ın 4 adet 1 saatlik
+    bandına (%10/%35/%45/%10, flight'ın KENDİ departure zamanından
+    ÖNCEKİ T-4h..T0 penceresi) göre böler, HER bandın içini de mutlak
+    saat ızgarasına hizalı (`_floor_to_global_bucket`, flight'a göre
+    DEĞİL) 5 dakikalık (`DEPARTURE_SHOWUP_BUCKET_MINUTES`) bucket'lara
+    GERÇEK zaman overlap'i ile projekte eder.
+
+    ESKİ davranış (artık YOK): her bant flight-relative sabit
+    timestamp'lerde (base - N dakika) NOKTA event üretiyordu - flight'ın
+    departure dakikası saat sınırına hizalı değilse (ör. 12:40 DEĞİL de
+    12:43 gibi), bu nokta event'ler yanlış saatlik bucket'a düşebiliyordu
+    (bkz. görev.md). Bu fonksiyon artık HER bandı, o bandın mutlak saat
+    ızgarasındaki HANGİ 5dk hücreleriyle NE KADAR (dakika cinsinden)
+    örtüştüğünü hesaplayıp orantısal pay veriyor:
+
+        overlap_start = max(profile_start, bucket_start)
+        overlap_end   = min(profile_end, bucket_end)
+        overlap_min   = max(0, overlap_end - overlap_start)
+        bucket_pax    = total_demand * fraction * (overlap_min / 60)
+
+    Bir bucket, bandın BAŞLADIĞI andan ÖNCE hiçbir yolcu üretmez - o
+    hücrenin event zamanı `max(profile_start, bucket_start)`'tır (bir
+    cohort KENDİ show-up penceresi başlamadan sisteme giremez).
 
     SAF/DETERMINISTIC: aynı flight + aynı total_demand HER ZAMAN aynı
-    batch listesini üretir - RANDOM YOK. Her flight KENDİ show-up
+    event listesini üretir - RANDOM YOK. Her flight KENDİ show-up
     profilini KENDİ departure zamanına göre üretir (Bölüm 1/3) - farklı
-    flight'ların batch'leri zaman ekseninde DOĞAL olarak ÜST ÜSTE biner
+    flight'ların event'leri zaman ekseninde DOĞAL olarak ÜST ÜSTE biner
     (bu fonksiyon bunu ENGELLEMEZ/KOORDİNE ETMEZ - `simulate_fifo_queue`
     zaten farklı kaynaklardan gelen tuple'ları TEK bir kronolojik listede
     birleştirmek için tasarlanmış, bkz. core/event_queue.py).
 
-    PASSENGER CONSERVATION: kümülatif yuvarlama (her batch = kümülatif
-    hedefin YUVARLANMIŞ farkı) kullanılır - `sum(count for _, count in
-    events) == round(total_demand)` HER ZAMAN tam sağlanır (tek tek
-    batch yuvarlamalarının toplamda kayıp/fazlalık üretmesi
-    matematiksel olarak İMKANSIZ hale gelir); pratikte bu, "son batch
-    yuvarlama artığını emer" (Bölüm 4) ilkesiyle AYNI sonucu verir, ama
-    ARA batch'lerin de asla negatif/tutarsız olmamasını garanti eder.
+    PASSENGER CONSERVATION: mevcut `ServiceEvent`/`simulate_fifo_queue`
+    FIFO çekirdeği (core/event_queue.py) her dequeue'yu TAM 1 birim
+    sayıyor - kesirli (`float`) count `simulate_fifo_queue`'ya verilirse
+    conservation BOZULUR (ör. count=2.5 -> 3 birim işlenir). Bu yüzden,
+    tıpkı eski implementasyonda olduğu gibi, TÜM bant/bucket kesirli
+    katkıları (kronolojik sırayla) TEK bir kümülatif yuvarlama zincirine
+    (her event = kümülatif hedefin YUVARLANMIŞ farkı) sokulur - random
+    yuvarlama YOK, `sum(count for _, count in events) ==
+    round(total_demand)` HER ZAMAN tam sağlanır, ara event'ler asla
+    negatif/tutarsız olmaz.
 
     `flight`'ın departure referans zamanı (actual>estimated>scheduled)
     yoksa VEYA `total_demand <= 0` ise boş liste döner - uydurma bir
@@ -183,18 +221,48 @@ def departure_show_up_events(flight, total_demand: float) -> list[tuple[datetime
     if base is None or total_demand <= 0:
         return []
 
+    bucket_delta = timedelta(minutes=DEPARTURE_SHOWUP_BUCKET_MINUTES)
+
+    # Bantlar `DEPARTURE_SHOW_UP_PROFILE`'da EN UZAK'tan (T-4h) EN
+    # YAKIN'a (T0) doğru sıralıdır ve UÇ UCA bitişiktir (bir bandın
+    # profile_end'i BİR SONRAKİNİN profile_start'ıdır) - bu yüzden
+    # bant-bant ÜRETİLEN segment'leri sırayla concat etmek TEK BAŞINA
+    # kronolojik sırayı korur (ayrı bir sort'a gerek yok).
+    segments: list[tuple[datetime, float]] = []
+    for minutes_before_start, minutes_before_end, fraction in DEPARTURE_SHOW_UP_PROFILE:
+        profile_start = base - timedelta(minutes=minutes_before_start)
+        profile_end = base - timedelta(minutes=minutes_before_end)
+        profile_duration_minutes = minutes_before_start - minutes_before_end
+        if profile_duration_minutes <= 0 or fraction <= 0:
+            continue
+
+        bucket_start = _floor_to_global_bucket(profile_start, DEPARTURE_SHOWUP_BUCKET_MINUTES)
+        while bucket_start < profile_end:
+            bucket_end = bucket_start + bucket_delta
+            overlap_start = max(profile_start, bucket_start)
+            overlap_end = min(profile_end, bucket_end)
+            overlap_minutes = (overlap_end - overlap_start).total_seconds() / 60.0
+            if overlap_minutes > 0:
+                contribution = total_demand * fraction * (overlap_minutes / profile_duration_minutes)
+                # Bir cohort KENDİ bandı başlamadan ÖNCE sisteme giremez
+                # - bu yüzden event zamanı bucket_start DEĞİL, en erken
+                # GEÇERLİ an (bkz. docstring, "Bir bucket... hiçbir
+                # yolcu üretmez").
+                event_time = max(profile_start, bucket_start)
+                segments.append((event_time, contribution))
+            bucket_start = bucket_end
+
     events: list[tuple[datetime, float]] = []
     cumulative_target = 0.0
     cumulative_rounded = 0
-    for minutes_before_start, _minutes_before_end, fraction in DEPARTURE_SHOW_UP_PROFILE:
-        cumulative_target += total_demand * fraction
+    for event_time, contribution in segments:
+        cumulative_target += contribution
         new_cumulative_rounded = round(cumulative_target)
         count = new_cumulative_rounded - cumulative_rounded
         cumulative_rounded = new_cumulative_rounded
         if count <= 0:
             continue
-        batch_time = base - timedelta(minutes=minutes_before_start)
-        events.append((batch_time, float(count)))
+        events.append((event_time, float(count)))
     return events
 
 

@@ -33,6 +33,7 @@ from ...queue.constants import (
     LOCATION_INTERNATIONAL,
 )
 from ...queue.domain.retention_time import canonical_operational_time
+from ...queue.domain.schengen import requires_passport_control
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,21 @@ _TIME_FORMATS = (
 
 # Ham metinde "yok" anlamına gelen gösterimler.
 _NULL_TOKENS = {"", "-", "--", "n/a", "na", "null", "none", "unknown"}
+
+# ADIM (Aircraft Match Safety Guard) - Kaynak B kaydının `updated`
+# alanı bir ADS-B GÖZLEM zaman damgasıdır (bkz. `_parse_source_b_
+# timestamp`), tarife saati DEĞİLDİR - bu yüzden Kaynak A'nın
+# `operational_scheduled`'ına yakınlığı sadece BİR KANIT/olasılık
+# sinyalidir, ASLA tam eşitlik beklenmez. Ama bu yakınlık sınırsız
+# olamaz: aynı flight number GÜNLER sonra farklı bir uçak tipiyle
+# uçurulmuş olabilir (filo rotasyonu, mevsimsel değişim, vb.) - gerçek
+# veride (`response-delays.json`) TK2025 için TEK aday 16 GÜN eski
+# çıktı ve önceki (sınırsız) mantık bunu sessizce kabul ediyordu, bu
+# TEHLİKELİ BİR YANLIŞ POZİTİF üretir. 36 saat (aynı/önceki günün
+# gerçek uçuşu) konservatif ama günlük frekanslı bir hat için hâlâ
+# anlamlı bir kanıt penceresidir; daha eski hiçbir aday güvenilir
+# SAYILMAZ ve reddedilir.
+AIRCRAFT_MATCH_MAX_AGE_HOURS = 36.0
 
 
 def normalize_flight_number(value: str | None) -> str | None:
@@ -210,13 +226,20 @@ def _parse_source_b_timestamp(record: dict) -> datetime | None:
 
 def build_aircraft_index(source_b_records: list[dict]) -> dict[str, list[dict]]:
     """
-    Kaynak B'den {normalize edilmiş uçuş no: [{'icao': icao, 'time': time}, ...]} indeksi.
+    Kaynak B'den {normalize edilmiş uçuş no: [{'icao', 'time', 'dep_iata',
+    'arr_iata'}, ...]} indeksi.
 
     `time`, Kaynak B kaydının GERÇEK zaman alanı olan `updated`
     (UNIX epoch) alanından türetilir - bkz. `_parse_source_b_timestamp`.
     Uçak tipi olmayan veya zamanı çözülemeyen kayıtlar indekse girmez;
     zamanı olmayan bir aday, tarih kontrolü YAPILAMAYACAĞI için
     güvenli bir eşleşme üretemez (bkz. `parse_source_a_record`).
+
+    ADIM (Aircraft Match Safety Guard) - `dep_iata`/`arr_iata` da
+    saklanır: sadece flight number eşleşmesi (ör. "TK2025") tek
+    başına yeterli DEĞİLDİR - aynı numara farklı bir rotada da
+    görülmüş olabilir. Rota bilgisi olmadan `parse_source_a_record`
+    güvenli bir rota kontrolü yapamaz.
     """
     index: dict[str, list[dict]] = {}
     skipped_malformed = 0
@@ -230,7 +253,12 @@ def build_aircraft_index(source_b_records: list[dict]) -> dict[str, list[dict]]:
             if not time_utc:
                 continue
 
-            entry = {"icao": icao, "time": time_utc}
+            entry = {
+                "icao": icao,
+                "time": time_utc,
+                "dep_iata": (field(record, "dep_iata", "depIata") or "").upper() or None,
+                "arr_iata": (field(record, "arr_iata", "arrIata") or "").upper() or None,
+            }
 
             for name in ("flight_iata", "flightIata", "flight_icao", "flightIcao"):
                 key = normalize_flight_number(record.get(name))
@@ -344,6 +372,92 @@ def read_flight_number(record: dict) -> str | None:
     return number
 
 
+def _physical_flight_key(record: dict) -> tuple:
+    """
+    Aynı fiziksel uçuşun TÜM codeshare kopyalarının PAYLAŞTIĞI (gerçek
+    veride doğrulanmış - bkz. `dedupe_codeshares` docstring'i) alanlar:
+    kalkış/varış havalimanı + tarifeli kalkış/varış saati. Sadece
+    zaman/rota çakışması TEK BAŞINA farklı uçuşları birleştirmeye YETMEZ
+    (kullanıcı talebi) - bu anahtar SADECE `dedupe_codeshares()` içinde,
+    `cs_flight_iata` sinyaliyle DOĞRULANMIŞ bir grup içinde kullanılır.
+    """
+    return (
+        (field(record, "dep_iata", "depIata") or "").upper(),
+        (field(record, "arr_iata", "arrIata") or "").upper(),
+        field(record, "dep_time_utc", "depScheduledUtc"),
+        field(record, "arr_time_utc", "arrScheduledUtc"),
+    )
+
+
+def dedupe_codeshares(records: list[dict]) -> list[dict]:
+    """
+    ADIM (Codeshare Duplicate Physical Flights) - AirLabs contract'ı
+    doğrulanmış: `cs_flight_iata` doluysa bu kayıt, o alanın gösterdiği
+    flight_iata'ya sahip GERÇEK/operating fiziksel uçuşun bir pazarlama
+    (marketing) kopyasıdır - aynı dep/arr havalimanı VE aynı tarifeli
+    dep/arr saatini BİREBİR paylaşır (gerçek ZRH verisinde doğrulandı:
+    LX972 operating + SQ2932/CX6615/AC6766/AZ3844 aynı fiziksel uçuşun
+    4 pazarlama kodu, ikisi de dep/arr/saat alanları AYNI).
+
+    Kural (kullanıcı talebi, Bölüm 2/3):
+      1) `cs_flight_iata` BOŞ olan kayıt (operating) HER ZAMAN korunur.
+      2) `cs_flight_iata` DOLU bir kayıt, EĞER aynı batch'te GERÇEKTEN
+         operating bir eş (aynı fiziksel anahtar + `cs_flight_iata` boş)
+         varsa ATLANIR - fiziksel uçuş zaten operating kayıtla temsil
+         ediliyor.
+      3) Eğer bir fiziksel anahtar grubunda operating eş YOKSA (source
+         "only-codeshare" - operating kaydı hiç gelmemiş), fiziksel
+         uçuş TAMAMEN KAYBOLMASIN diye grup içinden TEK bir canonical
+         kayıt seçilir (deterministic: normalize edilmiş flight_iata'sı
+         alfabetik en küçük olan).
+      4) Bir fiziksel anahtar grubunda `cs_flight_iata` dolu HİÇ kayıt
+         yoksa (hepsi "operating" görünüyor) - bu SADECE zaman/rota
+         çakışmasıdır, codeshare KANITI yoktur - HİÇBİRİ atlanmaz
+         (güvenli taraf: "sadece zaman/rota eşleşmesiyle dedup yapma").
+
+    Bu, canonical dedup'ın TEK uygulandığı yerdir (`parse_source_a()`
+    tarafından, per-record ayrıştırmadan ÖNCE çağrılır) - başka hiçbir
+    katmanda TEKRAR filtrelenmez.
+    """
+    groups: dict[tuple, list[dict]] = {}
+    for record in records:
+        groups.setdefault(_physical_flight_key(record), []).append(record)
+
+    result: list[dict] = []
+    for group in groups.values():
+        if len(group) == 1:
+            result.append(group[0])
+            continue
+
+        operating = [
+            r for r in group
+            if not field(r, "cs_flight_iata", "csFlightIata")
+        ]
+        codeshares = [
+            r for r in group
+            if field(r, "cs_flight_iata", "csFlightIata")
+        ]
+
+        if not codeshares:
+            # Codeshare KANITI yok - salt zaman/rota çakışması, hiçbiri atlanmaz.
+            result.extend(group)
+        elif operating:
+            # Normal durum: operating kayıt(lar) korunur, TÜM codeshare'ler atılır.
+            result.extend(operating)
+        else:
+            # "Only-codeshare" fallback - operating kayıt hiç yok, fiziksel
+            # uçuş kaybolmasın diye TEK canonical kayıt seçilir.
+            canonical = min(
+                codeshares,
+                key=lambda r: normalize_flight_number(
+                    field(r, "flight_iata", "flightIata")
+                ) or "",
+            )
+            result.append(canonical)
+
+    return result
+
+
 def parse_source_a_record(
     record: dict,
     direction: str,
@@ -426,22 +540,65 @@ def parse_source_a_record(
     ).upper() or None
     matched_icao = None
     if own_icao is None and aircraft_index and operational_scheduled:
-        best_diff = None
+        # ADIM (Aircraft Match Safety Guard) - flight number eşleşmesi
+        # TEK BAŞINA yeterli değildir: aynı numara farklı bir rotada
+        # görülmüş olabilir (B) rota da UYMALI), VE Kaynak B'nin
+        # `updated` gözlem zamanı `operational_scheduled`'dan makul
+        # (`AIRCRAFT_MATCH_MAX_AGE_HOURS`) bir pencere içinde olmalı -
+        # bkz. o sabitin docstring'i (16 gün eski TEK aday gerçek
+        # veride görüldü, bu ASLA güvenilir bir eşleşme değildir).
+        # `updated` bir TARİFE saati DEĞİL bir ADS-B gözlem zamanı
+        # olduğu için tam eşitlik ASLA aranmaz - sadece yakınlık kanıtı.
+        raw_candidates = []
         for candidate in (flight_code, flight_icao):
             key = normalize_flight_number(candidate)
             if key and key in aircraft_index:
-                for candidate_match in aircraft_index[key]:
-                    # Date must match exactly to avoid assigning tomorrow's flight to today's aircraft
-                    if candidate_match["time"].date() == operational_scheduled.date():
-                        diff = abs((candidate_match["time"] - operational_scheduled).total_seconds())
-                        if best_diff is None or diff < best_diff:
-                            best_diff = diff
-                            matched_icao = candidate_match["icao"]
-                
-                if matched_icao:
-                    break
+                raw_candidates.extend(aircraft_index[key])
+
+        eligible = []
+        for candidate_match in raw_candidates:
+            # B) + C) rota EŞLEŞMELİ - taraflardan biri bilinmiyorsa
+            # (None) rota doğrulanamaz, güvenli tarafta kalıp reddedilir.
+            if (
+                candidate_match["dep_iata"] is None
+                or dep_iata is None
+                or candidate_match["dep_iata"] != dep_iata
+            ):
+                continue
+            if (
+                candidate_match["arr_iata"] is None
+                or arr_iata is None
+                or candidate_match["arr_iata"] != arr_iata
+            ):
+                continue
+
+            age_hours = abs(
+                (candidate_match["time"] - operational_scheduled).total_seconds()
+            ) / 3600.0
+            if age_hours > AIRCRAFT_MATCH_MAX_AGE_HOURS:
+                continue
+
+            eligible.append((age_hours, candidate_match["icao"]))
+
+        if eligible:
+            best_age = min(age for age, _ in eligible)
+            best_icaos = {icao for age, icao in eligible if age == best_age}
+            # G) en yakın adaylar birbiriyle ÇELİŞEN farklı ICAO'lar
+            # taşıyorsa TAHMİN YÜRÜTÜLMEZ - eşleşme None kalır.
+            if len(best_icaos) == 1:
+                matched_icao = next(iter(best_icaos))
 
     aircraft_icao = own_icao or matched_icao
+
+    # ADIM (Schengen-Aware Passport Routing) - `Airport.country_code`
+    # çözümünden (AYNI `country_by_iata` haritası, `resolve_location()`'ın
+    # kullandığı KAYNAK) - flight number/airline üzerinden TAHMİN
+    # YAPILMAZ. `location` (traffic type) BURADAN ETKİLENMEZ/DEĞİŞMEZ -
+    # bu SADECE ayrı, ek bir sınır-kontrolü sinyalidir (bkz. `domain/
+    # schengen.py` modül docstring'i).
+    dep_country = country_by_iata.get((dep_iata or "").upper())
+    arr_country = country_by_iata.get((arr_iata or "").upper())
+    requires_passport = requires_passport_control(dep_country, arr_country)
 
     return {
         "flight_key": build_flight_key(
@@ -452,6 +609,7 @@ def parse_source_a_record(
         "location": read_location(
             record, dep_iata, arr_iata, country_by_iata
         ),
+        "requires_passport": requires_passport,
         "airline_iata": airline_iata,
         "flight_number": flight_number,
         "flight_iata": normalize_flight_number(flight_code),
@@ -504,6 +662,19 @@ def parse_source_a(
     taşınmaya devam eder - geniş bir `except Exception` KASITLI OLARAK
     kullanılmadı.
     """
+    # ADIM (Codeshare Duplicate Physical Flights) - per-record ayrıştırmadan
+    # ÖNCE, TEK canonical noktada uygulanır (bkz. `dedupe_codeshares()`
+    # docstring'i) - aynı fiziksel uçuş birden fazla kez passenger demand
+    # ÜRETMESİN diye pazarlama/codeshare kopyaları burada elenir.
+    raw_count = len(records)
+    records = dedupe_codeshares(records)
+    codeshares_skipped = raw_count - len(records)
+    if codeshares_skipped:
+        logger.info(
+            "Source A codeshare dedup (direction=%s): raw=%d physical=%d skipped=%d",
+            direction, raw_count, len(records), codeshares_skipped,
+        )
+
     parsed = []
     skipped_malformed = 0
     for record in records:

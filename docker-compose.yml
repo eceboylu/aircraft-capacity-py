@@ -1,0 +1,73 @@
+# Local development MySQL/phpMyAdmin stack + HTTPS reverse proxy.
+#
+# Bu dosya, daha önce ad-hoc `docker run` komutlarıyla oluşturulmuş
+# (compose'suz, restart policy'siz) container'ların YERİNİ ALIR - host
+# / Docker Desktop her yeniden başladığında bu container'lar
+# `Exited (255)` durumunda kalıp KENDİLİĞİNDEN ayağa kalkmıyordu, çünkü
+# hiçbir restart policy/compose tanımı yoktu. `restart: unless-stopped`
+# ile bu artık otomatik.
+#
+# VERİ KAYBI YOK: aşağıdaki `local_mysql_data` volume'u, eski
+# container'ın KULLANDIĞI GERÇEK (anonim) Docker volume'una
+# `external: true` ile işaret eder - aynı MySQL verisi (flights/
+# queue_predictions/airport_operational_configs/... tabloları) bu yeni
+# container'da AYNEN görünür.
+#
+# ADIM (Benchmark Stack Removed) - `benchmark_mysql`/`benchmark_
+# phpmyadmin` (ayrı `aircraft_capacity_bench` DB'si, `scripts/
+# benchmark_mysql_scale.py`'nin - repo'dan ÇOKTAN silinmiş bir
+# performans ölçüm aracının - kullandığı boşta duran altyapıydı) hem bu
+# dosyadan hem gerçek Docker'dan (container + data volume) KALDIRILDI -
+# kullanıcı talebi: "boşta duruyorsa sil gitsin". `https_proxy`'nin
+# eskiden benchmark phpMyAdmin'e baktığı 8444 portu da bu yüzden
+# kaldırıldı - artık SADECE 8443 (local phpMyAdmin) var.
+#
+# HTTPS: `https_proxy` (nginx) mkcert ile üretilmiş, bu makineye
+# ÖZEL/yerel olarak güvenilir bir sertifikayla 8443 portunda TLS
+# sonlandırır - bkz. deploy/docker/README.md. Eski düz-HTTP port
+# (8082) DEĞİŞMEDEN kalır (geriye dönük uyumlu, bookmark/scriptler
+# kırılmaz) - HTTPS EKLENDİ, HTTP kaldırılmadı.
+
+services:
+  local_mysql:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: local_root_pw
+      MYSQL_DATABASE: aircraft_capacity
+      MYSQL_USER: app
+      MYSQL_PASSWORD: app_local_pw
+    ports:
+      - "3307:3306"
+    volumes:
+      - local_mysql_data:/var/lib/mysql
+
+  local_phpmyadmin:
+    image: phpmyadmin:latest
+    restart: unless-stopped
+    depends_on:
+      - local_mysql
+    environment:
+      PMA_HOST: local_mysql
+      PMA_PORT: 3306
+      PMA_USER: app
+      PMA_PASSWORD: app_local_pw
+      PMA_ABSOLUTE_URI: https://localhost:8443/
+    ports:
+      - "8082:80"
+
+  https_proxy:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      - local_phpmyadmin
+    volumes:
+      - ./deploy/docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/docker/certs:/etc/nginx/certs:ro
+    ports:
+      - "8443:8443"
+
+volumes:
+  local_mysql_data:
+    external: true
+    name: "72322ca62b98697a115eb47c589d73781f5c81278600f6cf077b8a229265e0a3"

@@ -42,11 +42,13 @@ class Airport(Base):
         String(4), nullable=True, index=True
     )
     timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    # ADIM (Airport-Scale Queue Capacity): "large"/"medium"/"small" -
+    # ADIM (4-Tier Airport Scale): "mega"/"large"/"medium"/"small" -
     # `app/queue/domain/airport_scale.py`'nin çözdüğü değer,
     # `ingestion/airports_import.py:import_airport_scales()` ile
-    # BİR KEZ import edilir. Bilinmiyorsa None - UYDURMA bir ölçek
-    # ATANMAZ (bkz. config.py'nin unknown-scale davranışı).
+    # BİR KEZ import edilir (mevcut bir DB'yi YENİ contract'a göre
+    # güncellemek için `refresh_airport_scales()`/`scripts/update_
+    # airport_scale_resources.py`). Bilinmiyorsa None - UYDURMA bir
+    # ölçek ATANMAZ (bkz. config.py'nin unknown-scale davranışı).
     scale: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
 
@@ -71,6 +73,14 @@ class Flight(Base):
 
     direction: Mapped[str] = mapped_column(String(16))   # arrival | departure
     location: Mapped[str] = mapped_column(String(16))    # domestic | international
+
+    # ADIM (Schengen-Aware Passport Routing) - `location` (traffic type)
+    # İLE KARIŞTIRILMAMALI: Schengen->Schengen bir uçuş `location`'da
+    # international KALIR ama sınırda pasaport kontrolü YOKTUR - bkz.
+    # `domain/schengen.py:requires_passport_control()`. Varsayılan True
+    # (mevcut/eski davranışı korur - Schengen bilgisi HENÜZ hesaplanmamış
+    # satırlar için "passport gerekir" güvenli tarafı).
+    requires_passport: Mapped[bool] = mapped_column(Boolean, default=True)
 
     airline_iata: Mapped[str | None] = mapped_column(String(8), nullable=True)
     flight_number: Mapped[str | None] = mapped_column(String(16), nullable=True)
@@ -122,9 +132,10 @@ class FlightEvent(Base):
     change'dir, bu alan onları etkilemez.
 
     Şema notu: bu kolon sonradan eklendi, nullable'dır - var olan bir
-    production dosyasına ALTER TABLE gerekir (create_all() var olan
-    tabloyu değiştirmez); bu repo'daki database.sqlite'ta flight_events
-    tablosu hiç oluşturulmamıştı, taşınacak veri yok.
+    production veritabanına ALTER TABLE gerekir (`create_all()` var olan
+    tabloyu değiştirmez, sadece eksik tabloları yaratır) - bkz. alembic/
+    versions/ altındaki migration dosyaları (şema değişiklikleri artık
+    buradan yönetiliyor, bkz. alembic/README).
     """
 
     __tablename__ = "flight_events"
@@ -273,6 +284,44 @@ class AirportOperationalConfig(Base):
     # dönük uyumlu, YANLIŞLIKLA "default" sayılıp confidence'ı YÜKSELEN
     # bir satır OLMAZ.
     is_seeded_default: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class AirportScaleConfig(Base):
+    """
+    ADIM (DB-Editable Scale Resource Contract) - `domain/airport_scale.py:
+    SCALE_RESOURCES`'ın (Python sabiti) CANLI/düzenlenebilir üst katmanı.
+
+    Bu tablo ÖNCEDEN (bu ADIM'dan önce) kodda hiç okunmayan, yetim/orphan
+    bir tabloydu (3-tier döneminden kalma eski değerler taşıyordu, mega
+    hiç yoktu) - `config.py:_scale_resources_from_db()` artık bu tabloyu
+    GERÇEKTEN okuyor: `scale` başına bir satır VARSA, o satırın değerleri
+    `SCALE_RESOURCES`'ın hardcoded değerlerinin YERİNE geçer (öncelik
+    zinciri: DB satırı > Python sabiti). Bu, phpMyAdmin'den bir sayı
+    değiştirip deploy/kod değişikliği yapmadan tüm o ölçekteki
+    havalimanlarının bir SONRAKİ hesaplamada yeni değeri kullanmasını
+    sağlar.
+
+    `scale` DIŞINDA bir satırda YOKSA (ör. tablo boşsa, ya da sadece
+    bazı tier'lar için satır varsa) o tier için `SCALE_RESOURCES`
+    (Python sabiti) AYNEN kullanılmaya devam eder - bu tablo KISMİ
+    olabilir, "hepsi ya da hiçbiri" değildir.
+
+    `departure_passport_servers_max`/`arrival_passport_servers_max`
+    NULL ise (LARGE/MEDIUM/SMALL gibi) o havuz İÇİN dynamic staffing
+    PASİF kalır (bkz. `config.py:_build_config_view()` - `_max is not
+    None` kontrolü DEĞİŞMEDİ, sadece `_max`'ın KAYNAĞI artık bu tablo
+    olabilir).
+    """
+
+    __tablename__ = "airport_scale_configs"
+
+    scale: Mapped[str] = mapped_column(String(16), primary_key=True)
+    departure_passport_servers: Mapped[int] = mapped_column(Integer, nullable=False)
+    departure_passport_servers_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    arrival_passport_servers: Mapped[int] = mapped_column(Integer, nullable=False)
+    arrival_passport_servers_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    domestic_security_lanes: Mapped[int] = mapped_column(Integer, nullable=False)
+    international_security_lanes: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
 class QueuePrediction(Base):

@@ -2,7 +2,6 @@ venv/
 .pytest_cache/
 __pycache__/
 *.py[cod]
-database.sqlite
 .env
 *.env
 !*.env.example
@@ -10,3 +9,4 @@ database.sqlite
 backups/
 .vscode/
 .idea/
+deploy/docker/certs/*.pem

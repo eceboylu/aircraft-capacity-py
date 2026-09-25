@@ -1,31 +1,31 @@
 """
 Veritabanı bağlantısı.
 
-MySQL (8.x/InnoDB) - BİRİNCİL/TEK application database - örnek:
+ADIM (MySQL-Only, Enforced) - bu proje SADECE MySQL (8.x/InnoDB)
+kullanır - örnek:
     mysql+pymysql://user:pass@host:3306/dbname?charset=utf8mb4
-Postgres de desteklenir (aynı SQLAlchemy engine deseni):
-    postgresql://user:pass@host:5432/dbname
 
-ADIM (MySQL-Only Database Layer) - ÖNCEKİ bir sürümde `DATABASE_URL`
-verilmediğinde local/dev/test'te SESSİZCE SQLite'a düşülüyordu (APP_ENV
-üzerinden production'da bu kapatılmıştı). Bu ADIM'da o fallback
-TAMAMEN KALDIRILDI - `DATABASE_URL` artık HER environment'ta (local,
-dev, production, worker, web, script) KOŞULSUZ ZORUNLUDUR; yoksa
-`app.db` import edilir edilmez (engine/DB'ye HİÇ dokunmadan) AÇIK bir
-`RuntimeError` fırlatılır. `APP_ENV` DEĞİŞMEDEN kalır (bkz. aşağı) ama
-artık SADECE bilgilendirici - DB engine seçimini HİÇ ETKİLEMEZ.
+Bu artık "varsayılan tercih" DEĞİL, KOD SEVİYESİNDE DOĞRULANAN bir
+kısıtlamadır: `DATABASE_URL` (1) TANIMSIZ/BOŞ OLAMAZ VE (2) `mysql`
+dialect'i DIŞINDA HİÇBİR backend'e (SQLite, Postgres, ya da başka
+herhangi bir SQLAlchemy dialect'i) İZİN VERİLMEZ - ikisi de `app.db`
+import edilir edilmez (engine/DB'ye HİÇ dokunmadan) açık bir
+`RuntimeError` ile durur. Bu kontrol HER environment'ta (local, dev,
+test, production, worker/web/script fark etmez - istisna YOK) aynı
+şekilde çalışır. `APP_ENV` DEĞİŞMEDEN kalır (bkz. aşağı) ama SADECE
+bilgilendiricidir - DB engine seçimini HİÇ ETKİLEMEZ.
 
-SQLite desteği KODDAN TAMAMEN SİLİNMEDİ - `_migrate_sqlite_table()`
-(dialect kontrolüyle KENDİ İÇİNDE korunur, MySQL/Postgres'te no-op'tur)
-ve `_SQLITE_*_COLUMNS` sabitleri, `tests/test_queue_config_migration.py`
-gibi bunları AÇIKÇA import eden araçlar için KASITLI OLARAK bırakıldı -
-ama NORMAL uygulama başlangıcı (`import app.db`) artık HİÇBİR KOŞULDA
-otomatik/örtük olarak bir SQLite dosyası SEÇMEZ/AÇMAZ.
+SQLite (ve Postgres) desteği - eski ADIM'larda burada "da destekleniyor"
+olarak belgelenen, dialect kontrolüyle korunan bir `_migrate_sqlite_
+table()` yardımcı fonksiyonu ve `_SQLITE_*_COLUMNS` sabitleri de dahil -
+KODDAN TAMAMEN KALDIRILDI (ADIM: MySQL-Only Cleanup). Bu proje artık
+tek bir DB motoru tanır; `database.sqlite` gibi bir dosya YARATILMAZ/
+OKUNMAZ, hiçbir sqlite-specific kod yolu YOKTUR.
 """
 
 import os
 
-from sqlalchemy import create_engine, inspect, make_url
+from sqlalchemy import create_engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from .models import Base
@@ -36,10 +36,10 @@ from .models import Base
 # `DATABASE_URL` zorunluluğundan BAĞIMSIZ hale getirildi.
 APP_ENV = os.environ.get("APP_ENV", "development")
 
-# ADIM (MySQL-Only Database Layer) - eski `DEFAULT_SQLITE_PATH`/örtük
-# SQLite fallback'i TAMAMEN KALDIRILDI. `DATABASE_URL` yoksa/boşsa
-# engine HİÇ OLUŞTURULMAZ - "sessizce yanlış (SQLite) DB'ye bağlanmak"
-# yerine "hemen ve anlaşılır şekilde başarısız olmak" HER environment'ta
+# ADIM (MySQL-Only Database Layer) - eski örtük SQLite fallback'i
+# TAMAMEN KALDIRILDI. `DATABASE_URL` yoksa/boşsa engine HİÇ
+# OLUŞTURULMAZ - "sessizce yanlış (SQLite) DB'ye bağlanmak" yerine
+# "hemen ve anlaşılır şekilde başarısız olmak" HER environment'ta
 # (sadece production'da değil) tercih edilir.
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -51,11 +51,26 @@ if not DATABASE_URL:
         "SQLite fallback in any environment."
     )
 
-_is_sqlite = make_url(DATABASE_URL).get_backend_name() == "sqlite"
+# ADIM (MySQL-Only, Enforced) - `DATABASE_URL`'in VARLIĞI artık YETERLİ
+# DEĞİL, dialect'i de `mysql` OLMAK ZORUNDA. Eskiden bu sadece
+# "SQLite'a sessizce düşülmez" anlamına geliyordu (kullanıcı KASITLI
+# olarak `sqlite:///...` ya da `postgresql://...` verirse çalışırdı) -
+# artık böyle bir URL DB'ye HİÇ dokunmadan (`create_engine()`
+# ÇAĞRILMADAN) açık bir `RuntimeError` ile reddedilir. Postgres desteği
+# de bilinçli olarak KALDIRILDI - proje tek bir DB motoruna bağlanır.
+_backend = make_url(DATABASE_URL).get_backend_name()
+if _backend != "mysql":
+    raise RuntimeError(
+        f"DATABASE_URL must be a MySQL connection (mysql+pymysql://...) - "
+        f"got a '{_backend}' URL instead. This project is MySQL-only; "
+        "SQLite, Postgres and every other backend are rejected, not just "
+        "left unsupported by convention."
+    )
 
-# ADIM (MySQL/Postgres Engine Config) - SQLite dosya bağlantılarına
-# HİÇ uygulanmaz (o zaten tek-dosya, pool/ping kavramı YOK) - SADECE
-# gerçek bir DB SERVER'ına bağlanan dialect'lerde devreye girer:
+# ADIM (MySQL Engine Config) - gerçek bir DB SERVER'ına bağlanıldığı
+# artık GARANTİ olduğu için (yukarıdaki dialect kontrolü) bu iki ayar
+# KOŞULSUZ uygulanır (eskiden "SQLite değilse" diye dallanıyordu - o
+# dal artık anlamsız, SQLite hiçbir zaman buraya kadar gelemez):
 #   pool_pre_ping : her checkout'ta ucuz bir "SELECT 1" ile bağlantının
 #                    hâlâ canlı olduğunu doğrular - MySQL'in kendi
 #                    `wait_timeout`'u (varsayılan 8 saat) VEYA bir
@@ -70,87 +85,10 @@ _is_sqlite = make_url(DATABASE_URL).get_backend_name() == "sqlite"
 #                    pencerelerinin (dakikalar) güvenli üstünde ama
 #                    gereksiz sık yeniden bağlanmayacak kadar uzun,
 #                    ölçülmeden seçilmiş agresif bir değer DEĞİL.
-_engine_kwargs: dict = {"echo": False}
-if not _is_sqlite:
-    _engine_kwargs["pool_pre_ping"] = True
-    _engine_kwargs["pool_recycle"] = 1800
-
-engine = create_engine(DATABASE_URL, **_engine_kwargs)
+engine = create_engine(
+    DATABASE_URL, echo=False, pool_pre_ping=True, pool_recycle=1800,
+)
 SessionLocal = sessionmaker(bind=engine)
-
-
-# Minimum, additive SQLite migration. `Base.metadata.create_all()` mevcut
-# tabloya yeni kolon eklemez; production DB'yi drop/reset etmeden yeni açık
-# service-time config'ini taşımanın güvenli yolu eksik kolonları tek tek
-# eklemektir. Derived capacity değerleri persist edilmez.
-_SQLITE_OPERATIONAL_CONFIG_COLUMNS = {
-    "passport_service_time_minutes": "FLOAT NOT NULL DEFAULT 1.5",
-    "security_lane_count": "INTEGER NOT NULL DEFAULT 8",
-    "security_service_time_minutes": "FLOAT NOT NULL DEFAULT 1.0",
-    # ADIM (Domestic/International Security Lane Ayrımı): mevcut
-    # `security_lane_count` ile AYNI varsayılan (8) - mevcut satırlar
-    # için davranış değişmez, sadece airport-bazlı ayrı ayarlanabilir
-    # yeni kolonlar eklenir.
-    "domestic_security_lane_count": "INTEGER NOT NULL DEFAULT 8",
-    "international_security_lane_count": "INTEGER NOT NULL DEFAULT 8",
-    # ADIM (Airport-Scale Queue Capacity) - NULLABLE, DEFAULT YOK: None,
-    # "bu airport için özellikle set edilmedi" anlamına gelir (bkz.
-    # models.py) - mevcut satırlar NULL alır, scale-derived değere
-    # düşer, davranışları DEĞİŞMEZ.
-    "passport_departure_server_count": "INTEGER",
-    "passport_arrival_server_count": "INTEGER",
-}
-
-# ADIM (Operational-Day Scope) `Airport.timezone` bu tabloya SONRADAN
-# eklendi - `create_all()` var olan `airports` tablosuna yeni kolon
-# eklemediği için, önceki bir şemadan gelen (bu kolon olmadan
-# oluşturulmuş) bir `airports` tablosu bu kolon olmadan kalır ve
-# `Airport.timezone` okuyan her sorgu ("no such column") ile çöker.
-# Nullable olduğu için DEFAULT gerekmez - mevcut satırlar NULL alır,
-# `resolve_airport_timezone()` bunu zaten açıkça ele alıyor.
-_SQLITE_AIRPORTS_COLUMNS = {
-    "timezone": "VARCHAR(64)",
-    # ADIM (Airport-Scale Queue Capacity) - large/medium/small, nullable
-    # (bkz. models.py `Airport.scale` docstring'i).
-    "scale": "VARCHAR(16)",
-}
-
-# ADIM (Current Operational Day Isolation) - `queue_predictions` tablosuna
-# SONRADAN eklenen kolon (bkz. models.py `QueuePrediction.operational_date`
-# docstring'i). Nullable/DEFAULT YOK: mevcut (bu ADIM'dan önce yazılmış)
-# satırlar NULL alır - `process_series()`/`prune_stale_predictions()` bunu
-# açıkça ele alıp ESKİ (window_start tabanlı) davranışa geri döner.
-_SQLITE_QUEUE_PREDICTIONS_COLUMNS = {
-    "operational_date": "DATE",
-}
-
-
-def _migrate_sqlite_table(table: str, columns: dict[str, str], target_engine=None) -> None:
-    """
-    `target_engine` verilmezse bu modülün global (production) `engine`'i
-    kullanılır - GERİYE DÖNÜK UYUMLU. Verilirse (ör. test harness'ının
-    KENDİ, izole sqlite dosyası) SADECE o engine üzerinde çalışır - bu
-    fonksiyon production `engine`'e HİÇ dokunmaz.
-    """
-    target_engine = target_engine if target_engine is not None else engine
-    if target_engine.dialect.name != "sqlite":
-        return
-
-    inspector = inspect(target_engine)
-    if table not in inspector.get_table_names():
-        return
-
-    existing = {column["name"] for column in inspector.get_columns(table)}
-    missing = [name for name in columns if name not in existing]
-    if not missing:
-        return
-
-    with target_engine.begin() as connection:
-        for name in missing:
-            definition = columns[name]
-            connection.exec_driver_sql(
-                f"ALTER TABLE {table} ADD COLUMN {name} {definition}"
-            )
 
 
 def _destructive_reset_allowed() -> bool:
@@ -188,9 +126,6 @@ def init_db(drop_first: bool = False) -> None:
             )
         Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
-    _migrate_sqlite_table("airport_operational_configs", _SQLITE_OPERATIONAL_CONFIG_COLUMNS)
-    _migrate_sqlite_table("airports", _SQLITE_AIRPORTS_COLUMNS)
-    _migrate_sqlite_table("queue_predictions", _SQLITE_QUEUE_PREDICTIONS_COLUMNS)
 
 
 def get_session() -> Session:

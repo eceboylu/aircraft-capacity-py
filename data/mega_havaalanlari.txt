@@ -1,0 +1,66 @@
+MEGA HAVAALANLARI
+Toplam: 61
+Kriter: 40 milyon+ yolcu/yıl
+Biçim: IATA / ICAO - Havaalanı adı
+
+MAD / LEMD - Adolfo Suarez Madrid-Barajas Airport
+AMS / EHAM - Amsterdam Airport Schiphol
+BCN / LEBL - Barcelona-El Prat Airport
+PEK / ZBAA - Beijing Capital International Airport
+PKX / ZBAD - Beijing Daxing International Airport
+MEX / MMMX - Benito Juarez International Airport
+SIN / WSSS - Changi International Airport
+CDG / LFPG - Charles de Gaulle Airport
+CLT / KCLT - Charlotte Douglas International Airport
+TFU / ZUTF - Chengdu Tianfu International Airport
+BOM / VABB - Chhatrapati Shivaji International Airport
+CKG / ZUCK - Chongqing Jiangbei International Airport
+DFW / KDFW - Dallas/Fort Worth International Airport
+DEN / KDEN - Denver International Airport
+DXB / OMDB - Dubai Airport
+BOG / SKBO - El Dorado International Airport
+FRA / EDDF - Frankfurt Airport
+MUC / EDDM - Franz Josef Strauss Airport
+IAH / KIAH - George Bush Intercontinental Airport
+CAN / ZGGG - Guangzhou Baiyun International Airport
+DOH / OTHH - Hamad International Airport
+HND / RJTT - Haneda Airport
+HGH / ZSHC - Hangzhou Xiaoshan International Airport
+ATL / KATL - Hartsfield-Jackson Atlanta International Airport
+HKG / VHHX - Hong Kong International Airport
+ICN / RKSI - Incheon International Airport
+DEL / VIDP - Indira Gandhi International Airport
+IST / LTFM - Istanbul Airport
+JFK / KJFK - John F. Kennedy International Airport
+BLR / VOBL - Kempegowda International Airport
+JED / OEJN - King Abdulaziz International Airport
+KUL / WMKK - Kuala Lumpur International Airport
+KMG / ZPPP - Kunming Changshui International Airport
+FCO / LIRF - Leonardo da Vinci-Fiumicino Airport
+BOS / KBOS - Logan International Airport
+LGW / EGKK - London Gatwick Airport
+LHR / EGLL - London Heathrow Airport
+LAX / KLAX - Los Angeles International Airport
+LAS / KLAS - McCarran International Airport
+MIA / KMIA - Miami International Airport
+NRT / RJAA - Narita International Airport
+EWR / KEWR - Newark Liberty International Airport
+MNL / RPLL - Ninoy Aquino International Airport
+ORD / KORD - O'Hare International Airport
+MCO / KMCO - Orlando International Airport
+YYZ / CYYZ - Pearson International Airport
+PHX / KPHX - Phoenix Sky Harbor International Airport
+SAW / LTFJ - Sabiha Gokcen International Airport
+SFO / KSFO - San Francisco International Airport
+GRU / SBGR - Sao Paulo-Guarulhos International Airport
+SEA / KSEA - Seattle-Tacoma International Airport
+SHA / ZSSS - Shanghai Hongqiao International Airport
+PVG / ZSPD - Shanghai Pudong International Airport
+SZX / ZGSZ - Shenzhen Bao'an International Airport
+SVO / UUEE - Sheremetyevo International Airport
+CGK / WIII - Soekarno-Hatta International Airport
+BKK / VTBS - Suvarnabhumi Airport
+SYD / YSSY - Sydney (Kingsford Smith) Airport
+TPE / RCTP - Taiwan Taoyuan International Airport
+SGN / VVTS - Tan Son Nhat International Airport
+XIY / ZLXY - Xianyang International Airport

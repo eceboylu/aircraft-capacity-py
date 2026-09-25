@@ -80,10 +80,10 @@ from ..models import Flight, FlightEvent
 logger = logging.getLogger(__name__)
 
 # ADIM (MySQL Performance Regression Fix - Phase 1) - `retention.py:
-# BATCH_SIZE` ile AYNI değer/AYNI gerekçe: SQLite'ın varsayılan
-# `SQLITE_MAX_VARIABLE_NUMBER` (genelde 999) sınırının altında, bir
-# `IN (...)` ifadesine flight_key listesini güvenle sığdıracak kadar
-# küçük - rastgele seçilmiş bir sayı değil, mevcut proje konvansiyonu.
+# BATCH_SIZE` ile AYNI değer/AYNI gerekçe: bir `IN (...)` ifadesine
+# flight_key listesini güvenle sığdıracak, gereksiz yere büyük olmayan
+# bir batch boyutu - rastgele seçilmiş bir sayı değil, mevcut proje
+# konvansiyonu.
 REFRESH_CHUNK_SIZE = 500
 
 # Flight'ın `row` (Kaynak A/B birleşimi) dict'inden gelen, karşılaştırma/
@@ -92,7 +92,8 @@ REFRESH_CHUNK_SIZE = 500
 # "now"a eşitlenir - "içerik değişti mi" karşılaştırmasının PARÇASI
 # DEĞİLDİR, bkz. `_row_differs_from_existing`).
 _MUTABLE_FLIGHT_FIELDS = (
-    "airport_iata", "direction", "location", "airline_iata", "flight_number",
+    "airport_iata", "direction", "location", "requires_passport",
+    "airline_iata", "flight_number",
     "flight_iata", "aircraft_icao", "aircraft_match_found", "dep_iata", "arr_iata",
     "dep_scheduled_utc", "dep_estimated_utc", "dep_actual_utc",
     "arr_scheduled_utc", "arr_estimated_utc", "arr_actual_utc",

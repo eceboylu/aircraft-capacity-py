@@ -95,9 +95,10 @@ RETENTION_DRY_RUN = _env_bool("RETENTION_DRY_RUN", "true")
 # fixture'larda tipik refresh hacmi onlarca-yüzlerce satır - 500'lük
 # batch tek iterasyonda biter; hacim büyürse (binlerce/milyonlarca satır)
 # tek dev DELETE yerine güvenli, bellekte sınırlı adımlarla ilerler.
-# Rastgele seçilmiş bir sayı değil: SQLite'ın varsayılan `SQLITE_MAX_
-# VARIABLE_NUMBER` (genelde 999) sınırının altında, id listesini tek
-# `IN (...)` ifadesine güvenle sığdıracak kadar küçük.
+# Rastgele seçilmiş bir sayı değil: `ingestion/refresh.py:REFRESH_CHUNK_
+# SIZE` (MySQL Performance Regression Fix) ile AYNI değer/AYNI gerekçe -
+# id listesini tek `IN (...)` ifadesine güvenle sığdıracak, gereksiz
+# yere büyük olmayan bir batch boyutu.
 BATCH_SIZE = 500
 
 
@@ -354,19 +355,3 @@ def run_cleanup_cycle(now: datetime | None = None, dry_run: bool | None = None) 
         return {"enabled": True, **report.as_dict()}
     finally:
         session.close()
-
-
-def inspect_sqlite_maintenance_settings(session) -> dict:
-    """
-    Bölüm 19 - SALT OKUNUR envanter (auto_vacuum/journal_mode/freelist).
-    Hiçbir PRAGMA'yı DEĞİŞTİRMEZ, hiçbir VACUUM ÇALIŞTIRMAZ - sadece
-    mevcut ayarları raporlamak için okur.
-    """
-    def _pragma(name: str):
-        return session.connection().exec_driver_sql(f"PRAGMA {name}").scalar()
-
-    return {
-        "auto_vacuum": _pragma("auto_vacuum"),
-        "journal_mode": _pragma("journal_mode"),
-        "freelist_count": _pragma("freelist_count"),
-    }

@@ -58,7 +58,7 @@ DEPARTURE_PASSENGER_ARRIVAL_OFFSET_MINUTES = 120
 
 # ADIM (Departure Show-Up Profile) - departure yolcularının kuyruğa TEK
 # bir -120dk spike'ı yerine flight öncesi zamana YAYILMIŞ, deterministic
-# (RANDOM YOK) "show-up" batch'leri halinde gelmesini tanımlar - bkz.
+# (RANDOM YOK) "show-up" akışı halinde gelmesini tanımlar - bkz.
 # `domain/demand.py:departure_show_up_events()`. `DEPARTURE_PASSENGER_
 # ARRIVAL_OFFSET_MINUTES` (120) SİLİNMEDİ/DEĞİŞMEDİ - `effective_time()`
 # hâlâ bu sabiti kullanır (flight-seviyesinde legacy/reference bir zaman
@@ -66,40 +66,41 @@ DEPARTURE_PASSENGER_ARRIVAL_OFFSET_MINUTES = 120
 # gerçek departure queue event ÜRETİMİ artık bu profili kullanır.
 #
 # Her satır: (departure'dan ÖNCE dakika-aralığı-başlangıcı, dakika-
-# aralığı-bitişi, o 15 dakikalık dilime düşen TOPLAM yolcu oranı).
+# aralığı-bitişi, o BANT'a düşen TOPLAM yolcu oranı) - 4 adet 1 saatlik
+# bant ("4-3 saat önce" / "3-2 saat önce" / "2-1 saat önce" / "1-0 saat
+# önce"), oranlar %10/%35/%45/%10 (bkz. görev.md - departure show-up
+# mimarisi tartışması). Toplam = tam 1.0 (%100).
 #
-# ADIM (4-Saatlik Show-Up Recalibration) - pencere 3 saatten (T-180) 4
-# saate (T-240) genişletildi, saatlik oranlar %20/%60/%20 (3 bucket)
-# yerine %10/%35/%45/%10 (4 bucket - "4-3 saat önce" / "3-2 saat önce" /
-# "2-1 saat önce" / "1-0 saat önce") olarak YENİDEN kalibre edildi (bkz.
-# görev.md - departure show-up mimarisi tartışması). Her saatlik oran,
-# o saatin İÇİNDEKİ 4 adet 15 dakikalık dilime EŞİT/DÜZ (uniform, ARA
-# saat sınırlarında yapay bir "ramp" YOK - görev.md'nin kendi örneği de
-# ["30 kişi / 12 slot = 2.5 kişi/slot"] hep düz/uniform dağılım
-# kullanıyor) olarak bölünür: %10/4=%2.5, %35/4=%8.75, %45/4=%11.25,
-# %10/4=%2.5. Toplam = tam 1.0 (%100).
+# ADIM (5 Dakikalık Global Bucket / Gerçek Interval Overlap) - bir bant
+# ARTIK burada 15dk'lık alt-dilimlere ÖNCEDEN/uniform bölünmüyor. Her
+# bandın İÇİ, `departure_show_up_events()` tarafından flight'ın KENDİ
+# departure dakikasından BAĞIMSIZ, mutlak saat ızgarasına hizalı (00,
+# 05, 10, ... dakikalar) 5 dakikalık global bucket'larla GERÇEK zaman
+# overlap'i hesaplanarak dağıtılır (`DEPARTURE_SHOWUP_BUCKET_MINUTES`,
+# aşağıda). Böylece flight'ın departure dakikası saat başına hizalı
+# olsun ya da olmasın (ör. 12:43), her bucket'ın katkısı SADECE o
+# bucket'ın bantla GERÇEKTEN örtüştüğü dakika kadar olur - eski
+# yaklaşım (bant içi 4 eşit 15dk dilim, flight-relative offset'lerde
+# NOKTA event) flight'ın dakikası saat sınırına hizalı değilse yolcuları
+# yanlış saatlik bucket'a düşürüyordu (bkz. görev.md - "12:40/300"
+# kabul testi). Bant sınırları ve oranlar (%10/%35/%45/%10) DEĞİŞMEDİ -
+# SADECE bandın içinin nasıl saatlik bucket'lara projekte edildiği
+# değişti.
 DEPARTURE_SHOW_UP_PROFILE: tuple[tuple[int, int, float], ...] = (
-    # T-240..T-180 ("4-3 saat önce") - toplam %10
-    (240, 225, 0.025),
-    (225, 210, 0.025),
-    (210, 195, 0.025),
-    (195, 180, 0.025),
-    # T-180..T-120 ("3-2 saat önce") - toplam %35
-    (180, 165, 0.0875),
-    (165, 150, 0.0875),
-    (150, 135, 0.0875),
-    (135, 120, 0.0875),
-    # T-120..T-60 ("2-1 saat önce") - toplam %45
-    (120, 105, 0.1125),
-    (105, 90, 0.1125),
-    (90, 75, 0.1125),
-    (75, 60, 0.1125),
-    # T-60..T0 ("1-0 saat önce") - toplam %10
-    (60, 45, 0.025),
-    (45, 30, 0.025),
-    (30, 15, 0.025),
-    (15, 0, 0.025),
+    (240, 180, 0.10),  # T-4h..T-3h
+    (180, 120, 0.35),  # T-3h..T-2h
+    (120, 60, 0.45),   # T-2h..T-1h
+    (60, 0, 0.10),     # T-1h..T0
 )
+
+# ADIM (5 Dakikalık Global Time Bucket) - `departure_show_up_events()`'in
+# her bandı projekte ederken kullandığı varsayılan cohort çözünürlüğü.
+# Bucket sınırları flight'a göre DEĞİL, mutlak saate göre hizalanır
+# (bkz. yukarıdaki not) - queue engine'in KENDİSİ (`core/event_queue.py`)
+# hâlâ exact-timestamp discrete-event FIFO'dur, bir "5 dakikalık tick"
+# sistemine DÖNÜŞTÜRÜLMEDİ; bu sabit SADECE show-up demand'inin zaman
+# üzerine nasıl dağıtıldığını (event ÜRETİMİNİ) belirler.
+DEPARTURE_SHOWUP_BUCKET_MINUTES = 5
 
 # ADIM (Arrival Release Profile) - international arrival yolcularının
 # Arrival Passport kuyruğuna TEK bir +15dk spike'ı yerine iniş sonrası

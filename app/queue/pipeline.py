@@ -45,6 +45,7 @@ from .ingestion.airports_import import (
     import_airports,
 )
 from .ingestion.refresh import refresh_flights
+from .config import _scale_resources_from_db
 from .domain.airport_scale import resource_view_for_scale
 from .domain.retention_time import USAGE_HORIZON_HOURS
 from .ingestion.sources import (
@@ -60,7 +61,8 @@ logger = logging.getLogger(__name__)
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
 
 AIRPORTS_SQL = "flight_airports.sql"
-# ADIM (Airport-Scale Queue Capacity) - large/medium/small ölçek referansı.
+# ADIM (4-Tier Airport Scale) - mega/large/medium/small ölçek referansı.
+MEGA_SCALE_TXT = "mega_havaalanlari.txt"
 LARGE_SCALE_TXT = "buyuk_olcekli_havaalanlari.txt"
 MEDIUM_SCALE_TXT = "orta_olcekli_havaalanlari.txt"
 SMALL_SCALE_TXT = "kucuk_olcekli_havaalanlari.txt"
@@ -108,11 +110,17 @@ def ensure_airports(session, data_dir: str = DATA_DIR) -> int:
 def ensure_airport_scales(session, data_dir: str = DATA_DIR) -> dict | None:
     """
     Airport-scale referansını bir kere yükler (bkz. `ensure_airports()`
-    ile AYNI idempotent bootstrap deseni) - her ~5dk'lık refresh'te 3
+    ile AYNI idempotent bootstrap deseni) - her ~5dk'lık refresh'te 4
     txt dosyasını YENİDEN parse ETMEZ.
 
     En az bir `Airport.scale IS NOT NULL` satırı varsa "zaten import
-    edilmiş" sayılır ve atlanır (skip). Airport referansı (`ensure_
+    edilmiş" sayılır ve atlanır (skip) - bu fonksiyon SADECE İLK/boş
+    bootstrap içindir. Zaten çözülmüş bir veritabanını YENİ bir scale
+    contract'ına göre GÜNCELLEMEK (ör. 3-tier'dan 4-tier'a geçiş)
+    `scripts/update_airport_scale_resources.py`'nin işidir - bu
+    fonksiyon bilinçli olarak "skip" davranışını DEĞİŞTİRMEZ (aksi
+    halde HER prediction turunda/worker restart'ında 4 dosya sessizce
+    yeniden parse edilip DB'ye yazılırdı). Airport referansı (`ensure_
     airports`) HENÜZ çalışmadıysa (tablo boşsa) yapacak bir şey yoktur,
     None döner - `import_airport_scales()` zaten var olan `Airport`
     satırlarını GÜNCELLER, kendi satırını YARATMAZ.
@@ -123,6 +131,7 @@ def ensure_airport_scales(session, data_dir: str = DATA_DIR) -> dict | None:
         return None
     return import_airport_scales(
         session,
+        _path(data_dir, MEGA_SCALE_TXT),
         _path(data_dir, LARGE_SCALE_TXT),
         _path(data_dir, MEDIUM_SCALE_TXT),
         _path(data_dir, SMALL_SCALE_TXT),
@@ -141,8 +150,8 @@ def ensure_airport_operational_configs(session) -> dict:
     "bu havalimanı için hangi kapasiteyi kullanıyoruz" sorusunu MySQL'de
     GÖREMEMEK anlamına geliyordu (bkz. rapor - kullanıcı talebi).
 
-    Artık `Airport.scale IS NOT NULL` olan (yani large/medium/small
-    çözülebilen) HER havalimanı için, henüz satırı YOKSA, `SCALE_
+    Artık `Airport.scale IS NOT NULL` olan (yani mega/large/medium/
+    small çözülebilen) HER havalimanı için, henüz satırı YOKSA, `SCALE_
     RESOURCES`'ın O ANKİ değerlerinin BİR KOPYASI `is_seeded_
     default=True` ile eklenir - `AirportConfigView.is_default`/
     confidence cezası (bkz. `config.py:_build_config_view`, `core/
@@ -167,14 +176,21 @@ def ensure_airport_operational_configs(session) -> dict:
     arrival_server_count` seed/resync edilirken KASITLI OLARAK `None`
     (NULL) bırakılır, `SCALE_RESOURCES`'ın sayısal değeri YAZILMAZ: bu
     iki kolonun `NULL` OLMASI, `config.py:_resolve_passport_server_
-    counts()` için "override YOK, scale'den CANLI türet + LARGE'da
-    dynamic staffing'e AÇIK kal" anlamına gelir (bkz. o fonksiyon +
-    `_build_config_view`'ın `departure_is_override`/`passport_
-    departure_dynamic` mantığı). Eğer buraya scale'in 30/45 gibi
-    LİTERAL sayısını yazsaydık, kolon artık `NULL` OLMAYACAĞI için
-    sistem bunu "explicit override" sanıp HER LARGE havalimanının
-    dynamic staffing'ini (backlog'a göre 30->45 ramp) SESSİZCE
-    KAPATIRDI - bu YANLIŞ, istenmeyen bir yan etki olurdu.
+    counts()` için "override YOK, scale'den HER ÇAĞRIDA CANLI türet"
+    anlamına gelir (bkz. o fonksiyon + `_build_config_view`'ın
+    `departure_is_override` mantığı) - `SCALE_RESOURCES`'taki sayılar
+    (ör. MEGA'nın 30/35'i) ileride TEKRAR değişirse, bu kolonlar NULL
+    kaldığı sürece MySQL'e HİÇBİR migration/update GEREKMEDEN tüm
+    scale-derived havalimanları otomatik yeni değeri kullanır. Eğer
+    buraya scale'in sayısını LİTERAL yazsaydık, kolon artık `NULL`
+    OLMAYACAĞI için sistem bunu "explicit override" sanıp o havalimanını
+    SESSİZCE gelecekteki `SCALE_RESOURCES` güncellemelerinden İZOLE
+    ederdi - bu YANLIŞ, istenmeyen bir yan etki olurdu. (Eski not: bu
+    izolasyon önceden "LARGE'ın dynamic staffing'ini kapatır" olarak da
+    zarar verirdi - 4-tier static contract'ta dynamic staffing zaten
+    hiçbir scale için aktif değil, bkz. `domain/airport_scale.py:
+    SCALE_RESOURCES` docstring'i, ama "canlı okuma" gerekçesi AYNEN
+    geçerli.)
 
     Bir havalimanı için satır `is_seeded_default=False` (elle override
     edildi) İSE bu fonksiyon ONU HİÇ dokunmaz/üzerine YAZMAZ -
@@ -200,10 +216,18 @@ def ensure_airport_operational_configs(session) -> dict:
         for row in session.query(AirportOperationalConfig).all()
     }
 
+    # ADIM (DB-Editable Scale Resource Contract) - `airport_scale_
+    # configs` tablosunda bir scale için satır VARSA, aşağıdaki resync
+    # ONU kullanır (`SCALE_RESOURCES` Python sabiti yerine) - böylece
+    # phpMyAdmin'den değiştirilen bir sayı bu "görünürlük kopyası"na
+    # da yansır, `config.py:get_config()`'ün canlı hesabıyla TUTARLI
+    # kalır. TEK sorgu, tüm döngü boyunca paylaşılır.
+    db_scale_resources = _scale_resources_from_db(session)
+
     created = 0
     resynced = 0
     for airport in resolved:
-        resources = resource_view_for_scale(airport.scale)
+        resources = db_scale_resources.get(airport.scale) or resource_view_for_scale(airport.scale)
         if resources is None:
             continue
         row = existing_rows.get(airport.iata_code)

@@ -1,7 +1,7 @@
 """
-ADIM (Airport-Scale Queue Capacity) - havalimanı ölçek sınıflandırması
-(large/medium/small) ve ölçeğe göre queue kaynak (server/lane) eşlemesi
-için TEK merkezi kaynak.
+ADIM (4-Tier Airport Scale) - havalimanı ölçek sınıflandırması
+(mega/large/medium/small) ve ölçeğe göre queue kaynak (server/lane)
+eşlemesi için TEK merkezi kaynak.
 
 SAF KATMAN: veritabanına/dosyaya kalıcı yazmaz - `domain/operational_day.py`
 ile AYNI desende, sadece OKUR (txt dosyası) ve saf fonksiyonlarla
@@ -10,9 +10,10 @@ ile AYNI desende, sadece OKUR (txt dosyası) ve saf fonksiyonlarla
 parse/resolve mantığını taşır.
 
 Kaynak dosyalar (gerçek, `data/` altında):
-  - data/buyuk_olcekli_havaalanlari.txt   (large)
-  - data/orta_olcekli_havaalanlari.txt    (medium)
-  - data/kucuk_olcekli_havaalanlari.txt   (small)
+  - data/mega_havaalanlari.txt            (mega, 40M+ yolcu/yıl)
+  - data/buyuk_olcekli_havaalanlari.txt   (large, 5-40M yolcu/yıl)
+  - data/orta_olcekli_havaalanlari.txt    (medium, 1-5M yolcu/yıl)
+  - data/kucuk_olcekli_havaalanlari.txt   (small, 1M altı yolcu/yıl)
 
 Format (gerçek dosyalarda doğrulandı):
     BÜYÜK ÖLÇEKLİ HAVAALANLARI
@@ -32,86 +33,77 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+SCALE_MEGA = "mega"
 SCALE_LARGE = "large"
 SCALE_MEDIUM = "medium"
 SCALE_SMALL = "small"
 
-SCALES = (SCALE_LARGE, SCALE_MEDIUM, SCALE_SMALL)
+# Precedence sırası: bir kod BİRDEN FAZLA listede görünmüyorsa (bkz.
+# `find_cross_scale_conflicts` - normal koşulda olmamalı) bu sıra
+# `resolve_airport_scale()`'in hangi ölçeği ÖNCE denediğini belirler.
+SCALES = (SCALE_MEGA, SCALE_LARGE, SCALE_MEDIUM, SCALE_SMALL)
 
-# Tek doğruluk kaynağı - genel-proje.md'nin YENİ RESOURCE CONTRACT'ı.
-# Passport service time = 1.5 dk/passenger/server, security = 1 dk/
-# passenger/lane (bu modülde SAKLANMAZ - core/scoring.py'nin config'ten
-# okuduğu, ZATEN var olan alanlardır; burada SADECE server/lane SAYILARI
-# tutulur).
-#
-# ADIM (Generic Scale Resource Update) - gerçek dünya kanıtına dayanarak
-# (bkz. rapor: IST 68 departure passport gişesi, SIN ~130 otomatik
-# immigration lane) güncellendi. Alan adları/mapping DEĞİŞMEDİ - SADECE
-# "large/medium/small" tier'larının SAYISAL değerleri:
-#   "domestic_security_lanes"    = Domestic/Landside Security
+# Tek doğruluk kaynağı - kullanıcının AÇIKÇA verdiği 4-tier resource
+# contract'ı (bkz. görev.md - "4-Tier Airport Scale" + "Dynamic MEGA
+# Passport Staffing" task'ları). Passport service time / security
+# throughput-per-lane formülleri BU MODÜLDE SAKLANMAZ (core/scoring.py'nin
+# config'ten okuduğu, ZATEN var olan alanlardır) - burada SADECE server/
+# lane SAYILARI tutulur:
+#   "domestic_security_lanes"      = Domestic/Landside Security
 #   "international_security_lanes" = International/Airside/Transfer Security
-# (mevcut terminoloji AYNEN korundu, yeni paralel bir alan/isim
-# İCAT EDİLMEDİ). Havalimanı-özel gerçek değerler (ör. IST/SIN'in
-# gerçek gişe sayıları) bu GENERIC tier sabitlerine YAZILMADI -
-# `AirportOperationalConfig` üzerinden airport-specific override
-# mekanizması (config.py öncelik zinciri, bu tablonun ÜSTÜNDE) buna
-# ayrılmıştır; bu sözlük SADECE "hiç override'ı olmayan" havalimanları
-# için generic varsayımdır.
+#   "departure_passport_servers"   = Departure (international) Manual Passport
+#   "arrival_passport_servers"     = Arrival (international) Manual Passport
+#
+# ADIM (Dynamic MEGA Passport Staffing) - `_max` anahtarı (`departure_
+# passport_servers_max`/`arrival_passport_servers_max`) SADECE MEGA'da
+# VAR - bir tier sözlüğünde bu anahtarın VARLIĞI, `config.py:
+# _build_config_view()`'ın `departure_max is not None` kontrolü
+# üzerinden o tier'ın dynamic staffing'e AÇIK olup olmadığını belirler
+# (bkz. o fonksiyonun docstring'i - kontrol KASITLI olarak `scale ==
+# "mega"` gibi sabit bir tier adına DEĞİL, bu anahtarın varlığına bağlı,
+# scale-agnostik). LARGE/MEDIUM/SMALL HİÇBİR `_max` anahtarı TAŞIMAZ -
+# üçü de TAMAMEN STATIC kalır, backlog ne olursa olsun `departure_
+# passport_servers`/`arrival_passport_servers` sabit sayısının ÜZERİNE
+# HİÇ ÇIKMAZLAR. Security lane sayıları (`domestic_security_lanes`/
+# `international_security_lanes`) HİÇBİR tier için dynamic DEĞİLDİR -
+# demand'e göre büyüyüp küçülmezler, bu ADIM'ın kapsamı SADECE passport.
+#
+# ESKİ DURUM (önceki bir turda YANLIŞLIKLA kaldırıldı, bu ADIM'DA
+# DÜZELTİLDİ): dynamic staffing bir ara LARGE'a bağlıydı - kullanıcı
+# BUNU İSTEMEDİ, dynamic'in MEGA'ya taşınmasını istedi. Mekanizmanın
+# KENDİSİ (`DynamicStaffingParams`/`engine.py:simulate_fifo_queue_
+# dynamic()`) HİÇ SİLİNMEDİ - hangi tier'ın onu tetiklediği, SADECE bu
+# sözlükteki `_max` anahtarının HANGİ tier'da olduğuyla değişir.
+#
+# Havalimanı-özel gerçek değerler (ör. IST/SIN'in gerçek gişe sayıları)
+# bu GENERIC tier sabitlerine YAZILMAZ - `AirportOperationalConfig`
+# üzerinden airport-specific override mekanizması (config.py öncelik
+# zinciri, bu tablonun ÜSTÜNDE) buna ayrılmıştır; bu sözlük SADECE "hiç
+# override'ı olmayan" havalimanları için generic varsayımdır.
 SCALE_RESOURCES: dict[str, dict[str, int]] = {
-    # ADIM (Dynamic LARGE Passport Staffing) - `departure_passport_
-    # servers`/`arrival_passport_servers` LARGE için artık "sabit
-    # server sayısı" DEĞİL, dinamik staffing'in ASLA ALTINA
-    # DÜŞMEYECEĞİ default/taban değeridir (bkz. config.py/engine.py).
-    # `_max` anahtarı SADECE LARGE'da var - bir ölçek sözlüğünde bu
-    # anahtar YOKSA (MEDIUM/SMALL/UNKNOWN) o ölçek SABİT/statik kalır,
-    # dynamic staffing hiç devreye girmez (bkz. config.py
-    # `_resolve_passport_server_counts`).
-    #
-    # ADIM (VERY_LARGE Tier Removed) - önceki turda eklenen ayrı
-    # VERY_LARGE/HUB tier'ı (IST/AMS'i LARGE'dan ayıran) TAMAMEN
-    # KALDIRILDI - kullanıcı TÜM LARGE havalimanlarının (IST/AMS/SAW
-    # dahil) AYNI tek contract'ı paylaşmasını istedi, airport-özel
-    # hardcode YOK. Bu yüzden LARGE'ın `domestic_security_lanes`/
-    # `international_security_lanes` değeri artık eski VERY_LARGE
-    # tier'ının sayısı (20) - security lane-count contract'ı GERİ
-    # DÜŞÜRÜLMEDİ, SADECE tek bir tier'a birleştirildi.
-    #
-    # ADIM (Security Capacity Contract v4) - security artık `security_
-    # service_time_minutes` üzerinden DOLAYLI değil, `SECURITY_
-    # PASSENGERS_PER_HOUR_PER_LANE` (constants.py, tek source-of-truth,
-    # =150) İLE DOĞRUDAN "lane_count x 150 pax/saat" olarak okunur -
-    # buradaki sayılar SADECE lane_count, throughput/lane HER ölçek
-    # için AYNI sabittir. v3'te domestic/international BİLEREK eşit
-    # (symmetric) tutulmuştu - kullanıcı bu ADIM'da AÇIKÇA farklı lane
-    # sayıları verdi (LARGE: domestic=14/international=30, MEDIUM:
-    # 6/8, SMALL: 2/2) - domestic/international HÂLÂ AYRI, bağımsız
-    # queue pool (Bölüm 4 - ayrı incoming/backlog/served/utilization/
-    # wait), SADECE artık aynı lane SAYISINI PAYLAŞMIYORLAR. Passport
-    # tarafı bu ADIM'da DOKUNULMADI.
-    SCALE_LARGE: {
+    SCALE_MEGA: {
         "departure_passport_servers": 30,
-        # ADIM (Departure Passport Dynamic Ceiling Recalibration) -
-        # kullanıcının AÇIKÇA belirttiği yeni tavan: 70 DEĞİL, 45
-        # (arrival havuzunun SABİT tabanıyla aynı sayı - bilinçli bir
-        # kullanıcı kararı, genel bir araştırma oranı DEĞİL). Backlog
-        # hâlâ 10dk'lık kontrol noktalarında `ramp_step` (5) adımlarla
-        # [30, 45] aralığında yukarı/aşağı ayarlanıyor - SADECE tavan
-        # düştü, dynamic staffing mekanizmasının KENDİSİ DEĞİŞMEDİ.
         "departure_passport_servers_max": 45,
-        "arrival_passport_servers": 45,
-        "arrival_passport_servers_max": 75,
-        "domestic_security_lanes": 14,
-        "international_security_lanes": 30,
+        "arrival_passport_servers": 35,
+        "arrival_passport_servers_max": 45,
+        "domestic_security_lanes": 30,
+        "international_security_lanes": 20,
+    },
+    SCALE_LARGE: {
+        "departure_passport_servers": 10,
+        "arrival_passport_servers": 12,
+        "domestic_security_lanes": 8,
+        "international_security_lanes": 6,
     },
     SCALE_MEDIUM: {
-        "departure_passport_servers": 10,
-        "arrival_passport_servers": 15,
-        "domestic_security_lanes": 6,
-        "international_security_lanes": 8,
+        "departure_passport_servers": 4,
+        "arrival_passport_servers": 4,
+        "domestic_security_lanes": 3,
+        "international_security_lanes": 2,
     },
     SCALE_SMALL: {
-        "departure_passport_servers": 3,
-        "arrival_passport_servers": 4,
+        "departure_passport_servers": 2,
+        "arrival_passport_servers": 2,
         "domestic_security_lanes": 2,
         "international_security_lanes": 2,
     },
@@ -194,17 +186,21 @@ def find_duplicate_iata(path: str) -> list[str]:
 
 
 def find_cross_scale_conflicts(
-    large: ScaleCodeSet, medium: ScaleCodeSet, small: ScaleCodeSet,
+    mega: ScaleCodeSet, large: ScaleCodeSet, medium: ScaleCodeSet, small: ScaleCodeSet,
 ) -> dict[str, dict[str, set[str]]]:
     """
     Aynı IATA/ICAO kodunun BİRDEN FAZLA ölçek dosyasında görünüp
     görünmediğini denetler. Boş dönerse çakışma YOK.
 
-    Dönen şekil: {"iata": {"large&medium": {...}, ...}, "icao": {...}}
+    Dönen şekil: {"iata": {"mega&large": {...}, ...}, "icao": {...}}
     - SADECE gerçekten kesişen kod kümeleri raporlanır (boş kesişim
-      anahtar olarak bile YER ALMAZ).
+      anahtar olarak bile YER ALMAZ). 4 tier'ın (mega/large/medium/
+      small) TÜM ikili kombinasyonları denetlenir.
     """
-    scales = {SCALE_LARGE: large, SCALE_MEDIUM: medium, SCALE_SMALL: small}
+    scales = {
+        SCALE_MEGA: mega, SCALE_LARGE: large,
+        SCALE_MEDIUM: medium, SCALE_SMALL: small,
+    }
     conflicts: dict[str, dict[str, set[str]]] = {"iata": {}, "icao": {}}
 
     names = list(scales)
@@ -224,6 +220,7 @@ def find_cross_scale_conflicts(
 def resolve_airport_scale(
     iata_code: str | None,
     icao_code: str | None,
+    mega: ScaleCodeSet,
     large: ScaleCodeSet,
     medium: ScaleCodeSet,
     small: ScaleCodeSet,
@@ -231,17 +228,25 @@ def resolve_airport_scale(
     """
     Bir havalimanının ölçeğini çözer.
 
-    Öncelik: ÖNCE IATA exact match (3 ölçek arasında), IATA hiçbirinde
-    bulunamazsa ICAO exact match. İkisi de bulunamazsa None (unknown -
+    Öncelik: ÖNCE IATA exact match (4 ölçek arasında, `SCALES` sırasıyla
+    - mega -> large -> medium -> small), IATA hiçbirinde bulunamazsa
+    ICAO exact match (AYNI sıra). İkisi de bulunamazsa None (unknown -
     UYDURMA bir varsayılan ÜRETİLMEZ, çağıran taraf - config.py - bunu
-    açıkça ele almalı).
+    açıkça ele almalı). Normal koşulda (bkz. `find_cross_scale_conflicts`)
+    bir kod SADECE TEK bir ölçek kümesinde bulunur - bu precedence
+    sırası sadece çakışma DENETLENMEDEN çağrılırsa hangi ölçeğin
+    kazanacağını belirler, çakışma varsa çağıran taraf (`ingestion/
+    airports_import.py`) zaten `scale=None` ile ezer.
 
     Airport adı üzerinden fuzzy match YOK (görev talimatı) - sadece
     exact kod eşleşmesi.
     """
     iata = (iata_code or "").strip().upper()
     icao = (icao_code or "").strip().upper()
-    scales = {SCALE_LARGE: large, SCALE_MEDIUM: medium, SCALE_SMALL: small}
+    scales = {
+        SCALE_MEGA: mega, SCALE_LARGE: large,
+        SCALE_MEDIUM: medium, SCALE_SMALL: small,
+    }
 
     if iata:
         for scale_name in SCALES:
