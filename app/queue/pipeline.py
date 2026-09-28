@@ -1,33 +1,3 @@
-"""
-Uçtan uca akış: kaynak dosyalar -> veritabanı -> tahminler.
-
-    python -m app.queue.pipeline
-
-Sıra:
-  1. Tablolar (Madde 1 + Madde 2/3 aynı Base'i paylaşır)
-  2. Havalimanı referansı (flight_airports.sql) - bir kere
-  3. Kaynak B indeksi (aircraft_icao)
-  4. Kaynak A ayrıştırma + enrichment
-  5. Uçuş upsert + değişiklik event'leri
-  6. Her havalimanı için tahmin üretimi
-
-Adım 6, Madde 1'in AircraftCapacityService'ini İMPORT EDİP KULLANIR;
-o servisin kodunu değiştirmez.
-
-CANLIYA GEÇİŞ: Elimizde tarife dosyası olarak yalnızca örnek JSON'lar
-var; canlı sistemde aynı kayıtlar ~30 dakikada bir API'den gelecek.
-Bu yüzden `run()` kaynakları DOSYA OLARAK DEĞİL, KAYIT SAĞLAYICI
-olarak alır:
-
-    run(source_a=lambda direction: api.fetch(direction),
-        source_b=lambda: api.fetch_live())
-
-Sağlayıcı verilmezse örnek dosyalar okunur. Canlıya bağlanmak için
-ayrıştırma, hesap, tahmin ve raporlama katmanlarında hiçbir değişiklik
-gerekmez; her çalıştırma mevcut satırları upsert eder, yeni satır
-açmaz.
-"""
-
 import logging
 import os
 import time
@@ -46,7 +16,7 @@ from .ingestion.airports_import import (
 )
 from .ingestion.refresh import refresh_flights
 from .config import _scale_resources_from_db
-from .domain.airport_scale import resource_view_for_scale
+from .domain.airport_scale import SCALE_RESOURCES, resource_view_for_scale
 from .domain.retention_time import USAGE_HORIZON_HOURS
 from .ingestion.sources import (
     aircraft_match_rate,
@@ -54,34 +24,23 @@ from .ingestion.sources import (
     load_source_payload,
     parse_source_a,
 )
-from .models import Airport, AirportOperationalConfig
+from .models import Airport, AirportOperationalConfig, AirportScaleConfig
 
 logger = logging.getLogger(__name__)
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
 
 AIRPORTS_SQL = "flight_airports.sql"
-# ADIM (4-Tier Airport Scale) - mega/large/medium/small ölçek referansı.
 MEGA_SCALE_TXT = "mega_havaalanlari.txt"
 LARGE_SCALE_TXT = "buyuk_olcekli_havaalanlari.txt"
 MEDIUM_SCALE_TXT = "orta_olcekli_havaalanlari.txt"
 SMALL_SCALE_TXT = "kucuk_olcekli_havaalanlari.txt"
-# Kaynak A - tarife/gecikme beslemesi, yön başına bir dosya.
 SOURCE_A_FILES = {
     DIRECTION_ARRIVAL: "Delays - Type Arrivals.json",
     DIRECTION_DEPARTURE: "Delays - Type Departures.json",
 }
-# Kaynak B - canlı uçuş beslemesi, aircraft_icao'nun kaynağı.
 SOURCE_B_FILE = "response-delays.json"
 
-# ADIM (Generated Local Source Mode) - local/dev'de gerçek IST departure/
-# arrival board'larından türetilmiş generated_delays_*.json dosyalarını
-# okumak için opsiyonel geçiş. Varsayılan (env var set DEĞİLSE) davranış
-# BİREBİR eskisiyle AYNI kalır - production'ın SOURCE_A_FILES/SOURCE_B_FILE
-# okuma yolu DEĞİŞMEDİ. `QUEUE_LOCAL_SOURCE_MODE=generated` AÇIKÇA
-# verildiğinde `file_source_a()`/`file_source_b()` bu üç dosyayı okur -
-# dosyaların ÜRETİMİ `scripts/generate_local_ist_source.py`'nin işidir,
-# bu modülün DEĞİL (SADECE hangi dosyanın okunacağına karar verir).
 GENERATED_SOURCE_A_FILES = {
     DIRECTION_ARRIVAL: "generated_delays_arrivals.json",
     DIRECTION_DEPARTURE: "generated_delays_departures.json",
@@ -98,33 +57,12 @@ def _path(data_dir: str, filename: str) -> str:
 
 
 def ensure_airports(session, data_dir: str = DATA_DIR) -> int:
-    """
-    Havalimanı referansını bir kere yükler. Tablo doluysa tekrar
-    ayrıştırma yapılmaz (dosya ~2 MB).
-    """
     if session.query(Airport).first() is not None:
         return 0
     return import_airports(session, _path(data_dir, AIRPORTS_SQL))
 
 
 def ensure_airport_scales(session, data_dir: str = DATA_DIR) -> dict | None:
-    """
-    Airport-scale referansını bir kere yükler (bkz. `ensure_airports()`
-    ile AYNI idempotent bootstrap deseni) - her ~5dk'lık refresh'te 4
-    txt dosyasını YENİDEN parse ETMEZ.
-
-    En az bir `Airport.scale IS NOT NULL` satırı varsa "zaten import
-    edilmiş" sayılır ve atlanır (skip) - bu fonksiyon SADECE İLK/boş
-    bootstrap içindir. Zaten çözülmüş bir veritabanını YENİ bir scale
-    contract'ına göre GÜNCELLEMEK (ör. 3-tier'dan 4-tier'a geçiş)
-    `scripts/update_airport_scale_resources.py`'nin işidir - bu
-    fonksiyon bilinçli olarak "skip" davranışını DEĞİŞTİRMEZ (aksi
-    halde HER prediction turunda/worker restart'ında 4 dosya sessizce
-    yeniden parse edilip DB'ye yazılırdı). Airport referansı (`ensure_
-    airports`) HENÜZ çalışmadıysa (tablo boşsa) yapacak bir şey yoktur,
-    None döner - `import_airport_scales()` zaten var olan `Airport`
-    satırlarını GÜNCELLER, kendi satırını YARATMAZ.
-    """
     if session.query(Airport).first() is None:
         return None
     if session.query(Airport).filter(Airport.scale.isnot(None)).first() is not None:
@@ -138,71 +76,51 @@ def ensure_airport_scales(session, data_dir: str = DATA_DIR) -> dict | None:
     )
 
 
+def ensure_airport_scale_resource_config(session) -> int:
+    """
+    `airport_scale_configs` tablosuna, HENÜZ satırı olmayan her scale
+    (mega/large/medium/small) için `domain/airport_scale.py:SCALE_
+    RESOURCES` Python sabitinin O ANKİ değerlerinin BİR KOPYASINI ekler
+    - "phpMyAdmin'den göremiyorum/değiştiremiyorum" sorununu çözer.
+
+    ÖNEMLİ (config.py:_build_config_view ile AYNI, ZATEN VAR OLAN
+    precedence): bir scale için satır BİR KEZ oluşturduktan sonra, o
+    satır PHP'den/SQL'den DÜZENLENEBİLİR ve `get_config()`/`get_configs()`
+    HER ZAMAN bu satırı Python sabitinin ÖNÜNE koyar - `AirportOperational
+    Config.is_seeded_default` gibi bir "hâlâ default'u takip ediyor" ayrımı
+    BURADA YOK (scale sabitleri, tek bir sistem geneli tanım - havalimanına
+    özel override farkı yok). Yani bu fonksiyon SADECE satır YOKSA
+    seed eder; satır zaten VARSA (ister bu fonksiyon ister kullanıcı
+    oluşturmuş olsun) ASLA üzerine YAZMAZ - `SCALE_RESOURCES` kodda
+    değişse bile, DB'de zaten bir satır varsa o satır kalıcı olarak
+    kazanır (kullanıcı bunu SQL'den silip/güncelleyerek YÖNETİR).
+    """
+    existing_scales = {
+        row.scale for row in session.query(AirportScaleConfig.scale).all()
+    }
+    created = 0
+    for scale, resources in SCALE_RESOURCES.items():
+        if scale in existing_scales:
+            continue
+        session.add(AirportScaleConfig(
+            scale=scale,
+            departure_passport_servers=resources["departure_passport_servers"],
+            departure_passport_servers_max=resources.get("departure_passport_servers_max"),
+            arrival_passport_servers=resources["arrival_passport_servers"],
+            arrival_passport_servers_max=resources.get("arrival_passport_servers_max"),
+            domestic_security_lanes=resources["domestic_security_lanes"],
+            international_security_lanes=resources["international_security_lanes"],
+            international_security_lanes_max=resources.get("international_security_lanes_max"),
+            security_dynamic_control_interval_minutes=resources.get("security_dynamic_control_interval_minutes"),
+            passport_dynamic_control_interval_minutes=resources.get("passport_dynamic_control_interval_minutes"),
+        ))
+        created += 1
+    if created:
+        session.commit()
+    return created
+
+
 def ensure_airport_operational_configs(session) -> dict:
-    """
-    ADIM (Airport Operational Config Materialization) - `ensure_
-    airport_scales()`'in HEMEN SONRASI çalışacak şekilde tasarlandı
-    (bkz. `run()` - scale'ler çözülmeden bu fonksiyonun yapacağı bir
-    şey yoktur). ÖNCEDEN: bir havalimanı için `airport_operational_
-    configs`'ta satır YOKSA `config.py:get_config()` her çağrıda
-    `Airport.scale`'den (`airport_scale.py:SCALE_RESOURCES`) sessizce
-    türetiyordu - satır SADECE elle override edilince oluşuyordu. Bu,
-    "bu havalimanı için hangi kapasiteyi kullanıyoruz" sorusunu MySQL'de
-    GÖREMEMEK anlamına geliyordu (bkz. rapor - kullanıcı talebi).
-
-    Artık `Airport.scale IS NOT NULL` olan (yani mega/large/medium/
-    small çözülebilen) HER havalimanı için, henüz satırı YOKSA, `SCALE_
-    RESOURCES`'ın O ANKİ değerlerinin BİR KOPYASI `is_seeded_
-    default=True` ile eklenir - `AirportConfigView.is_default`/
-    confidence cezası (bkz. `config.py:_build_config_view`, `core/
-    scoring.py:confidence_score`) bu satırlar için AYNEN eskisi gibi
-    "default" sayılmaya devam eder; SADECE satırın KENDİSİ artık
-    MySQL'de GÖRÜNÜR/DÜZENLENEBİLİR.
-
-    ADIM (Live Scale Read) - `config.py:_resolve_security_lane_counts()`
-    artık `is_seeded_default=True` satırların KENDİ kolon değerini HİÇ
-    OKUMAZ, HER ZAMAN `SCALE_RESOURCES`'ın O ANKİ (güncel) değerinden
-    canlı türetir (bkz. o fonksiyonun docstring'i - kullanıcı talebi:
-    "büyük ölçekliyse büyük ölçekli için kullandığımız KAPASİTEYİ
-    alacak", dondurulmuş bir kopya DEĞİL). Bu fonksiyon YİNE DE
-    `is_seeded_default=True` satırların `domestic_security_lane_count`/
-    `international_security_lane_count` kolonlarını her çalışmada
-    GÜNCEL `resources`'a RESYNC eder (sadece GERÇEKTEN farklıysa
-    UPDATE - gereksiz yazma YOK) - bu SADECE phpMyAdmin'deki gösterimin
-    (kod zaten canlı okusa da) YANILTICI/stale görünmemesi içindir,
-    doğruluk BUNA bağlı DEĞİLDİR.
-
-    BİLİNÇLİ İSTİSNA - `passport_departure_server_count`/`passport_
-    arrival_server_count` seed/resync edilirken KASITLI OLARAK `None`
-    (NULL) bırakılır, `SCALE_RESOURCES`'ın sayısal değeri YAZILMAZ: bu
-    iki kolonun `NULL` OLMASI, `config.py:_resolve_passport_server_
-    counts()` için "override YOK, scale'den HER ÇAĞRIDA CANLI türet"
-    anlamına gelir (bkz. o fonksiyon + `_build_config_view`'ın
-    `departure_is_override` mantığı) - `SCALE_RESOURCES`'taki sayılar
-    (ör. MEGA'nın 30/35'i) ileride TEKRAR değişirse, bu kolonlar NULL
-    kaldığı sürece MySQL'e HİÇBİR migration/update GEREKMEDEN tüm
-    scale-derived havalimanları otomatik yeni değeri kullanır. Eğer
-    buraya scale'in sayısını LİTERAL yazsaydık, kolon artık `NULL`
-    OLMAYACAĞI için sistem bunu "explicit override" sanıp o havalimanını
-    SESSİZCE gelecekteki `SCALE_RESOURCES` güncellemelerinden İZOLE
-    ederdi - bu YANLIŞ, istenmeyen bir yan etki olurdu. (Eski not: bu
-    izolasyon önceden "LARGE'ın dynamic staffing'ini kapatır" olarak da
-    zarar verirdi - 4-tier static contract'ta dynamic staffing zaten
-    hiçbir scale için aktif değil, bkz. `domain/airport_scale.py:
-    SCALE_RESOURCES` docstring'i, ama "canlı okuma" gerekçesi AYNEN
-    geçerli.)
-
-    Bir havalimanı için satır `is_seeded_default=False` (elle override
-    edildi) İSE bu fonksiyon ONU HİÇ dokunmaz/üzerine YAZMAZ -
-    "eğer havaalanına özel veri belirlediysek override olup onu almalı"
-    (kullanıcı talebi) tam olarak bu şekilde korunuyor.
-
-    `ensure_airports()`/`ensure_airport_scales()` ile AYNI idempotent
-    bootstrap deseni - HENÜZ hiçbir havalimanının scale'i çözülmediyse
-    (tablo boş/hepsi None) yapacak bir şey yoktur.
-
-    Döner: `{"created": int, "resynced": int}`.
-    """
     resolved = (
         session.query(Airport)
         .filter(Airport.scale.isnot(None))
@@ -216,12 +134,6 @@ def ensure_airport_operational_configs(session) -> dict:
         for row in session.query(AirportOperationalConfig).all()
     }
 
-    # ADIM (DB-Editable Scale Resource Contract) - `airport_scale_
-    # configs` tablosunda bir scale için satır VARSA, aşağıdaki resync
-    # ONU kullanır (`SCALE_RESOURCES` Python sabiti yerine) - böylece
-    # phpMyAdmin'den değiştirilen bir sayı bu "görünürlük kopyası"na
-    # da yansır, `config.py:get_config()`'ün canlı hesabıyla TUTARLI
-    # kalır. TEK sorgu, tüm döngü boyunca paylaşılır.
     db_scale_resources = _scale_resources_from_db(session)
 
     created = 0
@@ -243,7 +155,7 @@ def ensure_airport_operational_configs(session) -> dict:
             created += 1
             continue
         if not row.is_seeded_default:
-            continue  # insan eliyle override edilmiş satır - HİÇ dokunulmaz.
+            continue
         if (
             row.domestic_security_lane_count != resources["domestic_security_lanes"]
             or row.international_security_lane_count != resources["international_security_lanes"]
@@ -256,39 +168,27 @@ def ensure_airport_operational_configs(session) -> dict:
     return {"created": created, "resynced": resynced}
 
 
+def resync_security_service_time(session) -> int:
+    from .constants import SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES
+
+    rows = (
+        session.query(AirportOperationalConfig)
+        .filter(AirportOperationalConfig.is_seeded_default.is_(True))
+        .filter(AirportOperationalConfig.security_service_time_minutes != SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES)
+        .all()
+    )
+    for row in rows:
+        row.security_service_time_minutes = SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES
+    if rows:
+        session.commit()
+    return len(rows)
+
+
 class CapacitySeedError(RuntimeError):
-    """
-    `aircraft_capacity` boş olduğu halde resmi seed fonksiyonları
-    çalıştırılamadı - AÇIK bir hata; çağıran taraf bunu bir health
-    failure olarak ele almalı. Sessizce `unknown_default`e (150)
-    düşülmesi TERCİH EDİLMEZ - bu, ADIM 6C'de kanıtlanan gerçek bir
-    üretim riskidir (bkz. queue_prediction_spec.md / ADIM 6C raporu).
-    """
+    pass
 
 
 def ensure_capacity_reference(session) -> bool:
-    """
-    ADIM 6C - Madde 1'in kapasite referans tablosu (`aircraft_capacity`)
-    BOŞSA, `AircraftCapacityService.resolve()` HER uçak tipi için
-    sessizce `unknown_default` (150) katmanına düşer - bu, gerçek
-    verinin bile yanlış hesaplanmasına yol açan KANITLANMIŞ bir
-    üretim riskidir (bir önceki DB dosyası silme/yeniden oluşturma
-    olayında bu sessizce oldu).
-
-    Bu fonksiyon `ensure_airports()` ile AYNI desendedir: tablo
-    doluysa HİÇBİR ŞEY yapmaz (gereksiz reseed YOK, idempotent).
-    Boşsa Madde 1'in KENDİ resmi seed fonksiyonlarını (ikinci bir
-    resolver/seed YAZILMADI) çağırır - `app.seed.run()` KULLANILMAZ,
-    çünkü o `init_db(drop_first=True)` ile TÜM tabloları (Flight,
-    QueuePrediction dahil) siler; burada production verisine
-    DOKUNULMAZ, sadece referans tablosu doldurulur.
-
-    Seed başarısız olursa (örn. `data/yolcu_ucaklari.json` bulunamadı)
-    hata YUTULMAZ - `CapacitySeedError` fırlatılır, `run()` bunu
-    kritik/top-level hata olarak yukarı taşır (bkz. `main()`'in
-    exit-code kararı) - sistem sessizce yanlış (150-varsayılan)
-    sonuçlar üretmeye BAŞLAMAZ.
-    """
     if session.query(AircraftCapacity).first() is not None:
         return False
 
@@ -302,10 +202,7 @@ def ensure_capacity_reference(session) -> bool:
         seed_verified_dataset(session)
         seed_curated_fallback(session)
         seed_family_and_ga(session)
-    except Exception as exc:  # noqa: BLE001 - kasıtlı: her türlü seed
-        # hatası aşağıda AÇIK bir CapacitySeedError'a çevrilip yukarı
-        # taşınmalı; burada session.rollback() ile yarım kalan bir
-        # seed'in kısmi veri bırakması da önlenir.
+    except Exception as exc:  # noqa: BLE001
         session.rollback()
         raise CapacitySeedError(
             "aircraft_capacity seed edilemedi - pipeline DURDURULDU "
@@ -322,14 +219,6 @@ def ensure_capacity_reference(session) -> bool:
 
 
 def file_source_a(data_dir: str = DATA_DIR):
-    """
-    Örnek dosyalardan okuyan varsayılan Kaynak A sağlayıcısı.
-
-    `QUEUE_LOCAL_SOURCE_MODE=generated` verilirse (local/dev opsiyonu,
-    bkz. `GENERATED_SOURCE_A_FILES`) generated_delays_*.json okunur;
-    verilmezse (varsayılan) production'ın SOURCE_A_FILES'ı DEĞİŞMEDEN
-    okunmaya devam eder.
-    """
     def provide(direction: str) -> list[dict]:
         files = GENERATED_SOURCE_A_FILES if _local_generated_source_mode() else SOURCE_A_FILES
         return load_source_payload(_path(data_dir, files[direction]))
@@ -337,13 +226,6 @@ def file_source_a(data_dir: str = DATA_DIR):
 
 
 def file_source_b(data_dir: str = DATA_DIR):
-    """
-    Örnek dosyadan okuyan varsayılan Kaynak B sağlayıcısı.
-
-    `QUEUE_LOCAL_SOURCE_MODE=generated` verilirse `GENERATED_SOURCE_B_FILE`
-    okunur; verilmezse (varsayılan) production'ın SOURCE_B_FILE'ı
-    DEĞİŞMEDEN okunmaya devam eder.
-    """
     def provide() -> list[dict]:
         filename = GENERATED_SOURCE_B_FILE if _local_generated_source_mode() else SOURCE_B_FILE
         return load_source_payload(_path(data_dir, filename))
@@ -357,28 +239,6 @@ def load_flight_rows(
     source_b=None,
     now: datetime | None = None,
 ) -> list[dict]:
-    """
-    Kaynak A + Kaynak B birleşimi (AŞAMA 0).
-
-    source_a : (direction) -> kayıt listesi
-    source_b : () -> kayıt listesi
-    Verilmezse örnek dosyalar okunur. Canlı feed bağlanırken burada
-    değişen tek şey bu iki sağlayıcıdır.
-
-    Kaynak B okunamazsa enrichment'sız devam edilir: aircraft_icao
-    None kalır, Madde 1 bunu unknown_default ile karşılar, confidence
-    düşer - sistem ÇÖKMEZ.
-
-    now : ADIM (Re-Ingest Loop Prevention) - Bölüm 15. Verilirse,
-          `now - USAGE_HORIZON_HOURS` (48 saat, `domain/retention_
-          time.py` - `engine.py:flights_of_airport()`'un usage-horizon
-          filtresiyle AYNI sabit) cutoff'undan ESKİ canonical operasyonel
-          zamanlı kayıtlar `parse_source_a()` tarafından HİÇ üretilmez -
-          retention cleanup'ın sildiği eski bir flight'ı upstream hâlâ
-          döndürüyorsa sonsuz silme/yeniden-ekleme döngüsü önlenir.
-          Verilmezse (None, varsayılan) HİÇ filtre uygulanmaz - eski
-          davranış birebir korunur.
-    """
     countries = country_lookup(session)
     source_a = source_a or file_source_a(data_dir)
     source_b = source_b or file_source_b(data_dir)
@@ -437,39 +297,6 @@ def run(
     now=None,
     apply_usage_horizon: bool = False,
 ) -> dict:
-    """
-    Tüm akışı çalıştırır ve özet döndürür.
-
-    Canlı sistemde bu fonksiyon ~30 dakikada bir çağrılır; uçuşlar
-    upsert edilir, sadece gerçek değişiklikler FlightEvent olarak
-    yazılır, tahminler güncellenir ve bayat pencereler temizlenir.
-
-    ADIM 5A - scheduler öncesi observability: bu fonksiyon artık
-    rutin (INFO seviye) ilerleme logları üretir ve dönen özete
-    `failed_airports` (run_predictions()'ın zaten ürettiği ama önceden
-    dışarı yansıtılmayan alan) + `duration_seconds` eklenir. Mevcut
-    anahtarların hiçbiri kaldırılmadı/yeniden adlandırılmadı - sadece
-    eklendi.
-
-    now : ADIM (Operational-Day Scope) - Bölüm 59: "Testlerde 'now'
-          inject edilebilir/deterministik olmalıdır". `run_predictions()`'a
-          VE `load_flight_rows()`'a (ADIM Re-Ingest Loop Prevention -
-          Bölüm 15: 48 saatlik ingestion-horizon reddi) AYNEN geçilir.
-          Verilmezse (None) davranış BİREBİR eskisiyle AYNI kalır:
-          `load_flight_rows(now=None)` hiçbir ingestion-horizon filtresi
-          UYGULAMAZ (mevcut, geriye dönük uyumlu varsayılan - bkz. o
-          fonksiyonun docstring'i), `run_predictions()` kendi
-          `domain_now()` varsayılanını kullanır (DEĞİŞMEDİ). Gerçek
-          production periyodik döngüsü (`worker.py:run_forever()`)
-          Bölüm 15'in re-ingest-loop korumasını AKTİFLEŞTİRMEK için
-          `now=domain_now()`'ı AÇIKÇA geçer - bu fonksiyonun kendi
-          varsayılanı DEĞİŞMEDİ, sadece TEK bir çağıran artık `now`'ı
-          açıkça veriyor.
-    apply_usage_horizon : ADIM (48h Usage Horizon) - `run_predictions()`'a
-          AYNEN geçilir (bkz. o fonksiyonun docstring'i). Varsayılan
-          `False` - mevcut davranış korunur. SADECE `worker.py`'nin
-          gerçek production çağrısı `True` geçer.
-    """
     start = time.monotonic()
     logger.info("pipeline run started")
 
@@ -478,7 +305,9 @@ def run(
     try:
         airports_loaded = ensure_airports(session, data_dir)
         scales_imported = ensure_airport_scales(session, data_dir)
+        scale_resource_configs_seeded = ensure_airport_scale_resource_config(session)
         operational_configs = ensure_airport_operational_configs(session)
+        security_service_time_resynced = resync_security_service_time(session)
         capacity_seeded = ensure_capacity_reference(session)
         rows = load_flight_rows(session, data_dir, source_a, source_b, now=now)
         match_rate = aircraft_match_rate(rows)
@@ -503,10 +332,6 @@ def run(
             len(predicted["airports"]), len(predicted["failed_airports"]),
         )
         if predicted["failed_airports"]:
-            # Havalimanı-bazlı izolasyon zaten run_predictions() içinde
-            # uygulanıyor (bkz. engine.py) - bu SADECE görünürlük için,
-            # akışı DEĞİŞTİRMEZ, kritik hata SAYILMAZ (bkz. __main__
-            # bloğundaki exit-code kararı).
             logger.warning(
                 "bazı havalimanları için tahmin üretilemedi (izole edildi, "
                 "diğer havalimanları etkilenmedi): %s",
@@ -519,8 +344,10 @@ def run(
     summary = {
         "airports_loaded": airports_loaded,
         "scales_imported": scales_imported,
+        "scale_resource_configs_seeded": scale_resource_configs_seeded,
         "operational_configs_seeded": operational_configs["created"],
         "operational_configs_resynced": operational_configs["resynced"],
+        "security_service_time_resynced": security_service_time_resynced,
         "capacity_seeded": capacity_seeded,
         "flights_parsed": len(rows),
         "aircraft_match_rate": round(match_rate, 3),
@@ -536,28 +363,6 @@ def run(
 
 
 def main() -> int:
-    """
-    CLI giriş noktasının gövdesi - `run()`'ı çağırır, özeti basar ve
-    scheduler'ın (systemd/cron) okuyabileceği bir exit code döndürür.
-
-    Ayrı bir fonksiyon olarak tutulması (doğrudan `if __name__` içine
-    yazmak yerine) SADECE test edilebilirlik içindir: testler `run()`'ı
-    monkeypatch edip `main()`'i çağırarak gerçek DB/dosya sistemine hiç
-    dokunmadan exit-code mantığını doğrulayabilir; `python -m
-    app.queue.pipeline` çalıştırıldığındaki davranış DEĞİŞMEDİ.
-
-    Exit-code kararı (ADIM 5A): SADECE run() dışına sızan (top-level/
-    kritik) bir hata non-zero (1) exit üretir - ör. DB'ye hiç
-    bağlanılamadı, beklenmeyen bir programlama hatası. `failed_airports`
-    (kısmi, havalimanı-bazlı izole hata) TEK BAŞINA process'i başarısız
-    SAYMAZ: run_predictions() bunu zaten izole edip loglayarak devam
-    ediyor (bkz. engine.py) - 3 havalimanından 1'i başarısız olsa bile
-    diğer 2'sinin tahminleri kalıcı ve doğru. Kısmi hatayı da non-zero
-    sayıp her 30 dakikada bir sürekli "FAILED" alarmı üretmek, gerçek/
-    kritik kesintileri (API tamamen düştü, DB erişilemez) gürültüde
-    kaybettirir - bu yüzden kısmi hata sadece WARNING olarak loglanır,
-    exit code'u ETKİLEMEZ.
-    """
     try:
         summary = run()
     except Exception:

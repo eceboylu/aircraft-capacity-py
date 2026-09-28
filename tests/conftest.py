@@ -35,10 +35,13 @@ URL` yine de PYTEST'İN KENDİSİ başlarken set edilmiş olmalı - aksi halde
 collection aşamasında `RuntimeError` ile durur (bu KASITLI: "tests
 MySQL-only" - sessiz/örtük bir DB seçimi hiçbir aşamada YOK).
 """
-from dataclasses import dataclass
+import itertools
+from dataclasses import dataclass, field
 from datetime import datetime
 
 import pytest
+
+_fake_flight_key_counter = itertools.count(1)
 
 from app.db import engine as _mysql_engine
 from app.db import get_session as _mysql_get_session
@@ -107,6 +110,7 @@ class FakeFlight:
     # _requires_passport()`'un `getattr(..., True)` varsayılanıyla AYNI
     # "eski davranışı koru" ilkesi.
     requires_passport: bool = True
+    flight_key: str = field(default_factory=lambda: f"FAKE-{next(_fake_flight_key_counter)}")
 
 
 def make_departure(
@@ -117,7 +121,9 @@ def make_departure(
     status: str = "scheduled",
     aircraft_icao: str | None = "A321",
     requires_passport: bool = True,
+    flight_key: str | None = None,
 ) -> FakeFlight:
+    kwargs = {"flight_key": flight_key} if flight_key is not None else {}
     return FakeFlight(
         direction="departure",
         location=location,
@@ -126,6 +132,7 @@ def make_departure(
         aircraft_icao=aircraft_icao,
         dep_scheduled_utc=when,
         requires_passport=requires_passport,
+        **kwargs,
     )
 
 
@@ -137,7 +144,9 @@ def make_arrival(
     status: str = "scheduled",
     aircraft_icao: str | None = "A321",
     requires_passport: bool = True,
+    flight_key: str | None = None,
 ) -> FakeFlight:
+    kwargs = {"flight_key": flight_key} if flight_key is not None else {}
     return FakeFlight(
         direction="arrival",
         location=location,
@@ -146,6 +155,7 @@ def make_arrival(
         aircraft_icao=aircraft_icao,
         arr_scheduled_utc=when,
         requires_passport=requires_passport,
+        **kwargs,
     )
 
 

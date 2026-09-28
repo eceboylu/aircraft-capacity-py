@@ -1,19 +1,3 @@
-"""
-AŞAMA 6 - Operasyonel Neden Tespiti.
-
-Burada tanımlı 9 tespit fonksiyonunun DIŞINDA hiçbir neden
-üretilmez. Hiçbiri eşiği geçmezse tek bir "Normal operasyonel
-yoğunluk" maddesi yazılır; boş liste ASLA dönmez.
-
-Her mesaj, dokümanda tanımlı şablondan doldurulur - serbest/jenerik
-metin yazılmaz.
-
-Kombinasyonlar için ayrı kod yoktur: birden fazla neden aynı
-pencerede tetiklenirse bu zaten bir kombinasyondur.
-
-SAF KATMAN: veritabanına gitmez. Baseline, utilization ve uçak
-değişikliği bilgisi çağıran taraftan hazır olarak gelir.
-"""
 
 from dataclasses import dataclass
 from typing import Callable, Sequence
@@ -54,10 +38,10 @@ from ..domain.flight_rules import delay_minutes
 
 @dataclass
 class DetectedReason:
-    code: str            # "clustering", "widebody", "delay_compression", ...
-    severity: str        # "info" | "warning" | "critical"
-    message: str         # şablondan doldurulmuş, kullanıcıya gösterilecek
-    metric_value: float  # tetikleyen ham değer (log/debug için)
+    code: str
+    severity: str
+    message: str
+    metric_value: float
 
     def to_dict(self) -> dict:
         return {
@@ -68,18 +52,12 @@ class DetectedReason:
         }
 
 
-# --------------------------------------------------------------------
-# Neden 1 - Departure/Arrival Clustering
-# --------------------------------------------------------------------
 
 def detect_clustering(
     window_flights: Sequence,
     historical_baseline: float | None,
     window_label: str,
 ) -> DetectedReason | None:
-    """
-    Baseline yoksa bu neden ATLANIR - sahte baseline üretilmez.
-    """
     if not historical_baseline:
         return None
 
@@ -99,9 +77,6 @@ def detect_clustering(
     )
 
 
-# --------------------------------------------------------------------
-# Neden 2 - Wide-body / Büyük Uçak Yoğunluğu
-# --------------------------------------------------------------------
 
 def detect_widebody(
     window_flights: Sequence,
@@ -135,15 +110,8 @@ def detect_widebody(
     )
 
 
-# --------------------------------------------------------------------
-# Neden 3 - Delay-Based Compression
-# --------------------------------------------------------------------
 
 def detect_delay_compression(window_flights: Sequence) -> DetectedReason | None:
-    """
-    Birden fazla gecikmiş uçuş aynı pencereye toplandıysa tetiklenir.
-    Tek gecikmiş uçuş riski ARTIRMAZ, sadece bilgi notu üretir.
-    """
     delayed = [
         f for f in window_flights
         if delay_minutes(f) > DELAY_SIGNIFICANT_MINUTES
@@ -177,12 +145,8 @@ def detect_delay_compression(window_flights: Sequence) -> DetectedReason | None:
     )
 
 
-# --------------------------------------------------------------------
-# Neden 4 - Utilization (passport + security)
-# --------------------------------------------------------------------
 
 def detect_utilization(process: str, rho: float | None) -> DetectedReason | None:
-    """Fiziksel kapasitesi tanımlı tüm queue süreçlerinde kullanılır."""
     if rho is None:
         return None
     if rho <= UTILIZATION_REASON_THRESHOLD:
@@ -199,9 +163,6 @@ def detect_utilization(process: str, rho: float | None) -> DetectedReason | None
     )
 
 
-# --------------------------------------------------------------------
-# Neden 5 - International Yoğunluğu (SADECE passport)
-# --------------------------------------------------------------------
 
 def detect_intl_share(
     process: str,
@@ -228,9 +189,6 @@ def detect_intl_share(
     )
 
 
-# --------------------------------------------------------------------
-# Neden 6 - Arrival Bank (SADECE passport)
-# --------------------------------------------------------------------
 
 def detect_arrival_bank(
     process: str,
@@ -238,10 +196,6 @@ def detect_arrival_bank(
     threshold: int = ARRIVAL_BANK_DEFAULT_THRESHOLD,
     window_minutes: int = DEMAND_WINDOW_MINUTES,
 ) -> DetectedReason | None:
-    """
-    Etkisi sadece passport'a yansır, security'ye değil.
-    Eşik havalimanı bazlı override edilebilir.
-    """
     if process != PROCESS_PASSPORT:
         return None
 
@@ -262,14 +216,8 @@ def detect_arrival_bank(
     )
 
 
-# --------------------------------------------------------------------
-# Neden 7 - Cancellation Etkisi
-# --------------------------------------------------------------------
 
 def detect_cancellation(all_period_flights: Sequence) -> DetectedReason | None:
-    """
-    Talebi DÜŞÜREN faktör; riski artırmaz, şeffaflık için gösterilir.
-    """
     cancelled = [f for f in all_period_flights if f.status == STATUS_CANCELLED]
     if not cancelled:
         return None
@@ -285,31 +233,11 @@ def detect_cancellation(all_period_flights: Sequence) -> DetectedReason | None:
     )
 
 
-# --------------------------------------------------------------------
-# Neden 8 - Aircraft Change (Kapasite Değişikliği)
-# --------------------------------------------------------------------
 
 def detect_aircraft_changes(
     aircraft_changes: dict[str, list[tuple[str | None, str | None]]] | None,
     capacity_of_icao: Callable[[str | None], int] | None,
 ) -> list[DetectedReason]:
-    """
-    aircraft_changes : {flight_key: [(old_icao, new_icao), ...]} -
-                       FlightEvent tablosundaki AIRCRAFT_CHANGED
-                       kayıtlarından gelir.
-
-    MADDE 8: aynı uçuşun aynı pencerede birden fazla değişimi varsa
-    (ör. A320→A321, sonra A321→A330) HER İKİSİ de ayrı bir
-    DetectedReason olarak döner - sadece son değişiklik değil. Liste
-    içindeki sıra KORUNUR (çağıran taraf kronolojik sırayla verir),
-    böylece mesajlar da kronolojik çıkar.
-
-    Her değişiklik AYRI değerlendirilir: capacity_delta > 0 risk
-    artırıcı, < 0 risk azaltıcı nottur (severity ile taşınır), delta
-    == 0 olan tek tek değişiklikler atlanır - flight'ın DİĞER gerçek
-    değişiklikleri bundan etkilenmez. Bu notlar risk skorunu (rho,
-    baseline_ratio) DOĞRUDAN değiştirmez; yalnızca açıklama/context'tir.
-    """
     if not aircraft_changes or capacity_of_icao is None:
         return []
 
@@ -335,15 +263,8 @@ def detect_aircraft_changes(
     return found
 
 
-# --------------------------------------------------------------------
-# Neden 9 - Diversion
-# --------------------------------------------------------------------
 
 def detect_diversions(all_period_flights: Sequence) -> list[DetectedReason]:
-    """
-    Yönlendirilen uçuş talepten çıkarılır. Downstream etkisi
-    (transit yolcu, yeniden yönlendirme operasyonu) MODELLENMEZ.
-    """
     return [
         DetectedReason(
             code=REASON_DIVERSION,
@@ -356,9 +277,6 @@ def detect_diversions(all_period_flights: Sequence) -> list[DetectedReason]:
     ]
 
 
-# --------------------------------------------------------------------
-# Orkestrasyon
-# --------------------------------------------------------------------
 
 def detect_reasons(
     airport_iata: str,
@@ -374,10 +292,6 @@ def detect_reasons(
     aircraft_changes: dict[str, tuple[str | None, str | None]] | None = None,
     capacity_of_icao: Callable[[str | None], int] | None = None,
 ) -> list[DetectedReason]:
-    """
-    9 tespit fonksiyonunun HEPSİ çalıştırılır, eşiği geçenler
-    listeye eklenir. Hiçbiri geçmezse "Normal operasyonel yoğunluk".
-    """
     reasons: list[DetectedReason] = []
 
     threshold = getattr(

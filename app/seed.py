@@ -1,21 +1,3 @@
-"""
-MADDE 1 - Seed script
-
-Veri kaynakları:
-  - data/yolcu_ucaklari.json
-      -> ANA KAYNAK, doğrulanmış yolcu uçakları
-  - data/curated_fallback.json
-      -> yaygın ama ana listede eksik varyantlar
-
-GÜVENLİK:
-  - Normal çalışmada mevcut veritabanı tabloları SİLİNMEZ.
-  - Veritabanını sıfırlamak gerekiyorsa açıkça --reset verilmelidir:
-        python -m app.seed --reset
-
-UYARI:
-  --reset canlı/production veritabanında KULLANILMAMALIDIR.
-  Çünkü mevcut tabloları ve içlerindeki verileri siler.
-"""
 
 import argparse
 import json
@@ -44,7 +26,6 @@ def load_json(filename: str):
 
 
 def seed_verified_dataset(session):
-    """aircraft_capacity tablosunun ana verisi: yolcu_ucaklari.json."""
 
     aircraft_list = load_json("yolcu_ucaklari.json")
     now = datetime.now(timezone.utc)
@@ -73,7 +54,6 @@ def seed_verified_dataset(session):
 
 
 def seed_curated_fallback(session):
-    """Ana JSON'da olmayan uçak tiplerini fallback JSON'dan ekler."""
 
     existing_codes = {
         row.icao_code
@@ -115,12 +95,6 @@ def seed_curated_fallback(session):
 
 
 def seed_family_and_ga(session):
-    """
-    Kategori/önek fallback + genel havacılık kuralları.
-
-    Bunlar ana uçak kapasite verisi değil,
-    çözümleme sırasında kullanılacak fallback kurallarıdır.
-    """
 
     commercial = {
         "A38": ("super_wide", 480),
@@ -193,9 +167,6 @@ def seed_family_and_ga(session):
         "A139",
     ]
 
-    # Bu tablo yalnızca fallback kurallarından oluştuğu için
-    # yeniden seed edildiğinde eski kuralları temizleyip
-    # güncel kuralları oluşturuyoruz.
     session.execute(delete(AircraftCapacityFamily))
 
     for prefix, (category, capacity) in commercial.items():
@@ -227,15 +198,6 @@ def seed_family_and_ga(session):
 
 
 def run(reset: bool = False):
-    """
-    Seed işlemini çalıştırır.
-
-    Normal:
-        python -m app.seed
-
-    Sıfırlayarak:
-        python -m app.seed --reset
-    """
 
     if reset:
         logger.warning(
@@ -243,8 +205,6 @@ def run(reset: bool = False):
             "yeniden oluşturulacak."
         )
 
-    # Normal çalışmada drop_first=False.
-    # --reset verilirse bilinçli olarak veritabanı sıfırlanır.
     init_db(drop_first=reset)
 
     session = get_session()

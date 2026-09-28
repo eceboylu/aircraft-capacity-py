@@ -1,23 +1,3 @@
-"""
-AŞAMA 9 - Görselleştirme veri katmanı.
-
-Bu modül grafik çizmez; grafiğin ihtiyaç duyduğu agregatif yapıyı
-hazırlar. YENİ HESAP TETİKLEMEZ - sadece `queue_predictions` ve
-`flights` tablolarından okur.
-
-İki çıktı:
-  hourly_report(session, iata, date)  -> /airports/{iata}/hourly
-  summary_report(session, date)       -> /airports/summary
-
-Saatlik satır, o saatin 15 dakikalık pencerelerinin özetidir:
-  risk        -> saatin EN KÖTÜ penceresi (RISK_ORDER'a göre)
-  ratio/rho   -> saatin en yüksek değeri
-  wait        -> saatin en uzun beklemesi
-  confidence  -> saatin EN DÜŞÜK güveni (en kötümser olan)
-  reasons     -> pencerelerin nedenleri, koda göre tekilleştirilmiş
-
-domestic_arrival hiçbir yerde görünmez: kuyruğu beslemiyor (AŞAMA 2).
-"""
 
 import json
 from datetime import date as date_type, datetime, time, timedelta
@@ -44,7 +24,6 @@ def _risk_rank(risk: str) -> int:
 
 
 def _worst_risk(risks) -> str:
-    """Saatin riski = en kötü pencerenin riski."""
     ranked = sorted(risks, key=_risk_rank, reverse=True)
     return ranked[0] if ranked else RISK_UNKNOWN
 
@@ -60,12 +39,6 @@ def _min_or_none(values):
 
 
 def _merge_reasons(rows) -> list[dict]:
-    """
-    Saat içindeki pencerelerin nedenlerini birleştirir.
-
-    Aynı kod birden çok pencerede tetiklendiyse en yüksek
-    metric_value'lu olan tutulur - saatin en belirgin örneği.
-    """
     best: dict[str, dict] = {}
     for row in rows:
         for reason in json.loads(row.reasons or "[]"):
@@ -102,12 +75,10 @@ def _predictions_for_day(session, airport_iata: str, day: date_type):
 
 
 def _process_block(rows) -> dict:
-    """Bir sürecin saatlik özeti."""
     return {
         "risk": _worst_risk([r.risk for r in rows]),
         "baseline_ratio": _max_or_none([r.baseline_ratio for r in rows]),
         "utilization": _max_or_none([r.utilization for r in rows]),
-        # Security'de bu değer her zaman None kalır (YASAK 1).
         "estimated_wait_minutes": _max_or_none(
             [r.estimated_wait_minutes for r in rows]
         ),
@@ -125,12 +96,6 @@ def _empty_flows() -> dict:
 
 
 def hourly_flows(session, airport_iata: str, day: date_type, resolver) -> dict:
-    """
-    Saat başına akış kırılımı: uçuş sayısı + tahmini yolcu.
-
-    Uçuş, kuyruğa yansıdığı ana (effective_time) göre saatlenir;
-    böylece akış tablosu ile kuyruk pencereleri aynı zamanı gösterir.
-    """
     start, end = _day_bounds(day)
     demand = DemandCalculator(resolver)
 
@@ -141,7 +106,7 @@ def hourly_flows(session, airport_iata: str, day: date_type, resolver) -> dict:
     hours: dict[str, dict] = {}
     for flight in flights:
         flow = flow_of(flight)
-        if flow is None:          # domestic arrival - kuyruğu beslemiyor
+        if flow is None:
             continue
         moment = effective_time(flight)
         if moment is None or not (start <= moment < end):
@@ -157,12 +122,6 @@ def hourly_flows(session, airport_iata: str, day: date_type, resolver) -> dict:
 def hourly_report(
     session, airport_iata: str, day: date_type, resolver
 ) -> dict:
-    """
-    /airports/{iata}/hourly karşılığı.
-
-    Yeni hesap YAPMAZ; QueuePrediction satırlarını saatlere toplar.
-    Akış kırılımı için uçuş tablosunu okur.
-    """
     predictions = _predictions_for_day(session, airport_iata, day)
     flows = hourly_flows(session, airport_iata, day, resolver)
 
@@ -191,9 +150,6 @@ def hourly_report(
 
 
 def _peak_of(rows, process: str) -> dict:
-    """
-    Sürecin en yoğun saati: önce en kötü risk, eşitlikte en çok yolcu.
-    """
     by_hour: dict[str, list] = {}
     for row in rows:
         if row.process == process:
@@ -220,13 +176,6 @@ def _peak_of(rows, process: str) -> dict:
 def summary_report(
     session, day: date_type, airports: list[str] | None = None
 ) -> dict:
-    """
-    /airports/summary karşılığı - her havalimanı için tepe saatler.
-
-    Havalimanı listesi verilmezse o güne tahmini olan TÜM
-    havalimanları raporlanır; her biri kendi satırında, birbirini
-    etkilemeden.
-    """
     start, end = _day_bounds(day)
 
     if airports is None:
@@ -250,7 +199,6 @@ def summary_report(
             "peak_security_hour": security["hour"],
             "peak_security_risk": security["risk"],
             "peak_passport_hour": passport["hour"],
-            # Security için dakika ASLA üretilmez; sadece passport'ta var.
             "peak_passport_wait_minutes": passport["wait_minutes"],
             "peak_passport_risk": passport["risk"],
         })

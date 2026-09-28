@@ -1,15 +1,3 @@
-"""
-AŞAMA 8 - Kuyruk tahmin motorunun veritabanı modelleri.
-
-Madde 1'in Base'i import edilir, YENİDEN TANIMLANMAZ - böylece
-tek metadata, tek veritabanı, tek create_all.
-
-Şişme koruması (YASAK 4):
-  - Flight / QueuePrediction / HistoricalFlightCount: her refresh'te
-    session.merge() ile UPSERT, yeni satır açılmaz.
-  - FlightEvent: SADECE gerçek bir durum değişikliği tespit
-    edildiğinde satır eklenir.
-"""
 
 from datetime import date, datetime
 
@@ -30,7 +18,6 @@ from .constants import SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES
 
 
 class Airport(Base):
-    """flight_airports.sql'den bir kere içe aktarılır."""
 
     __tablename__ = "airports"
 
@@ -42,44 +29,22 @@ class Airport(Base):
         String(4), nullable=True, index=True
     )
     timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    # ADIM (4-Tier Airport Scale): "mega"/"large"/"medium"/"small" -
-    # `app/queue/domain/airport_scale.py`'nin çözdüğü değer,
-    # `ingestion/airports_import.py:import_airport_scales()` ile
-    # BİR KEZ import edilir (mevcut bir DB'yi YENİ contract'a göre
-    # güncellemek için `refresh_airport_scales()`/`scripts/update_
-    # airport_scale_resources.py`). Bilinmiyorsa None - UYDURMA bir
-    # ölçek ATANMAZ (bkz. config.py'nin unknown-scale davranışı).
     scale: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
 
 class Flight(Base):
-    """
-    Kaynak A (tarife) + Kaynak B (uçak tipi enrichment) birleşimi.
-
-    flight_key benzersizdir; aynı uçuş tekrar geldiğinde INSERT değil
-    UPDATE yapılır.
-    """
 
     __tablename__ = "flights"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
-    # "{airline_iata}_{flight_number}_{dep_scheduled_date_utc}"
     flight_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
 
-    # Hangi havalimanının kapsamında olduğu. Çok-havalimanlı
-    # filtreleme için ZORUNLU (YASAK 5).
     airport_iata: Mapped[str] = mapped_column(String(10), index=True)
 
-    direction: Mapped[str] = mapped_column(String(16))   # arrival | departure
-    location: Mapped[str] = mapped_column(String(16))    # domestic | international
+    direction: Mapped[str] = mapped_column(String(16))
+    location: Mapped[str] = mapped_column(String(16))
 
-    # ADIM (Schengen-Aware Passport Routing) - `location` (traffic type)
-    # İLE KARIŞTIRILMAMALI: Schengen->Schengen bir uçuş `location`'da
-    # international KALIR ama sınırda pasaport kontrolü YOKTUR - bkz.
-    # `domain/schengen.py:requires_passport_control()`. Varsayılan True
-    # (mevcut/eski davranışı korur - Schengen bilgisi HENÜZ hesaplanmamış
-    # satırlar için "passport gerekir" güvenli tarafı).
     requires_passport: Mapped[bool] = mapped_column(Boolean, default=True)
 
     airline_iata: Mapped[str | None] = mapped_column(String(8), nullable=True)
@@ -88,7 +53,6 @@ class Flight(Base):
         String(16), nullable=True, index=True
     )
 
-    # Kaynak B'den enrichment ile gelir; eşleşme yoksa None kalır.
     aircraft_icao: Mapped[str | None] = mapped_column(String(8), nullable=True)
     aircraft_match_found: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -112,31 +76,6 @@ class Flight(Base):
 
 
 class FlightEvent(Base):
-    """
-    SADECE değişiklik olduğunda satır açılır (YASAK 4).
-    30 dakikalık refresh'te otomatik kayıt YAZILMAZ.
-
-    Her gerçek değişiklik AYRI bir satırdır (MADDE 8) - aynı uçuşun
-    aynı pencerede birden fazla aircraft change'i varsa (A320->A321,
-    sonra A321->A330) her ikisi de burada AYRI satır olarak durur,
-    hiçbiri üzerine yazılmaz.
-
-    flight_effective_time (additive/nullable kolon): SADECE
-    AIRCRAFT_CHANGED event'lerinde doldurulur - değişikliğin ait
-    olduğu uçuşun o anki effective_time()'ıdır (dep/arr scheduled
-    değil, mevcut sistemin pencere-atama kuralıyla AYNI fonksiyon).
-    Bu, event'in hangi 15 dk prediction window'una düştüğünü ve
-    duplicate event tespitini (aynı flight+aynı eski/yeni tip+aynı
-    effective_time) belirler. Diğer event tiplerinde (CANCELLED,
-    DIVERTED, DELAYED) None kalır - MADDE 8 kapsamı sadece aircraft
-    change'dir, bu alan onları etkilemez.
-
-    Şema notu: bu kolon sonradan eklendi, nullable'dır - var olan bir
-    production veritabanına ALTER TABLE gerekir (`create_all()` var olan
-    tabloyu değiştirmez, sadece eksik tabloları yaratır) - bkz. alembic/
-    versions/ altındaki migration dosyaları (şema değişiklikleri artık
-    buradan yönetiliyor, bkz. alembic/README).
-    """
 
     __tablename__ = "flight_events"
 
@@ -153,78 +92,18 @@ class FlightEvent(Base):
 
 
 class AirportOperationalConfig(Base):
-    """
-    Havalimanı bazlı operasyon modeli.
-
-    Varsayılan değerler ÖRNEK/VARSAYIMDIR, ölçülmüş gerçek veri
-    DEĞİLDİR. Her havalimanı için bu tablodan override edilebilir -
-    mantık tek bir havalimanına bağlanmaz (YASAK 5).
-    """
 
     __tablename__ = "airport_operational_configs"
 
     airport_iata: Mapped[str] = mapped_column(String(10), primary_key=True)
 
-    # Fiziksel gişe (masa/kabin) sayısı. Erlang-C'nin `c` parametresi
-    # BUNUN KENDİSİ DEĞİL - bkz. `passport_staff_per_counter` (her
-    # gişede AYNI ANDA paralel çalışan görevli sayısı); gerçek `c` =
-    # `passport_effective_server_count()` = counter_count x
-    # staff_per_counter (core/scoring.py). `passport_staff_count`
-    # (toplam personel/vardiya) kapasiteye HİÇ girmez - salt
-    # bilgilendirici (bkz. `passport_staff_count_mismatch`).
     passport_counter_count: Mapped[int] = mapped_column(Integer, default=4)
     passport_staff_count: Mapped[int] = mapped_column(Integer, default=8)
 
-    # Production queue modelinin açık servis varsayımı: TEK BİR
-    # GÖREVLİNİN bir yolcuyu işleme süresi.
-    #
-    # ADIM (Resource/Service Throughput Calibration) - kullanıcının
-    # AÇIKÇA belirttiği yeni contract değeri: 1.0 dk = 60 pax/saat/
-    # görevli (eski değer 1.5 dk'dan DEĞİŞTİ - bu bilinçli bir
-    # kullanıcı kararıdır, genel araştırma oranı DEĞİL). mu = 1/1.0 =
-    # 1.0 pax/dk/görevli; c=4 gişe x 2 paralel görevli/gişe = 8 efektif
-    # server ile toplam kapasite 480 pax/saat (core/scoring.py:
-    # `passport_capacity_rate`).
     passport_service_time_minutes: Mapped[float] = mapped_column(
         Float, default=1.0
     )
 
-    # Security için fiziksel lane sayısı ve lane başına işlem süresi.
-    #
-    # ADIM (Security Capacity Contract v4 - lane_count x pax/hour/
-    # lane) - bu alan artık "TEK bir yolcunun lane'de geçirdiği
-    # fiziksel muayene süresi" olarak OKUNMAZ/YORUMLANMAZ. Kaynak
-    # gerçek sayı `constants.py:SECURITY_PASSENGERS_PER_HOUR_PER_LANE`
-    # (=150, kullanıcının AÇIKÇA verdiği contract) - bu alanın
-    # varsayılanı SADECE Erlang-C/event-driven FIFO'nun (core/
-    # scoring.py, core/event_queue.py) matematiksel olarak "dakika/
-    # yolcu" birimi BEKLEMESİ yüzünden var: `SECURITY_EFFECTIVE_
-    # SERVICE_TIME_MINUTES` = 60/150 = 0.4 dk, "EFFECTIVE AGGREGATE
-    # LANE THROUGHPUT"'un o birime çevrilmiş HALİDİR, literal passenger
-    # inspection time DEĞİLDİR. İki yerde ayrı yazılan bir "150" ve bir
-    # "0.4" YOK - ikincisi birincinin türevi (bkz. constants.py).
-    # capacity_per_hour = lane_count x 150 (queue simulation/scoring/
-    # reporting/utilization/queue_pressure HEPSİ bu tek formülü, bu tek
-    # sabit üzerinden kullanır).
-    #
-    # `security_lane_count`: BİRLEŞİK/legacy `PROCESS_SECURITY` (tüm
-    # kalkışlar, geriye dönük uyumluluk) ve `PROCESS_SECURITY_INTL`
-    # (passport→security kuplajının İÇİNDE, bkz. engine.py
-    # `_passport_security_hourly_coupling`) için kullanılmaya devam
-    # ediyor - bu ADIM kuplaj fonksiyonuna DOKUNMUYOR.
-    #
-    # `domestic_security_lane_count`: SADECE `PROCESS_SECURITY_DOMESTIC`
-    # için - bu süreç kuplajdan tamamen bağımsız (domestic kalkış
-    # passport'u hiç görmeden doğrudan security'ye girer), bu yüzden
-    # kendi fiziksel lane sayısını GÜVENLE ayrı taşıyabilir. Varsayılan
-    # mevcut `security_lane_count` ile AYNI (8) - additive migration
-    # sonrası hiçbir mevcut airport'un davranışı DEĞİŞMEZ.
-    #
-    # `international_security_lane_count`: şema/config katmanında
-    # airport-bazlı olarak taşınır ve toplu düzenlenebilir (bkz.
-    # config.py), ancak `PROCESS_SECURITY_INTL`'in queue matematiğine
-    # BAĞLANMADI - bu, coupling fonksiyonunun içini değiştirmeyi
-    # gerektirir (bu ADIM'ın kapsamı dışında, bkz. rapor).
     security_lane_count: Mapped[int] = mapped_column(Integer, default=8)
     domestic_security_lane_count: Mapped[int] = mapped_column(Integer, default=8)
     international_security_lane_count: Mapped[int] = mapped_column(Integer, default=8)
@@ -232,25 +111,10 @@ class AirportOperationalConfig(Base):
         Float, default=SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES
     )
 
-    # `passport_staff_per_counter` (4x2=8 efektif server modeli) AKTİF
-    # olarak `passport_effective_server_count()`/`passport_capacity_rate()`
-    # tarafından KULLANILIYOR - "legacy" DEĞİL. Diğer ikisi
-    # (`passport_service_rate_per_staff`, `passport_efficiency_multiplier`)
-    # hâlâ legacy/kullanılmıyor - mevcut veritabanı/config satırlarını
-    # kırmamak için şemada korunuyorlar.
     passport_staff_per_counter: Mapped[float] = mapped_column(Float, default=2.0)
     passport_service_rate_per_staff: Mapped[float] = mapped_column(Float, default=1.0)
     passport_efficiency_multiplier: Mapped[float] = mapped_column(Float, default=0.8125)
 
-    # ADIM (Airport-Scale Queue Capacity) - departure/arrival passport
-    # havuzları artık AYRI (bkz. core/event_queue.py). NULLABLE, default
-    # YOK (None) - bu, "airport-specific EXPLICIT override" ile "hiç
-    # dokunulmadı" arasındaki farkı taşır: None ise config.py önce
-    # `Airport.scale`'den türetilmiş değeri, o da yoksa eski
-    # `passport_counter_count x passport_staff_per_counter` (unknown-
-    # scale fallback) kullanır. Eski `passport_counter_count`/
-    # `passport_staff_per_counter` SİLİNMEDİ (geriye dönük uyumluluk -
-    # unknown-scale fallback'i hâlâ onlardan türer).
     passport_departure_server_count: Mapped[int | None] = mapped_column(
         Integer, nullable=True, default=None
     )
@@ -260,58 +124,10 @@ class AirportOperationalConfig(Base):
 
     arrival_bank_threshold: Mapped[int] = mapped_column(Integer, default=5)
 
-    # ADIM (Airport Operational Config Materialization) - önceden bir
-    # satırın VARLIĞI = "bu havalimanı açıkça override edildi" anlamına
-    # geliyordu (bkz. config.py:_build_config_view - `is_default = row
-    # is None`). Artık HER ölçeği çözülen havalimanı için (`ensure_
-    # airport_operational_configs()` - bkz. pipeline.py) bir satır
-    # OTOMATİK oluşturuluyor - satırın VARLIĞI artık "override" ile
-    # AYNI ŞEY DEĞİL. Bu kolon o farkı taşır:
-    #
-    #   True  = satır SADECE scale'in (`airport_scale.py:SCALE_
-    #           RESOURCES`) kopyası olarak seed edildi - insan ELİYLE
-    #           HİÇBİR alanı değiştirilmedi. `confidence_score()`'un
-    #           `CONFIDENCE_PENALTY_DEFAULT_CONFIG` cezası bu satırlar
-    #           için HÂLÂ uygulanır (bkz. config.py `is_default`) -
-    #           satırın var OLMASI, gerçek/ölçülmüş bir veri olduğu
-    #           anlamına GELMEZ.
-    #   False = bu satırdaki bir/birden fazla alan AÇIKÇA bu havalimanı
-    #           için özelleştirildi (override) - confidence cezası
-    #           KALKAR, `AirportConfigView.is_default=False` olur.
-    #
-    # Varsayılan `False`: elle INSERT edilen (seed fonksiyonundan
-    # GEÇMEYEN) eski/manuel satırlar hep "override" sayılır - geriye
-    # dönük uyumlu, YANLIŞLIKLA "default" sayılıp confidence'ı YÜKSELEN
-    # bir satır OLMAZ.
     is_seeded_default: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class AirportScaleConfig(Base):
-    """
-    ADIM (DB-Editable Scale Resource Contract) - `domain/airport_scale.py:
-    SCALE_RESOURCES`'ın (Python sabiti) CANLI/düzenlenebilir üst katmanı.
-
-    Bu tablo ÖNCEDEN (bu ADIM'dan önce) kodda hiç okunmayan, yetim/orphan
-    bir tabloydu (3-tier döneminden kalma eski değerler taşıyordu, mega
-    hiç yoktu) - `config.py:_scale_resources_from_db()` artık bu tabloyu
-    GERÇEKTEN okuyor: `scale` başına bir satır VARSA, o satırın değerleri
-    `SCALE_RESOURCES`'ın hardcoded değerlerinin YERİNE geçer (öncelik
-    zinciri: DB satırı > Python sabiti). Bu, phpMyAdmin'den bir sayı
-    değiştirip deploy/kod değişikliği yapmadan tüm o ölçekteki
-    havalimanlarının bir SONRAKİ hesaplamada yeni değeri kullanmasını
-    sağlar.
-
-    `scale` DIŞINDA bir satırda YOKSA (ör. tablo boşsa, ya da sadece
-    bazı tier'lar için satır varsa) o tier için `SCALE_RESOURCES`
-    (Python sabiti) AYNEN kullanılmaya devam eder - bu tablo KISMİ
-    olabilir, "hepsi ya da hiçbiri" değildir.
-
-    `departure_passport_servers_max`/`arrival_passport_servers_max`
-    NULL ise (LARGE/MEDIUM/SMALL gibi) o havuz İÇİN dynamic staffing
-    PASİF kalır (bkz. `config.py:_build_config_view()` - `_max is not
-    None` kontrolü DEĞİŞMEDİ, sadece `_max`'ın KAYNAĞI artık bu tablo
-    olabilir).
-    """
 
     __tablename__ = "airport_scale_configs"
 
@@ -322,58 +138,43 @@ class AirportScaleConfig(Base):
     arrival_passport_servers_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
     domestic_security_lanes: Mapped[int] = mapped_column(Integer, nullable=False)
     international_security_lanes: Mapped[int] = mapped_column(Integer, nullable=False)
+    # ADIM (MEGA Dynamic Security) - `international_security_lanes`
+    # (yukarıda) artık BASE lane sayısı olarak okunuyor; bu kolon o
+    # BASE'in üstüne çıkabileceği MAX'ı taşır. NULL ise (LARGE/MEDIUM/
+    # SMALL - ve MEGA'da bile bilinçli olarak boş bırakılırsa) security
+    # STATIC kalır - dynamic sadece bu değer DOLU olduğunda devreye
+    # girer (bkz. config.py `_build_config_view`).
+    international_security_lanes_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # ADIM (5-Minute Control Interval) - MEGA dynamic security VE
+    # passport için checkpoint aralığı artık DB'den okunuyor (eskiden
+    # engine.py'de hardcoded 10dk idi). NULL ise kod tarafında 5
+    # dakikaya düşülür (bkz. constants.py DEFAULT_DYNAMIC_CONTROL_
+    # INTERVAL_MINUTES).
+    security_dynamic_control_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    passport_dynamic_control_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class QueuePrediction(Base):
-    """
-    Current-state tablosu: her (havalimanı, süreç, pencere) için
-    TEK satır. Refresh'te upsert ile güncellenir (YASAK 4).
-    """
 
     __tablename__ = "queue_predictions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     airport_iata: Mapped[str] = mapped_column(String(10), index=True)
-    process: Mapped[str] = mapped_column(String(16))   # security | passport
+    process: Mapped[str] = mapped_column(String(16))
     window_start: Mapped[datetime] = mapped_column(DateTime, index=True)
     window_end: Mapped[datetime] = mapped_column(DateTime)
-    # ADIM (Current Operational Day Isolation) - bu satırı ÜRETEN
-    # `run_predictions()` çağrısının, bu havalimanı için çözdüğü YEREL
-    # takvim günü (`operational_day.operational_date(tz, now)` - BÖLÜM
-    # 58/61'in "flight selection"ı için kullandığı AYNI kaynak).
-    # `window_start` (event'in KENDİSİ, `effective_time()`'ın -120dk/+15dk
-    # kaydırdığı UTC an) İLE KARIŞTIRILMAZ: bir günün flight'ı, backlog/
-    # offset nedeniyle `window_start` olarak ÖNCEKİ/SONRAKİ takvim gününe
-    # düşebilir (Bölüm 61 - cross-midnight/queue-carry event'ler HÂLÂ
-    # KORUNUR) - ama bu satır GERÇEKTE hangi operasyonel GÜNÜN talebinden
-    # üretildiğini burada TAŞIR. `api.py:process_series()` "sadece
-    # BUGÜNÜN grafiği" filtresini `window_start` ARALIĞI ile DEĞİL, bu
-    # alanla yapar - böylece kalıcı/çok-günlü bir DB'de ESKİ bir günün
-    # TAMAMEN AYRI, GERÇEK verisi "bugünün" current grafiğine SIZMAZ,
-    # ama AYNI günün kendi sınır-geçişli event'leri asla YANLIŞLIKLA
-    # dışlanmaz. NULLABLE: eski (bu ADIM'dan ÖNCE yazılmış) satırlar VEYA
-    # timezone'u çözülemeyen havalimanları için `None` - çağıran taraf
-    # (`process_series`/`prune_stale_predictions`) bu durumda ESKİ,
-    # `window_start` tabanlı (geniş/superset) davranışa GERİ DÖNER.
     operational_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
 
     flight_count: Mapped[int] = mapped_column(Integer, default=0)
     expected_passengers: Mapped[int] = mapped_column(Integer, default=0)
-    # MADDE 7: security'de baseline_ratio, flight_ratio ile
-    # passenger_ratio'nun ağırlıklı ortalamasıdır. Bileşenler ayrıca
-    # saklanır - raporlamada hangi sinyalin tetiklediği görülebilsin.
-    # passenger_ratio, geçmiş yolcu verisi yoksa None kalır.
     baseline_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
     flight_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
     passenger_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    # Passport ve security aynı ortak queue-capacity çekirdeğinden gerçek
-    # utilization/wait üretir; process'e özel c/mu config'ten gelir.
     utilization: Mapped[float | None] = mapped_column(Float, nullable=True)
     estimated_wait_minutes: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     risk: Mapped[str] = mapped_column(String(16))
-    # DetectedReason listesi, JSON string
     reasons: Mapped[str] = mapped_column(Text, default="[]")
     confidence: Mapped[float] = mapped_column(Float, default=0.1)
     calculated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
@@ -386,27 +187,41 @@ class QueuePrediction(Base):
     )
 
 
-class HistoricalFlightCount(Base):
-    """
-    Neden 1 (clustering) ve MADDE 7 (security flight/passenger ratio)
-    baseline'ı. Geçmiş veri birikmediyse satır yoktur ve sahte baseline
-    ÜRETİLMEZ.
+class QueueWaitDisplay5m(Base):
+    # estimated_wait_minutes = queue-state / virtual-arrival wait: "şu an
+    # bir yolcu gelse mevcut FIFO durumuna göre kaç dakika beklerdi"
+    # (bkz. engine.py:event_driven_display_series, core/event_queue.py:
+    # virtual_arrival_wait) - "o pencerede yeni gelenlerin ortalama
+    # wait'i" DEĞİL. Her operasyonel gün için process başına sabit 288
+    # satır (5dk aralıklarla) - yeni arrival olmasa da satır YOK OLMAZ.
 
-    Yolcu ortalaması AYRI bir örneklem sayacıyla (passenger_sample_size)
-    tutulur: bu sütunlar sonradan eklendiği için eski satırlarda yolcu
-    verisi YOKTUR. Uçuş örneklemi ile yolcu örneklemini aynı sayaca
-    bağlamak, olmayan yolcu gözlemlerini varmış gibi göstererek
-    ortalamayı bozardı. passenger_sample_size == 0 iken yolcu baseline'ı
-    None'dır ve passenger_ratio hesaplanmaz (uydurulmaz).
-    """
+    __tablename__ = "queue_wait_display_5m"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    airport_iata: Mapped[str] = mapped_column(String(10), index=True)
+    process: Mapped[str] = mapped_column(String(16))
+    window_start: Mapped[datetime] = mapped_column(DateTime, index=True)
+    estimated_wait_minutes: Mapped[float] = mapped_column(Float)
+    risk: Mapped[str] = mapped_column(String(16))
+    calculated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "airport_iata", "process", "window_start",
+            name="uq_queue_wait_display_5m_window",
+        ),
+    )
+
+
+class HistoricalFlightCount(Base):
 
     __tablename__ = "historical_flight_counts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     airport_iata: Mapped[str] = mapped_column(String(10), index=True)
     process: Mapped[str] = mapped_column(String(16))
-    hour_of_day: Mapped[int] = mapped_column(Integer)   # 0-23
-    day_of_week: Mapped[int] = mapped_column(Integer)   # 0-6
+    hour_of_day: Mapped[int] = mapped_column(Integer)
+    day_of_week: Mapped[int] = mapped_column(Integer)
     average_flight_count: Mapped[float] = mapped_column(Float)
     sample_size: Mapped[int] = mapped_column(Integer, default=0)
     average_expected_passengers: Mapped[float | None] = mapped_column(
@@ -423,21 +238,342 @@ class HistoricalFlightCount(Base):
     )
 
 
+class QueueCalculationHourlyAudit(Base):
+    # READ-ONLY audit satırı - queue hesaplama motoru bu tabloyu ASLA
+    # okumaz (bkz. app/queue/audit.py modül docstring'i). Sadece
+    # ZATEN hesaplanmış `WindowPrediction`/coupling sonuçlarının SQL'den
+    # izlenebilir bir kopyası.
+
+    __tablename__ = "queue_calculation_hourly_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(36), index=True)
+
+    airport_iata: Mapped[str] = mapped_column(String(10), index=True)
+    airport_scale: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    airport_timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    calculation_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+
+    process: Mapped[str] = mapped_column(String(16))
+
+    window_start_utc: Mapped[datetime] = mapped_column(DateTime, index=True)
+    window_start_local: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    window_end_utc: Mapped[datetime] = mapped_column(DateTime)
+    window_end_local: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    direction: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+    flight_count: Mapped[int] = mapped_column("ucus_sayisi", Integer, default=0)
+    expected_passengers: Mapped[float] = mapped_column("beklenen_yolcu_sayisi", Float, default=0)
+
+    lane_or_desk_count: Mapped[int | None] = mapped_column("lane_veya_gise_sayisi", Integer, nullable=True)
+    resource_type: Mapped[str | None] = mapped_column("kaynak_tipi", String(16), nullable=True)
+    service_time_minutes: Mapped[float | None] = mapped_column("islem_suresi_dakika", Float, nullable=True)
+    capacity_per_resource_per_hour: Mapped[float | None] = mapped_column("kaynak_basina_saatlik_kapasite", Float, nullable=True)
+    total_hourly_capacity: Mapped[float | None] = mapped_column("toplam_saatlik_kapasite", Float, nullable=True)
+
+    backlog_start: Mapped[float | None] = mapped_column("saat_basi_bekleyen_yolcu", Float, nullable=True)
+    backlog_end: Mapped[float | None] = mapped_column("saat_sonu_bekleyen_yolcu", Float, nullable=True)
+
+    estimated_wait_minutes: Mapped[float | None] = mapped_column("tahmini_bekleme_dakika", Float, nullable=True)
+    risk: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    display_status: Mapped[str | None] = mapped_column("gorunum_durumu", String(16), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id", "airport_iata", "process", "window_start_utc",
+            name="uq_queue_calc_hourly_audit",
+        ),
+    )
+
+
+class QueueFlightHourContributionAudit(Base):
+    # Bir flight'ın bir saatlik process window'a katkısı - hangi profil
+    # segmenti/yüzdesi kullanıldığı, kaç yolcu ürettiği. Bkz. audit.py.
+
+    __tablename__ = "queue_flight_hour_contribution_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(36), index=True)
+
+    airport_iata: Mapped[str] = mapped_column(String(10), index=True)
+    process: Mapped[str] = mapped_column(String(16))
+
+    window_start_utc: Mapped[datetime] = mapped_column(DateTime, index=True)
+    window_start_local: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    window_end_local: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    flight_db_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    flight_key: Mapped[str] = mapped_column(String(64), index=True)
+
+    flight_iata: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    flight_icao: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    airline_iata: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    airline_icao: Mapped[str | None] = mapped_column(String(8), nullable=True)
+
+    direction: Mapped[str] = mapped_column(String(16))
+    dep_iata: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    arr_iata: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    dep_time_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    dep_time_local: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    arr_time_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    arr_time_local: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    is_domestic: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_international: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_schengen: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    requires_passport: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
+    aircraft_icao: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    resolved_aircraft_capacity: Mapped[int | None] = mapped_column("cozumlenen_ucak_kapasitesi", Integer, nullable=True)
+
+    profile_name: Mapped[str] = mapped_column("profil_adi", String(32))
+    profile_segment: Mapped[str | None] = mapped_column("profil_segmenti", String(32), nullable=True)
+    profile_percentage: Mapped[float | None] = mapped_column("profil_yuzdesi", Float, nullable=True)
+
+    segment_start_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    segment_end_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    passengers_from_segment: Mapped[float | None] = mapped_column("segmentten_gelen_yolcu", Float, nullable=True)
+    passengers_contributed_to_this_hour: Mapped[float] = mapped_column("bu_saate_katilan_yolcu", Float, default=0)
+
+    routing_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    routing_destination: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    security_arrival_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class QueueCohortAudit(Base):
+    # Her üretilen 5dk (departure) / 1dk (arrival) cohort için bir satır.
+
+    __tablename__ = "queue_cohort_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(36), index=True)
+
+    airport_iata: Mapped[str] = mapped_column(String(10), index=True)
+    process: Mapped[str] = mapped_column(String(16))
+
+    flight_key: Mapped[str] = mapped_column(String(64), index=True)
+    flight_iata: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    direction: Mapped[str] = mapped_column(String(16))
+
+    profile_segment: Mapped[str | None] = mapped_column("profil_segmenti", String(32), nullable=True)
+    profile_percentage: Mapped[float | None] = mapped_column("profil_yuzdesi", Float, nullable=True)
+    aircraft_capacity: Mapped[int | None] = mapped_column("ucak_kapasitesi", Integer, nullable=True)
+
+    cohort_start_utc: Mapped[datetime] = mapped_column(DateTime, index=True)
+    cohort_start_local: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cohort_resolution_minutes: Mapped[int] = mapped_column("cohort_cozunurluk_dakika", Integer)
+
+    passenger_count: Mapped[float] = mapped_column("yolcu_sayisi", Float, default=0)
+
+    routing_stage: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    source_process: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    destination_process: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class QueueServiceEventAudit(Base):
+    # ServiceEvent seviyesinde audit - gerçek FIFO çıktısının kopyası.
+
+    __tablename__ = "queue_service_event_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(36), index=True)
+
+    airport_iata: Mapped[str] = mapped_column(String(10), index=True)
+    process: Mapped[str] = mapped_column(String(16))
+
+    source_flight_keys: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    arrival_time_utc: Mapped[datetime] = mapped_column(DateTime, index=True)
+    arrival_time_local: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    service_start_time_utc: Mapped[datetime] = mapped_column(DateTime)
+    service_start_time_local: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completion_time_utc: Mapped[datetime] = mapped_column(DateTime)
+    completion_time_local: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    wait_minutes: Mapped[float] = mapped_column("bekleme_dakika", Float)
+    passenger_count: Mapped[float] = mapped_column("yolcu_sayisi", Float)
+
+    resource_count: Mapped[int | None] = mapped_column("kaynak_sayisi", Integer, nullable=True)
+    service_time_minutes: Mapped[float | None] = mapped_column("islem_suresi_dakika", Float, nullable=True)
+    backlog_before: Mapped[float | None] = mapped_column("islem_oncesi_backlog", Float, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class QueueRoutingSummaryAudit(Base):
+    # Airport/gün bazında classification özeti (kaç domestic/intl/
+    # schengen/non-schengen flight, kaç tanesi passport'u bypass etti).
+
+    __tablename__ = "queue_routing_summary_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(36), index=True)
+    airport_iata: Mapped[str] = mapped_column(String(10), index=True)
+    calculation_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+
+    total_physical_flights: Mapped[int] = mapped_column(Integer, default=0)
+    domestic_departure_flights: Mapped[int] = mapped_column(Integer, default=0)
+    international_departure_flights: Mapped[int] = mapped_column(Integer, default=0)
+    domestic_arrival_flights: Mapped[int] = mapped_column(Integer, default=0)
+    international_arrival_flights: Mapped[int] = mapped_column(Integer, default=0)
+
+    schengen_departure_flights: Mapped[int] = mapped_column(Integer, default=0)
+    non_schengen_departure_flights: Mapped[int] = mapped_column(Integer, default=0)
+    schengen_arrival_flights: Mapped[int] = mapped_column(Integer, default=0)
+    non_schengen_arrival_flights: Mapped[int] = mapped_column(Integer, default=0)
+
+    schengen_departures_bypassed_passport: Mapped[int] = mapped_column(Integer, default=0)
+    non_schengen_departures_entered_passport: Mapped[int] = mapped_column(Integer, default=0)
+    schengen_arrivals_bypassed_passport: Mapped[int] = mapped_column(Integer, default=0)
+    non_schengen_arrivals_entered_passport: Mapped[int] = mapped_column(Integer, default=0)
+
+    codeshare_records_removed: Mapped[int] = mapped_column(Integer, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id", "airport_iata", name="uq_queue_routing_summary_audit",
+        ),
+    )
+
+
+class QueueCountryRoutingAudit(Base):
+
+    __tablename__ = "queue_country_routing_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(36), index=True)
+    airport_iata: Mapped[str] = mapped_column(String(10), index=True)
+    calculation_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+
+    country_code: Mapped[str | None] = mapped_column(String(4), nullable=True, index=True)
+    country_name: Mapped[str | None] = mapped_column("ulke_adi", String(100), nullable=True)
+
+    direction: Mapped[str] = mapped_column(String(16))
+    flight_type: Mapped[str] = mapped_column("ucus_tipi", String(16))
+    schengen_status: Mapped[str] = mapped_column("schengen_durumu", String(16))
+
+    flight_count: Mapped[int] = mapped_column("ucus_sayisi", Integer, default=0)
+    passenger_count: Mapped[float] = mapped_column("yolcu_sayisi", Float, default=0)
+
+    passport_required_count: Mapped[int] = mapped_column("pasaport_gereken_yolcu_sayisi", Integer, default=0)
+    passport_bypass_count: Mapped[int] = mapped_column("pasaport_atlayan_yolcu_sayisi", Integer, default=0)
+
+    security_dom_passengers: Mapped[float] = mapped_column("domestic_security_yolcu_sayisi", Float, default=0)
+    passport_dep_passengers: Mapped[float] = mapped_column("departure_passport_yolcu_sayisi", Float, default=0)
+    security_intl_passengers: Mapped[float] = mapped_column("international_security_yolcu_sayisi", Float, default=0)
+    passport_arr_passengers: Mapped[float] = mapped_column("arrival_passport_yolcu_sayisi", Float, default=0)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class QueueResourceConfigAudit(Base):
+
+    __tablename__ = "queue_resource_config_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(36), index=True)
+    airport_iata: Mapped[str] = mapped_column(String(10), index=True)
+    airport_scale: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+    domestic_security_lanes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # `international_security_lanes` = BASE (MEGA'da dynamic'in başladığı
+    # taban, diğer scale'lerde sabit statik değer - bkz. models.py
+    # AirportScaleConfig yorumu, section 30'daki "duplicate kolon
+    # oluşturma" uyarısı gereği ayrı bir "_base" kolonu AÇILMADI).
+    international_security_lanes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    international_security_lanes_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    departure_passport_desks_base: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    departure_passport_desks_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    arrival_passport_desks_base: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    arrival_passport_desks_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    security_control_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    passport_control_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    security_service_time_minutes: Mapped[float | None] = mapped_column(Float, nullable=True)
+    passport_service_time_minutes: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    domestic_security_capacity_per_hour: Mapped[float | None] = mapped_column(Float, nullable=True)
+    international_security_capacity_per_hour: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    config_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class QueueDynamicStaffingAudit(Base):
+
+    __tablename__ = "queue_dynamic_staffing_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(36), index=True)
+    airport_iata: Mapped[str] = mapped_column(String(10), index=True)
+    process: Mapped[str] = mapped_column(String(16))
+
+    checkpoint_time_utc: Mapped[datetime] = mapped_column(DateTime, index=True)
+    checkpoint_time_local: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    previous_server_count: Mapped[int | None] = mapped_column("onceki_gise_sayisi", Integer, nullable=True)
+    new_server_count: Mapped[int] = mapped_column("yeni_gise_sayisi", Integer)
+
+    backlog: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lookahead_demand: Mapped[float | None] = mapped_column("ileri_bakis_talep", Float, nullable=True)
+    needed_servers: Mapped[int | None] = mapped_column("gereken_gise_sayisi", Integer, nullable=True)
+    # ADIM (Discrete Operational Levels) - `needed_servers` HAM matematik
+    # sonucu; bu alan bunun sabit operational level listesine (15/20/25/
+    # 30/35/40 gibi) yuvarlanmış İDEAL hedefi - `new_server_count` (tek
+    # checkpoint'te sadece BİR seviye ilerleyebildiği için) bundan farklı
+    # olabilir (ör. needed=38, target_operational_level=40, ama
+    # new_server_count sadece bir önceki seviyeden bir sonrakine çıkar).
+    target_operational_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ramp_delta: Mapped[int | None] = mapped_column("gise_degisimi", Integer, nullable=True)
+    pending_retirements: Mapped[int | None] = mapped_column("kapanmayi_bekleyen_gise_sayisi", Integer, nullable=True)
+    # normal_load / demand_threshold / backlog_pressure / lookahead_pressure
+    # / peak_pressure / scale_down - bkz. event_queue.py _apply_checkpoint.
+    reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class QueueGraphDisplayAudit(Base):
+
+    __tablename__ = "queue_graph_display_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(36), index=True)
+    airport_iata: Mapped[str] = mapped_column(String(10), index=True)
+    process: Mapped[str] = mapped_column(String(16))
+
+    bucket_start_utc: Mapped[datetime] = mapped_column(DateTime, index=True)
+    bucket_start_local: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    source_resolution_minutes: Mapped[int] = mapped_column(Integer, default=5)
+    visual_bucket_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    source_point_count: Mapped[int] = mapped_column("kaynak_nokta_sayisi", Integer, default=0)
+
+    average_wait_minutes: Mapped[float | None] = mapped_column("ortalama_bekleme_dakika", Float, nullable=True)
+    peak_wait_minutes: Mapped[float | None] = mapped_column("maksimum_bekleme_dakika", Float, nullable=True)
+    display_wait_minutes: Mapped[float | None] = mapped_column("grafikte_gosterilen_bekleme_dakika", Float, nullable=True)
+
+    status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    is_current: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class BaselineObservation(Base):
-    """
-    AŞAMA 3 (MADDE 3) - idempotency defteri.
-
-    HistoricalFlightCount (hour_of_day, day_of_week) bazlı bir HAVUZ
-    tutar - aynı saat dilimine düşen birçok farklı tarihin ortalamasını
-    biriktirir. Bu tablo ise tek bir somut pencere örneğinin (belirli
-    bir airport + process + window_start) o havuza DAHA ÖNCE eklenip
-    eklenmediğini tutar.
-
-    UNIQUE constraint bu üçlü üzerindedir - aynı pencere ikinci kez
-    kaydedilmeye çalışıldığında DB seviyesinde reddedilir (race/duplicate
-    refresh'lere karşı da güvenlidir, sadece application-level kontrol
-    değildir).
-    """
 
     __tablename__ = "baseline_observations"
 

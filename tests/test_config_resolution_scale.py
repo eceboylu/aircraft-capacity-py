@@ -7,19 +7,26 @@ from app.queue.models import Airport
 
 
 def test_default_config_mega_scale_exact_values():
+    """MEGA dynamic resource policy (source of truth): passport_dep
+    base=15/max=40, passport_arr base=30/max=40, security_intl artık
+    dynamic base=15/max=40 (domestic security static kalıyor)."""
     cfg = default_config("IST", scale="mega")
     assert cfg.domestic_security_lane_count == 30
-    assert cfg.passport_departure_server_count == 30
-    assert cfg.international_security_lane_count == 20
-    assert cfg.passport_arrival_server_count == 35
+    assert cfg.passport_departure_server_count == 15
+    assert cfg.passport_departure_server_count_max == 40
+    assert cfg.international_security_lane_count == 15
+    assert cfg.international_security_lane_count_max == 40
+    assert cfg.security_intl_dynamic is True
+    assert cfg.passport_arrival_server_count == 30
+    assert cfg.passport_arrival_server_count_max == 40
     assert cfg.scale == "mega"
 
 
 def test_default_config_large_scale_exact_values():
     cfg = default_config("ESB", scale="large")
-    assert cfg.domestic_security_lane_count == 8
+    assert cfg.domestic_security_lane_count == 15
     assert cfg.passport_departure_server_count == 10
-    assert cfg.international_security_lane_count == 6
+    assert cfg.international_security_lane_count == 15
     assert cfg.passport_arrival_server_count == 12
 
 
@@ -71,7 +78,7 @@ def test_get_config_reads_large_medium_small_from_db_as_fully_static(db_session)
     session.commit()
 
     expected = {
-        "ESB": (10, 12, 8, 6),
+        "ESB": (10, 12, 15, 15),
         "ADB": (4, 4, 3, 2),
         "ASR": (2, 2, 2, 2),
     }

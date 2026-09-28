@@ -1,6 +1,3 @@
-"""
-MADDE 1 - Veritabanı modelleri (SQLAlchemy)
-"""
 
 from datetime import datetime, timezone
 
@@ -67,10 +64,6 @@ class AircraftCapacityFamily(Base):
 
 
 class UnknownAircraftType(Base):
-    """
-    Bilinmeyen/tahmini kod takip tablosu. Atomic upsert ile
-    beslenir (bkz. service.py flag_unknown), dosya yazma YOK.
-    """
     __tablename__ = "unknown_aircraft_types"
 
     icao_code: Mapped[str] = mapped_column(String(8), primary_key=True)

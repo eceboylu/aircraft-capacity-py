@@ -1,32 +1,3 @@
-"""
-ADIM 5H - Minimal, READ-ONLY görselleştirme sunucusu.
-
-Sadece Python standart kütüphanesi kullanılır (`http.server`) - yeni
-bir bağımlılık (Flask/FastAPI vb.) EKLENMEDİ; `requirements.txt`
-değişmedi.
-
-Sunulan uç noktalar:
-
-    GET /api/airports                       -> ["ADB", "IST", "SAW"]  (GERİYE DÖNÜK UYUMLU, değişmedi)
-    GET /api/airports/directory             -> [{"iata": "IST", "name": "Istanbul Airport"}, ...]  (ADIM 6A-UI-2)
-    GET /api/airports/{iata}/predictions     -> {"airport", "overall", "security", "passport", "breakdown"}
-    GET /health                              -> {"status", "db", "last_successful_refresh",
-                                                  "data_age_seconds", "stale"} (ADIM Health/Stale-Data
-                                                  Visibility - bkz. app/health.py; salt-okunur, worker'ın
-                                                  DB'ye yazdığı ayrı bir "son başarılı refresh" kaydını
-                                                  okur, 200/healthy veya 503/degraded|unhealthy döner)
-    GET /                                    -> static/index.html (frontend)
-
-Hiçbir POST/PUT/DELETE YOK. Hiçbir uç nokta AirLabs'a çağrı yapmaz,
-prediction ÜRETMEZ - sadece `app/queue/api.py`'nin (o da sadece
-DB'den okuyan) fonksiyonlarını JSON'a çevirir. Prediction hesaplama
-her zaman `python -m app.queue.pipeline` (scheduler) tarafındadır;
-bu sunucu ona hiç dokunmaz.
-
-Çalıştırma:
-    venv/Scripts/python -m app.web.server            (varsayılan port 8000)
-    venv/Scripts/python -m app.web.server --port 8080
-"""
 
 from __future__ import annotations
 
@@ -48,8 +19,6 @@ _AIRPORT_PREDICTIONS_RE = re.compile(
     r"^/api/airports/([A-Za-z0-9]{2,10})/predictions$"
 )
 
-# path -> (dosya adı, content-type). Sadece frontend'in ihtiyacı olan
-# statik dosyalar - genel amaçlı bir dosya sunucusu DEĞİL.
 _STATIC_FILES = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/index.html": ("index.html", "text/html; charset=utf-8"),
@@ -57,14 +26,10 @@ _STATIC_FILES = {
 
 
 class QueueMonitorHandler(BaseHTTPRequestHandler):
-    """Sadece GET destekler - CRUD YOK, prediction hesaplama YOK."""
 
     server_version = "AirportQueueMonitor/1.0"
 
     def log_message(self, format: str, *args) -> None:  # noqa: A002
-        # Varsayılan stderr gürültüsünü sadeleştiriyoruz; bu sunucu
-        # read-only/lokal bir görselleştirme aracıdır, erişim logu
-        # kritik değildir. Hiçbir secret zaten bu sunucudan geçmez.
         pass
 
     def _send_json(self, payload, status: int = 200) -> None:
@@ -72,9 +37,6 @@ class QueueMonitorHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        # ADIM 6A-UI §1 - "eski server process/tarayıcı cache'i mi
-        # gösteriyor" ihtimalini KÖKTEN kapatır: her prediction yanıtı
-        # DB'den taze okunur ve tarayıcıya "hiç saklama" denir.
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
@@ -96,16 +58,6 @@ class QueueMonitorHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _test_now_override(self) -> "datetime | None":
-        """
-        ADIM (Local Test-DB Viewing) - SADECE görsel/lokal test rahatlığı
-        için: `?now=YYYY-MM-DDTHH:MM(:SS)` query param'ı VERİLİRSE naive
-        UTC datetime'a çevrilip döner - production "current day" mantığını
-        DEĞİŞTİRMEZ, sadece `app/queue/api.py:airport_predictions(now=...)`'ın
-        ZATEN var olan enjeksiyon noktasını buradan da erişilebilir kılar
-        (pipeline/testler bunu dosyadan zaten kullanıyor - Bölüm 59).
-        Param yoksa/parse edilemezse None - çağıran taraf gerçek duvar
-        saatine (varsayılan, DEĞİŞMEDİ) düşer.
-        """
         query = parse_qs(urlparse(self.path).query)
         raw = query.get("now", [None])[0]
         if not raw:
@@ -119,15 +71,6 @@ class QueueMonitorHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
 
         if path == "/health":
-            # ADIM (Health / Stale-Data Visibility) - SALT-OKUNUR: SADECE
-            # `worker_status` tablosunu okur (bkz. app/health.py), hiçbir
-            # queue/prediction fonksiyonunu ÇAĞIRMAZ, hiçbir yere YAZMAZ.
-            # "Web server ayakta diye healthy dönmesin" - DB'ye erişim
-            # BURADA, gerçekten denenerek doğrulanır; erişilemezse
-            # (connection refused/timeout/vb. - dialect/driver'a göre
-            # değişen bir istisna sınıfı, bu yüzden KASITLI geniş except)
-            # "unhealthy" + 503 döner, worker hiç çalışmamışsa/veri
-            # eskiyse "degraded" + 503, aksi halde "healthy" + 200.
             try:
                 session = get_session()
                 try:

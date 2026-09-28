@@ -192,13 +192,73 @@
     margin-bottom: 18px;
   }
 
-  .process-block { margin-bottom: 18px; max-width: 640px; }
+  .process-block {
+    margin-bottom: 18px;
+    max-width: 640px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px 12px;
+  }
+  .process-block-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
   .process-block h3 {
-    font-size: 11.5px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    margin: 0;
+  }
+  .process-block .eyebrow {
+    font-size: 10.5px;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.07em;
     color: var(--ink-soft);
-    margin: 0 0 8px;
+    margin-top: 2px;
+  }
+  .estimate-summary { text-align: right; }
+  @media (max-width: 420px) { .estimate-summary { text-align: left; } }
+  .estimate-badge {
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 5px;
+  }
+  .estimate-badge-LOW { color: var(--low); background: var(--low-bg); }
+  .estimate-badge-MEDIUM { color: var(--medium); background: var(--medium-bg); }
+  .estimate-badge-HIGH { color: var(--high); background: var(--high-bg); }
+  .estimate-badge-CRITICAL { color: var(--critical); background: var(--critical-bg); }
+  .estimate-badge-UNKNOWN, .estimate-badge-none { color: var(--unknown); background: var(--unknown-bg); }
+  .peak-best-line { font-size: 11px; color: var(--ink-soft); margin-top: 3px; }
+  .process-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 10.5px;
+    color: var(--ink-soft);
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+    margin-top: 8px;
+  }
+  .legend-item { display: inline-flex; align-items: center; gap: 5px; }
+  .legend-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--dot-color, var(--ink-soft));
+  }
+  .legend-dot-current {
+    background: transparent;
+    border: 2px solid #6fcf97;
+    width: 6px;
+    height: 6px;
   }
 
   .pill {
@@ -271,57 +331,17 @@
     HIGH: "#e08a3c", CRITICAL: "#d4514f",
   };
 
-  // ADIM (Continuous Wait->Color Gradient) - kullanıcı talebi: sütun
-  // rengi backend'in 4 SABİT risk renginden BİRİNE ZIPLAMASIN, dakika
-  // arttıkça YEŞİL->SARI->TURUNCU->KIRMIZI->BORDO diye SÜREKLİ/geçişli
-  // değişsin. Duraklar backend'in risk eşikleriyle (constants.py
-  // WAIT_RISK_LOW/MEDIUM/HIGH_MINUTES = 10/15/30) AYNI dakika
-  // noktalarında - YENİ bir risk kuralı İCAT EDİLMEDİ, SADECE o
-  // noktalar arasındaki renk artık ADIM ADIM değil DOĞRUSAL (linear
-  // RGB interpolation) geçiyor. 30 dk'nın ÜSTÜNDE (backend'in
-  // CRITICAL'ı BAŞLADIĞI nokta) 60 dk'ya kadar kırmızıdan bordoya
-  // devam eder, 60+ dk'da bordoda SABİTLENİR (daha da karartmaz -
-  // "en kötü" rengin kendisi budur).
-  var WAIT_COLOR_STOPS = [
-    { minutes: 0, rgb: [47, 169, 104] },   // #2fa968 - LOW (yeşil)
-    { minutes: 10, rgb: [209, 169, 44] },  // #d1a92c - MEDIUM (sarı)
-    { minutes: 15, rgb: [224, 138, 60] },  // #e08a3c - HIGH (turuncu)
-    { minutes: 30, rgb: [212, 81, 79] },   // #d4514f - CRITICAL (kırmızı)
-    { minutes: 60, rgb: [122, 31, 42] },   // bordo - kırmızının devamı
-  ];
-
-  function lerpRgb(a, b, t) {
-    return [
-      Math.round(a[0] + (b[0] - a[0]) * t),
-      Math.round(a[1] + (b[1] - a[1]) * t),
-      Math.round(a[2] + (b[2] - a[2]) * t),
-    ];
-  }
-
-  // `minutes == null` -> backend'in kendi UNKNOWN grisi (bkz.
-  // `colorForWindow` - "veri yok" ile "0 dakika" burada KARIŞTIRILMAZ).
-  function colorForWaitMinutes(minutes) {
-    var stops = WAIT_COLOR_STOPS;
-    if (minutes <= stops[0].minutes) return "rgb(" + stops[0].rgb.join(",") + ")";
-    for (var i = 1; i < stops.length; i++) {
-      if (minutes <= stops[i].minutes) {
-        var t = (minutes - stops[i - 1].minutes) / (stops[i].minutes - stops[i - 1].minutes);
-        return "rgb(" + lerpRgb(stops[i - 1].rgb, stops[i].rgb, t).join(",") + ")";
-      }
-    }
-    return "rgb(" + stops[stops.length - 1].rgb.join(",") + ")"; // 60dk+ -> bordoda sabit
-  }
-
-  // Bir pencerenin sütun rengi - `chartValue()` ile AYNI üç kollu
-  // mantık (gerçek wait / kapasite aşıldı / veri yok), SADECE renk
-  // için. Kapasite aşıldı (wait=null, utilization>=1) HER ZAMAN en
-  // kötü/bordo renktedir (teorik olarak sonsuz bekleme) - sayısal bir
-  // dakikaya dayanmaz.
+  // ADIM (5-Minute Wait Display Series) - kullanıcı talebi: sütun rengi
+  // backend'in 4 SABİT risk renginden (Fast/Normal/Slow/Severe) BİRİ
+  // olsun - sürekli/geçişli bir gradient DEĞİL. Renk DOĞRUDAN backend'in
+  // `risk` alanından (`core/scoring.py:risk_from_wait()`) okunur - burada
+  // YENİ bir eşik/hesap İCAT EDİLMEZ, sadece 4 sabit renge eşlenir.
+  // Kapasite aşıldı (wait=null, utilization>=1 - SADECE saatlik `windows`
+  // fallback'inde mümkün, `display_5m` bu alanı hiç taşımaz) HER ZAMAN
+  // en kötü/CRITICAL renktedir (teorik olarak sonsuz bekleme).
   function colorForWindow(w) {
-    if (w.estimated_wait_minutes != null) return colorForWaitMinutes(w.estimated_wait_minutes);
-    if (w.utilization != null && w.utilization >= 1) {
-      return "rgb(" + WAIT_COLOR_STOPS[WAIT_COLOR_STOPS.length - 1].rgb.join(",") + ")";
-    }
+    if (w.risk) return SEVERITY_COLOR[w.risk] || SEVERITY_COLOR.UNKNOWN;
+    if (w.utilization != null && w.utilization >= 1) return SEVERITY_COLOR.CRITICAL;
     return SEVERITY_COLOR.UNKNOWN;
   }
   // ADIM (Passenger-Facing Risk Threshold v2) - backend risk kodundan
@@ -336,6 +356,177 @@
     LOW: "Normal", MEDIUM: "Getting Busy", HIGH: "Busy",
     CRITICAL: "Very Busy", UNKNOWN: "Unknown",
   };
+
+  // ADIM (5-Minute Wait Display Series) - kart başlığındaki "Estimated
+  // Fast/Normal/Slow/Severe" için AYRI bir sunum sözlüğü - backend'in
+  // KENDİ `risk_label`'ını (yukarıdaki RISK_UI_LABEL) DEĞİŞTİRMEZ,
+  // sadece bu kartın kendi kısa kelime dağarcığı. Anahtarlar backend
+  // risk kodlarıyla (LOW/MEDIUM/HIGH/CRITICAL - `display_5m[].risk`,
+  // zaten `core/scoring.py:risk_from_wait()`'ten gelir) AYNI - burada
+  // YENİ bir eşik/hesap İCAT EDİLMEZ, zaten var olan risk kodu sadece
+  // farklı bir kelimeye çevrilir.
+  var ESTIMATE_LABEL = {
+    LOW: "Fast", MEDIUM: "Normal", HIGH: "Slow", CRITICAL: "Severe",
+  };
+  function estimateLabel(risk) {
+    return ESTIMATE_LABEL[risk] || null;
+  }
+
+  // "14:00" -> "2p". SADECE metin biçimlendirme - zaman/timezone
+  // dönüşümü YAPMAZ, saat sayısı zaten backend'in hesapladığı yerel
+  // saatten (`windowLabel`/`window_start_local`) gelir.
+  function formatHour12(hour) {
+    var h = ((hour % 24) + 24) % 24;
+    var period = h < 12 ? "a" : "p";
+    var display = h % 12;
+    if (display === 0) display = 12;
+    return display + period;
+  }
+
+  function localHourOf(isoLocalOrUtc) {
+    var label = isoLocalOrUtc ? hhmm(isoLocalOrUtc) : "";
+    return label ? parseInt(label.slice(0, 2), 10) : null;
+  }
+
+  function localMinuteOf(isoLocalOrUtc) {
+    var label = isoLocalOrUtc ? hhmm(isoLocalOrUtc) : "";
+    return label ? parseInt(label.slice(3, 5), 10) : null;
+  }
+
+  // ADIM (30-Minute Visual Aggregation) - GÖRSEL sadeleştirme katmanı.
+  // Arka plandaki queue-state hesabı (backend'in ürettiği `display_5m`,
+  // 5dk çözünürlük, 288 nokta/gün) HİÇ DEĞİŞMEDİ - bu fonksiyonlar
+  // SADECE grafiğe basmadan ÖNCE, tarayıcıda, 5dk noktalarını 30dk'lık
+  // görsel bar'lara (48/gün) ORTALAMA ile birleştirir. Backend'e/DB'ye/
+  // FIFO'ya dokunulmadı.
+  //
+  // `iso`'nun dakika kısmını GERÇEK Date() dönüşümüne SOKMADAN (tarih/
+  // saat/offset metnini bozma riski olmadan) saf string+integer
+  // aritmetiğiyle kaydırır - `hhmm()`'in izlediği "metni Date()'e
+  // sokmadan oku/yaz" ilkesiyle AYNI (bkz. o fonksiyonun yorumu).
+  // Sadece gün taşması (23:xx -> ertesi gün 00:xx) olduğunda, SADECE
+  // takvim gününü ilerletmek için (saat/offset'e DOKUNMADAN) UTC-nötr
+  // bir Date kullanılır.
+  function addMinutesToIsoLocal(iso, minutesToAdd) {
+    if (!iso) return iso;
+    var datePart = iso.slice(0, 10);
+    var hour = parseInt(iso.slice(11, 13), 10);
+    var minute = parseInt(iso.slice(14, 16), 10);
+    var tail = iso.slice(16); // ":SS" + opsiyonel "[+-]HH:MM" veya "Z"
+    var totalMinutes = hour * 60 + minute + minutesToAdd;
+    var dayOverflow = Math.floor(totalMinutes / 1440);
+    var normalizedMinutes = ((totalMinutes % 1440) + 1440) % 1440;
+    var newHour = Math.floor(normalizedMinutes / 60);
+    var newMinute = normalizedMinutes % 60;
+    var newDatePart = datePart;
+    if (dayOverflow !== 0) {
+      var d = new Date(datePart + "T00:00:00Z");
+      d.setUTCDate(d.getUTCDate() + dayOverflow);
+      newDatePart = d.toISOString().slice(0, 10);
+    }
+    var pad2 = function (n) { return n < 10 ? "0" + n : "" + n; };
+    return newDatePart + "T" + pad2(newHour) + ":" + pad2(newMinute) + tail;
+  }
+
+  // Backend'in `core/scoring.py:risk_from_wait()` ile AYNI 4 sabit eşik
+  // (10/15/30 dk) - burada YENİ bir eşik İCAT EDİLMİYOR, sadece frontend
+  // averaged 30dk değerini (backend'in hiç görmediği bir sayı - backend
+  // sadece ham 5dk noktalarını bilir) AYNI 4 kategoriye sınıflandırmak
+  // için mirror ediliyor.
+  var WAIT_RISK_LOW_MINUTES = 10, WAIT_RISK_MEDIUM_MINUTES = 15, WAIT_RISK_HIGH_MINUTES = 30;
+  function riskFromWaitMinutes(wait) {
+    if (wait == null) return "UNKNOWN";
+    if (wait < WAIT_RISK_LOW_MINUTES) return "LOW";
+    if (wait < WAIT_RISK_MEDIUM_MINUTES) return "MEDIUM";
+    if (wait < WAIT_RISK_HIGH_MINUTES) return "HIGH";
+    return "CRITICAL";
+  }
+
+  var VISUAL_BUCKET_MINUTES = 30;
+
+  // 5dk `display_5m` noktalarını 30dk'lık görsel bar'lara indirger -
+  // her bar, o yarım saatteki 5dk noktalarının `estimated_wait_minutes`
+  // ORTALAMASI (max/son değer DEĞİL - bkz. görev notu: tek bir anlık
+  // spike yarım saati olduğundan sert göstermesin, ama artış/azalış
+  // trendi de kaybolmasın). Çıktı, mevcut `estimated_wait_minutes`/
+  // `risk`/`risk_label`/`window_start[_local]`/`window_end[_local]`
+  // alan adlarını AYNEN taşır - bu yüzden `peakBestSummary`/`drawChart`/
+  // `windowLabelRange` DEĞİŞMEDEN bu bar'ları da çizebilir.
+  function to30MinuteVisualBuckets(points) {
+    if (!points || !points.length) return points || [];
+    var buckets = {};
+    var order = [];
+    points.forEach(function (p) {
+      var rawLocal = p.window_start_local || p.window_start;
+      var rawUtc = p.window_start;
+      var minute = localMinuteOf(rawLocal);
+      if (minute == null) return;
+      var bucketMinute = minute < 30 ? 0 : 30;
+      var backOffset = -(minute - bucketMinute);
+      var bucketIndex = (localHourOf(rawLocal) * 2) + (bucketMinute === 30 ? 1 : 0)
+        + "@" + rawLocal.slice(0, 10);
+      if (!buckets[bucketIndex]) {
+        var startLocal = addMinutesToIsoLocal(rawLocal, backOffset);
+        var startUtc = addMinutesToIsoLocal(rawUtc, backOffset);
+        buckets[bucketIndex] = {
+          window_start: startUtc,
+          window_start_local: startLocal,
+          window_end: addMinutesToIsoLocal(startUtc, VISUAL_BUCKET_MINUTES),
+          window_end_local: addMinutesToIsoLocal(startLocal, VISUAL_BUCKET_MINUTES),
+          _sum: 0, _count: 0,
+        };
+        order.push(bucketIndex);
+      }
+      var bucket = buckets[bucketIndex];
+      if (p.estimated_wait_minutes != null) {
+        bucket._sum += p.estimated_wait_minutes;
+        bucket._count += 1;
+      }
+    });
+    order.sort(function (a, b) {
+      return buckets[a].window_start_local < buckets[b].window_start_local ? -1 : 1;
+    });
+    return order.map(function (idx) {
+      var b = buckets[idx];
+      var avg = b._count > 0 ? b._sum / b._count : null;
+      var risk = riskFromWaitMinutes(avg);
+      return {
+        window_start: b.window_start,
+        window_start_local: b.window_start_local,
+        window_end: b.window_end,
+        window_end_local: b.window_end_local,
+        estimated_wait_minutes: avg,
+        risk: risk,
+        risk_label: RISK_UI_LABEL[risk] || RISK_UI_LABEL.UNKNOWN,
+      };
+    });
+  }
+
+  // Kartın üst özet satırı için "peak"/"best" - SADECE zaten var olan
+  // `points[].estimated_wait_minutes`/`risk` üzerinden min/max arama,
+  // yeni bir metrik/hesap YOK. `points`, `display_5m` (5dk) VEYA
+  // `windows` (saatlik fallback, ör. "overall") olabilir - ikisi de
+  // AYNI `estimated_wait_minutes`/`risk`/local-time alan adlarını taşır.
+  function peakBestSummary(points) {
+    var scored = (points || []).filter(function (p) {
+      return p.estimated_wait_minutes != null && p.risk;
+    });
+    if (!scored.length) return null;
+    var peak = scored[0];
+    var best = scored[0];
+    scored.forEach(function (p) {
+      if (p.estimated_wait_minutes > peak.estimated_wait_minutes) peak = p;
+      if (p.estimated_wait_minutes < best.estimated_wait_minutes) best = p;
+    });
+    var peakHour = localHourOf(peak.window_start_local || peak.window_start);
+    var bestHour = localHourOf(best.window_start_local || best.window_start);
+    return {
+      peakLabel: estimateLabel(peak.risk) || peak.risk_label,
+      peakHour: peakHour != null ? formatHour12(peakHour) : "",
+      bestLabel: estimateLabel(best.risk) || best.risk_label,
+      bestHour: bestHour != null ? formatHour12(bestHour) : "",
+    };
+  }
 
   // ADIM (Frontend 4-Graph Contract) - Bölüm 26/52: source artık
   // yaklaşık 5 dakikada bir yenileniyor - bu SADECE dış veri
@@ -687,11 +878,11 @@
       graphSectionHtml("international_departure_security", "INTERNATIONAL DEPARTURE — SECURITY", data.international_departure.security) +
       graphSectionHtml("international_arrival", "INTERNATIONAL ARRIVAL", data.international_arrival);
 
-    drawChart(data.overall.windows, "chart-overall", "overall");
-    drawChart(data.domestic_security.windows, "chart-domestic_security", "domestic_security");
-    drawChart(data.international_departure.passport.windows, "chart-international_departure_passport", "international_departure_passport");
-    drawChart(data.international_departure.security.windows, "chart-international_departure_security", "international_departure_security");
-    drawChart(data.international_arrival.windows, "chart-international_arrival", "international_arrival");
+    drawChart(data.overall, "chart-overall", "overall");
+    drawChart(data.domestic_security, "chart-domestic_security", "domestic_security");
+    drawChart(data.international_departure.passport, "chart-international_departure_passport", "international_departure_passport");
+    drawChart(data.international_departure.security, "chart-international_departure_security", "international_departure_security");
+    drawChart(data.international_arrival, "chart-international_arrival", "international_arrival");
     renderRefreshInfo();
   }
 
@@ -769,37 +960,124 @@
   // `current` da yoksa (windows=[]) "Bu saat için veri yok" gösterilir,
   // sayfa ÇÖKMEZ. Bir grafikte bir pencereye tıklamak DİĞER
   // grafiklerin/`current`ın gösterdiği değeri ASLA karıştırmaz.
+  // ADIM (5-Minute Wait Display Series) - grafik için hangi nokta
+  // dizisinin çizileceğini seçer: `display_5m` VARSA VE DOLUYSA (4
+  // görünür/event-driven süreç) o kullanılır; yoksa (ör. "overall" -
+  // display_5m HİÇ TAŞIMIYOR) mevcut saatlik `windows`'a düşülür. İkisi
+  // de AYNI `estimated_wait_minutes`/`risk`/`window_start[_local]` alan
+  // adlarını taşıdığı için (bkz. api.py `_display_point_to_dict`/
+  // `_window_to_dict`) `peakBestSummary`/`drawChart` TEK bir kod
+  // yolunu paylaşabilir.
+  function displayPoints(section) {
+    if (section.display_5m && section.display_5m.length) {
+      // Aynı `section` nesnesi için TEK SEFER hesapla ve önbelleğe al -
+      // `pickCurrentPoint()` ve `drawChart()` AYNI dizi REFERANSINI
+      // paylaşmalı, yoksa `indexOf()` ile current-bucket highlight
+      // (Bölüm 11) referans eşitliği bulamaz. `section` her refresh'te
+      // API'den TAZE bir nesne olarak geldiği için stale cache riski YOK.
+      if (!section._visualBuckets) {
+        section._visualBuckets = to30MinuteVisualBuckets(section.display_5m);
+      }
+      return section._visualBuckets;
+    }
+    return section.windows || [];
+  }
+
+  // "Şu anki" nokta: `display_5m` kullanılıyorsa, GERÇEK duvar saatine
+  // (`Date.now()`) en yakın GEÇMİŞTEKİ 5dk bucket'ı (`window_start_local`
+  // AÇIK bir UTC offset taşıdığı için `new Date(...)` burada GÜVENLİDİR -
+  // `hhmm()`'in kaçındığı "naive UTC'yi tarayıcı yerel saati sanma"
+  // riski YOK, offset string'in içinde zaten var). `windows` fallback'inde
+  // ise backend'in KENDİ seçtiği `section.current` kullanılır - frontend
+  // KENDİ "şu an" mantığını İCAT ETMEZ.
+  function pickCurrentPoint(section) {
+    if (section.display_5m && section.display_5m.length) {
+      var points = displayPoints(section); // 30dk'lık görsel bar'lar - bkz. to30MinuteVisualBuckets
+      var nowMs = Date.now();
+      var chosen = null;
+      for (var i = 0; i < points.length; i++) {
+        var raw = points[i].window_start_local || points[i].window_start;
+        var ms = new Date(raw).getTime();
+        if (!isNaN(ms) && ms <= nowMs) chosen = points[i];
+      }
+      return chosen || points[0];
+    }
+    return section.current || null;
+  }
+
+  function estimateSummaryHtml(currentPoint, points) {
+    var badgeRisk = currentPoint ? currentPoint.risk : null;
+    var badgeText = badgeRisk
+      ? "Estimated " + (estimateLabel(badgeRisk) || currentPoint.risk_label)
+      : "No data";
+    var badgeClass = "estimate-badge-" + (badgeRisk || "none");
+    var summary = peakBestSummary(points);
+    var summaryLine = summary
+      ? "peak " + escapeHtml(summary.peakLabel) + " at " + summary.peakHour +
+        " &middot; best " + escapeHtml(summary.bestLabel) + " at " + summary.bestHour
+      : "Not enough data yet for a typical pattern";
+    return (
+      '<div class="estimate-summary">' +
+        '<span class="estimate-badge ' + badgeClass + '">' + escapeHtml(badgeText) + "</span>" +
+        '<div class="peak-best-line">' + summaryLine + "</div>" +
+      "</div>"
+    );
+  }
+
+  var PROCESS_LEGEND_HTML =
+    '<div class="process-legend">' +
+      '<span class="legend-item"><i class="legend-dot" style="--dot-color:' + SEVERITY_COLOR.LOW + '"></i>Fast</span>' +
+      '<span class="legend-item"><i class="legend-dot" style="--dot-color:' + SEVERITY_COLOR.MEDIUM + '"></i>Normal</span>' +
+      '<span class="legend-item"><i class="legend-dot" style="--dot-color:' + SEVERITY_COLOR.HIGH + '"></i>Slow</span>' +
+      '<span class="legend-item"><i class="legend-dot" style="--dot-color:' + SEVERITY_COLOR.CRITICAL + '"></i>Severe</span>' +
+      '<span class="legend-item"><i class="legend-dot legend-dot-current"></i>Current</span>' +
+    "</div>";
+
   function graphSectionHtml(key, title, section) {
-    var windows = section.windows || [];
+    var points = displayPoints(section);
     var selectedStart = state.detail[key];
     var displayWindow = null;
     var usingCurrent = false;
     if (selectedStart != null) {
-      for (var i = 0; i < windows.length; i++) {
-        if (windows[i].window_start === selectedStart) { displayWindow = windows[i]; break; }
+      for (var i = 0; i < points.length; i++) {
+        if (points[i].window_start === selectedStart) { displayWindow = points[i]; break; }
       }
     }
     if (!displayWindow) {
-      displayWindow = section.current || null;
+      displayWindow = pickCurrentPoint(section);
       usingCurrent = true;
     }
     var canvasId = "chart-" + key;
-    var chartArea = windows.length
+    var chartArea = points.length
       ? '<div class="chart-wrap"><canvas id="' + canvasId + '"></canvas></div>'
       : '<div class="chart-empty">No windows yet for this airport.</div>';
 
     var rangeText = displayWindow ? windowLabelRange(displayWindow) : "";
-    var suffix = displayWindow && usingCurrent ? " · current window" : "";
+    var suffix = displayWindow && usingCurrent ? " · current" : "";
     var risk = displayWindow ? displayWindow.risk : null;
     var label = displayWindow ? displayWindow.risk_label : null;
 
     return (
       '<div class="process-block">' +
-        "<h3>" + title + "</h3>" +
+        '<div class="process-block-head">' +
+          '<div>' +
+            "<h3>" + title + "</h3>" +
+            '<div class="eyebrow">Today &bull; Typical by hour</div>' +
+          "</div>" +
+          estimateSummaryHtml(pickCurrentPoint(section), points) +
+        "</div>" +
         chartArea +
         '<div class="current-line">' + pillHtml(risk, label) + "</div>" +
         (rangeText ? '<div class="wait-detail">' + escapeHtml(rangeText + suffix) + "</div>" : "") +
-        waitDetailHtml(displayWindow) +
+        // ADIM (Genel Yoğunluk'ta Süre Gizle) - kullanıcı talebi: "OVERALL
+        // AIRPORT CONGESTION" (genel havalimanı yoğunluğu) bölümünde dakika
+        // cinsinden süre METNİ ("Estimated wait: X min") GÖSTERİLMEZ - risk
+        // pill'i (Fast/Normal/Slow/Severe) ve grafiğin kendisi DEĞİŞMEDİ,
+        // sadece bu tek satır "overall" için bastırılıyor. Diğer 4 süreç
+        // grafiğinde (domestic/international security, passport dep/arr)
+        // süre metni AYNEN gösterilmeye devam ediyor.
+        (key === "overall" ? "" : waitDetailHtml(displayWindow)) +
+        PROCESS_LEGEND_HTML +
       "</div>"
     );
   }
@@ -846,13 +1124,51 @@
     return 0; // Unavailable - gösterilecek sayısal bir değer yok.
   }
 
-  function drawChart(windows, canvasId, key) {
-    if (!windows.length) return;
+  // ADIM (Hourly X-Axis Labels) - x-ekseninde HER 5dk bucket için bir
+  // bar VAR (288/gün) ama etiket SADECE saat başında (minute===0) VE
+  // sadece seçili saatlerde yazılır - `localHourOf` tek başına saati
+  // verdiği için minute kontrolü OLMADAN aynı saatin 12 ayrı 5dk noktası
+  // (12:00, 12:05, ..., 12:55) hepsi "12p" yazardı - üst üste binen/
+  // "garbled" etiketlerin gerçek sebebi buydu. Masaüstünde TAM 24 saat
+  // etiketi (12a..11a,12p..11p) gösterilir; sadece dar ekranda 3 saatte
+  // bir'e (12a,3a,6a,9a,12p,3p,6p,9p) inceltilir. Saatlik `windows`
+  // fallback'i (artık SADECE `display_5m` hiç taşımayan eski/boş
+  // durumlarda devreye girer - "overall" da diğer 4 grafik gibi
+  // `display_5m` taşıyor, bkz. api.py `_merge_overall_display_5m`)
+  // zaten sadece 24 bar ürettiği için minute===0 kontrolü onlar için de
+  // zararsız çalışır (saatlik window_start zaten hep :00'da).
+  var FULL_HOUR_LABELS = {};
+  for (var _h = 0; _h < 24; _h++) FULL_HOUR_LABELS[_h] = true;
+  var THIN_HOUR_LABELS = { 0: true, 3: true, 6: true, 9: true, 12: true, 15: true, 18: true, 21: true };
+  var NARROW_WIDTH_BREAKPOINT = 480;
+
+  function pickAxisLabelHours() {
+    var width = window.innerWidth || document.documentElement.clientWidth || 1200;
+    return width < NARROW_WIDTH_BREAKPOINT ? THIN_HOUR_LABELS : FULL_HOUR_LABELS;
+  }
+
+  function drawChart(section, canvasId, key) {
+    var points = displayPoints(section);
+    if (!points.length) return;
     var canvas = document.getElementById(canvasId);
     if (!canvas) return;
 
-    var labels = windows.map(function (w) { return windowLabel(w); });
-    var realWaits = windows
+    // ADIM (Current 5-Minute Bucket Highlight) - Bölüm 8: `pickCurrentPoint()`
+    // İLE AYNI seçim (GERÇEK duvar saatine en yakın GEÇMİŞTEKİ bucket,
+    // `window_start_local`'ın açık UTC offset'i sayesinde `new Date(...)`
+    // burada güvenli) - o bucket'ın index'i outline için kullanılır.
+    var currentPoint = pickCurrentPoint(section);
+    var currentIndex = currentPoint ? points.indexOf(currentPoint) : -1;
+
+    var axisLabelHours = pickAxisLabelHours();
+    var labels = points.map(function (w) {
+      var raw = w.window_start_local || w.window_start;
+      var hour = localHourOf(raw);
+      var minute = localMinuteOf(raw);
+      var isHourMark = minute === 0 || minute === null; // saatlik `windows` fallback'inde minute her zaman 0
+      return hour != null && isHourMark && axisLabelHours[hour] ? formatHour12(hour) : "";
+    });
+    var realWaits = points
       .map(function (w) { return w.estimated_wait_minutes; })
       .filter(function (v) { return v != null; });
     var maxReal = realWaits.length ? Math.max.apply(null, realWaits) : 0;
@@ -862,8 +1178,14 @@
     // büyümez (ör. tek bir "Capacity exceeded" saati yüzünden eksen
     // 1000 dk'ya sıçramaz).
     var ceiling = Math.max(10, maxReal * 1.25);
-    var values = windows.map(function (w) { return chartValue(w, ceiling); });
-    var colors = windows.map(colorForWindow);
+    var values = points.map(function (w) { return chartValue(w, ceiling); });
+    var colors = points.map(colorForWindow);
+    // Current bucket: kendi risk rengini korur, sadece etrafına açık
+    // yeşil bir outline eklenir (Bölüm 8) - diğer barlar kenarlıksız.
+    var borderColors = points.map(function (w, i) {
+      return i === currentIndex ? "#6fcf97" : "rgba(0,0,0,0)";
+    });
+    var borderWidths = points.map(function (w, i) { return i === currentIndex ? 2 : 0; });
     // ADIM (Clean Axis Ceiling) - `ceiling * 1.1` çoğu zaman çirkin bir
     // ondalık üretir (ör. "22.4125 min") - Chart.js bunu OLDUĞU GİBİ en
     // üst eksen etiketine basar (kendi "nice number" mantığı `max`
@@ -873,29 +1195,22 @@
     var axisMax = Math.ceil(Math.max(ceiling * 1.1, 10) / 5) * 5;
 
     state.charts[canvasId] = new Chart(canvas, {
-      // ADIM (Bar Shape Kept, Height Now Continuous) - kullanıcı
-      // talebi: sütun (bar) şekli KORUNSUN, SADECE yükseklik artık
-      // (yukarıdaki ADIM) risk kategorisi değil gerçek dakika. Renk
-      // HÂLÂ backend'in `risk` alanından geliyor (SEVERITY_COLOR) -
-      // wait arttıkça hem sütun uzuyor hem de (risk eşiklerini
-      // geçtikçe) rengi LOW(yeşil)->MEDIUM->HIGH->CRITICAL(kırmızı)
-      // değişiyor - burada YENİ bir renk/eşik kuralı İCAT EDİLMEDİ.
       type: "bar",
       data: {
         labels: labels,
         datasets: [{
           data: values,
           backgroundColor: colors,
+          borderColor: borderColors,
+          borderWidth: borderWidths,
           borderRadius: 2,
-          maxBarThickness: 14,
+          maxBarThickness: 10,
           // ADIM (Zero-Wait Still Visible) - 0 dakikalık (gerçek, LOW/
-          // yeşil) bir saat Chart.js'te YÜKSEKLİĞİ 0 olduğu için tamamen
-          // KAYBOLURDU - kullanıcı talebi: "0 bekleme süresini yine
-          // göstersin, biraz yeşil olarak". `minBarLength` (piksel)
-          // veriyi/rengi DEĞİŞTİRMEZ - SADECE 0'a çok yakın sütunlara
-          // en az bu kadar piksel yükseklik ÇİZDİRİR, tooltip/gerçek
-          // değer ETKİLENMEZ (hâlâ "Wait: 0 min" yazar).
-          minBarLength: 4,
+          // yeşil) bir bucket Chart.js'te YÜKSEKLİĞİ 0 olduğu için
+          // tamamen KAYBOLURDU - `minBarLength` (piksel) veriyi/rengi
+          // DEĞİŞTİRMEZ, SADECE 0'a çok yakın sütunlara en az bu kadar
+          // piksel yükseklik ÇİZDİRİR, tooltip/gerçek değer ETKİLENMEZ.
+          minBarLength: 3,
         }],
       },
       options: {
@@ -909,15 +1224,12 @@
         animation: { duration: 400, easing: "easeOutQuart" },
         // ADIM (Frontend 4-Graph Contract) - Bölüm 50/64/67: bir noktaya
         // tıklamak SADECE bu grafiğin (`key`) kendi seçili penceresini
-        // değiştirir; hesaplama YAPILMAZ, sadece zaten yüklü pencerenin
+        // değiştirir; hesaplama YAPILMAZ, sadece zaten yüklü noktanın
         // KENDİ `window_start`'ı saklanır (array index DEĞİL - bkz.
         // `state` yorumu, refresh sonrası aynı SAAT'i bulabilmek için).
-        // Wait süresi artık BUNA gerek KALMADAN hover/tooltip'te
-        // GÖRÜNÜR (bkz. altında `tooltip.callbacks.label`) - tıklama
-        // sadece alttaki detay panelini o saate SABİTLEMEK için kalır.
         onClick: function (evt, elements) {
           if (!elements.length) return;
-          state.detail[key] = windows[elements[0].index].window_start;
+          state.detail[key] = points[elements[0].index].window_start;
           renderContent();
         },
         plugins: {
@@ -925,20 +1237,27 @@
           tooltip: {
             displayColors: false,
             callbacks: {
+              // ADIM (Sade Hover) - kullanıcı talebi: hover'da SADECE
+              // Time / Wait / Status - passenger/utilization/backlog/
+              // server/capacity GÖSTERİLMEZ (kullanıcı kartında gereksiz).
+              // Time tek bir 24-saatlik HH:MM ("20:00", "20:30") - bar'ın
+              // KENDİ başlangıç saati - bir aralık ("11:30–12:00") DEĞİL.
               title: function (items) {
-                var w = windows[items[0].dataIndex];
-                return windowLabelRange(w);
+                var w = points[items[0].dataIndex];
+                var value = w.window_start_local || w.window_start;
+                return value ? "Time: " + hhmm(value) : "";
               },
-              // ADIM (Hover Shows Wait, Not Click) - kullanıcı talebi:
-              // bekleme süresi TIKLAMADAN, doğrudan hover/tooltip'te
-              // görünsün. `waitTimeText()` İLE AYNI merkezi formatlayıcı
-              // (Capacity exceeded/Unavailable dahil) - burada YENİ bir
-              // metin/hesap İCAT EDİLMEZ.
               label: function (item) {
-                var w = windows[item.dataIndex];
+                var w = points[item.dataIndex];
+                var riskText = estimateLabel(w.risk) || w.risk_label || RISK_UI_LABEL.UNKNOWN;
+                // ADIM (Genel Yoğunluk'ta Süre Gizle - Hover) - "overall"
+                // (OVERALL AIRPORT CONGESTION) grafiğinde hover tooltip'i de
+                // dakika göstermiyor - sadece Status. Diğer 4 süreç
+                // grafiğinde (security/passport) Wait satırı AYNEN kalıyor.
+                if (key === "overall") return ["Status: " + riskText];
                 return [
                   "Wait: " + waitTimeText(w),
-                  "Status: " + (w.risk_label || RISK_UI_LABEL.UNKNOWN),
+                  "Status: " + riskText,
                 ];
               },
             },
@@ -947,7 +1266,7 @@
         scales: {
           x: {
             grid: { display: false },
-            ticks: { autoSkip: true, maxRotation: 0, font: { size: 10 } },
+            ticks: { autoSkip: false, maxRotation: 0, font: { size: 10 } },
           },
           y: {
             min: 0,

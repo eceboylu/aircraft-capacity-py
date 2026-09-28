@@ -1,15 +1,3 @@
-"""
-AŞAMA 5 + AŞAMA 7 - Risk skorlama ve güven skoru.
-
-SAF KATMAN: Bu modül veritabanına, dosyaya veya ağa dokunmaz.
-Yolcu talebi bir fonksiyon olarak (demand_fn) dışarıdan enjekte
-edilir; böylece mock verilerle bağımsız test edilebilir.
-
-Security ve passport aynı doğrulanmış queue-capacity çekirdeğini kullanır;
-fiziksel server sayısı ve servis süresi process config'inden gelir. Security
-density oranları yalnız tarihsel açıklama/baseline metriği olarak korunur,
-queue risk/wait matematiğinin yerine geçmez.
-"""
 
 from typing import Callable, Sequence
 
@@ -43,25 +31,6 @@ from ..constants import (
 
 
 def risk_from_wait(wait_minutes: float | None) -> str:
-    """
-    ADIM (Wait-Based Passenger Risk) - TEK doğruluk kaynağı: risk artık
-    `queue_pressure`/`rho`'dan (operasyonel kapasite baskısı - AYRI,
-    bağımsız API alanları olarak KALMAYA DEVAM EDER) DEĞİL, doğrudan
-    yolcunun yaşayacağı GERÇEK bekleme süresinden türer:
-
-        wait_minutes is None -> RISK_UNKNOWN (ASLA sessizce LOW'a
-            düşürülmez - `RISK_ORDER`'da en düşük öncelik, "no-data
-            NORMAL/LOW ile karıştırılmaz" ilkesi)
-        wait_minutes < 10.0  -> RISK_LOW
-        wait_minutes < 15.0  -> RISK_MEDIUM
-        wait_minutes < 30.0  -> RISK_HIGH
-        else                 -> RISK_CRITICAL
-
-    Passport VE security (`queue_capacity_model()` HER İKİSİNİN de TEK
-    ortak çekirdeği) AYNI bu fonksiyonu kullanır - iki AYRI risk mantığı
-    YOK. Gerçek sıfır-demand pencerelerde `wait_minutes` doğal olarak
-    ~0 olur (`erlang_c_wait_time(c, lam=0, mu)` ≈ 0) -> LOW.
-    """
     if wait_minutes is None:
         return RISK_UNKNOWN
     if wait_minutes < WAIT_RISK_LOW_MINUTES:
@@ -76,21 +45,6 @@ def risk_from_wait(wait_minutes: float | None) -> str:
 def combined_security_ratio(
     flight_ratio: float, passenger_ratio: float | None
 ) -> float:
-    """
-    MADDE 7 - iki sinyalin ağırlıklı ortalaması.
-
-        combined = (Wf * flight_ratio + Wp * passenger_ratio) / (Wf + Wp)
-
-    Ağırlıklar toplamlarına bölünerek normalize edilir; böylece
-    birleşik oran tek tek oranlarla AYNI ölçekte kalır ve mevcut risk
-    bantları (1.2 / 1.4 / 1.8) değişmeden geçerli olur.
-
-    passenger_ratio None ise (geçmiş yolcu verisi yok) yalnızca
-    flight_ratio kullanılır - eksik sinyal 0 sayılıp riski YAPAY olarak
-    aşağı çekmez, uydurma bir değerle de doldurulmaz. Bu, yolcu
-    baseline'ı birikene kadar eski davranışın birebir korunması
-    demektir.
-    """
     if passenger_ratio is None:
         return flight_ratio
 
@@ -112,29 +66,6 @@ def security_density_score(
     demand_fn: Callable[[object], int],
     historical_passenger_baseline: float | None = None,
 ) -> dict:
-    """
-    Security tarihsel yoğunluk sinyali. Queue risk/wait hesabı artık
-    `security_queue_model` ile yapılır; bu fonksiyon yalnız API'deki
-    baseline/flight/passenger ratio tanı metriklerini üretir.
-
-    window_flights : domestic departure + international departure
-    historical_baseline
-                   : bu havalimanı + saat için geçmiş ortalama UÇUŞ
-                     sayısı. Yoksa None - SAHTE DEĞER ÜRETİLMEZ.
-    historical_passenger_baseline
-                   : aynı pencere için geçmiş ortalama YOLCU talebi.
-                     Yoksa None -> passenger_ratio None kalır ve
-                     birleşik orana hiç katılmaz (MADDE 7).
-
-    MADDE 7: risk yalnızca uçuş sayısına göre değil, uçuş oranı ile
-    yolcu oranının ağırlıklı ortalamasına göre belirlenir. Böylece
-      - az uçuş + geniş gövde  -> passenger_ratio yükselir, risk artar
-      - çok uçuş + küçük uçak  -> flight_ratio yükselir, risk artar
-    ikisi de ayrı ayrı görünür olur.
-
-    estimated_wait_minutes burada None kalır; çağıran motor gerçek
-    lane/service-time config'iyle queue modelinden gelen değeri kullanır.
-    """
     flight_count = len(window_flights)
     demand = sum(demand_fn(f) for f in window_flights)
 
@@ -152,8 +83,6 @@ def security_density_score(
 
     flight_ratio = flight_count / historical_baseline
 
-    # Sıfır/None yolcu baseline'ı ile bölme YOK - böyle bir durumda
-    # oran hesaplanmaz, None kalır.
     passenger_ratio = (
         demand / historical_passenger_baseline
         if historical_passenger_baseline else None
@@ -180,18 +109,11 @@ def security_density_score(
         ),
         "risk": risk,
         "estimated_wait_minutes": None,
-        "reasons": [],   # AŞAMA 6 dolduracak
+        "reasons": [],
     }
 
 
 def passport_effective_service_rate(config) -> float:
-    """
-    Passport TEK bir görevlinin servis hızı (mu, pax/dk/görevli).
-
-    mu = 1 / 1.5 = 0.6666667. Bu SUNUCU BAŞINA (bir görevli) hızdır -
-    kaç paralel görevli olduğu (`passport_effective_server_count`) AYRI
-    bir çarpandır, burada karışmaz.
-    """
     service_time = config.passport_service_time_minutes
     if service_time <= 0:
         raise ValueError(
@@ -202,26 +124,6 @@ def passport_effective_service_rate(config) -> float:
 
 
 def passport_effective_server_count(config) -> int:
-    """
-    Erlang-C'nin `c` parametresi: PARALEL çalışan görevli sayısı.
-
-    4 gişe × gişe başına 2 paralel görevli = 8 efektif server. Gişe
-    (`passport_counter_count`) fiziksel masa/kabin sayısıdır; her
-    gişede AYNI ANDA `passport_staff_per_counter` görevli AYRI birer
-    yolcu işleyebiliyorsa (bu ADIM'ın açık modelleme kararı), Erlang-C
-    kuyruk teorisindeki "server" gişe DEĞİL, görevlidir - bu yüzden
-    c = counter_count * staff_per_counter'dır, counter_count TEK
-    BAŞINA değil. `passport_staff_count` (toplam personel, vardiya/
-    rotasyon bilgisi) buraya KARIŞMAZ - o ayrı, bilgilendirici bir
-    alandır (bkz. `passport_staff_count_mismatch`).
-
-    `int`'e yuvarlanır: Erlang-C'nin `c!`/`range(c)` kullanan
-    kombinatorik formülü (bkz. `core/erlang.py`) YAPISAL OLARAK tam
-    sayı gerektirir - "7.5 paralel görevli" fiziksel olarak anlamsız,
-    kesirli bir server SAYISI matematiksel olarak tanımsızdır (kesirli
-    olan sadece servis HIZI/mu'dur). 4x2=8 gibi tam sayı veren
-    varsayılan config için bu yuvarlama hiçbir şeyi DEĞİŞTİRMEZ.
-    """
     counters = config.passport_counter_count
     staff_per_counter = config.passport_staff_per_counter
     if counters <= 0:
@@ -234,16 +136,6 @@ def passport_effective_server_count(config) -> int:
 
 
 def passport_server_count(config, pool: str) -> int:
-    """
-    ADIM (Airport-Scale Queue Capacity) - departure/arrival passport
-    ARTIK AYRI fiziksel havuz (bkz. core/event_queue.py); `config`'in
-    ZATEN çözülmüş (`app/queue/config.py`'nin override->scale->unknown
-    zincirinden geçmiş) `passport_departure_server_count`/`passport_
-    arrival_server_count` alanlarını okur - burada scale/hard-code YOK,
-    sadece `config`'i tüketir.
-
-    `pool` : "departure" veya "arrival".
-    """
     if pool == "departure":
         count = config.passport_departure_server_count
     elif pool == "arrival":
@@ -266,7 +158,6 @@ def passport_arrival_server_count(config) -> int:
 
 
 def security_effective_service_rate(config) -> float:
-    """Security lane başına servis hızı: 1 / service_time (pax/dk/lane)."""
     service_time = config.security_service_time_minutes
     if service_time <= 0:
         raise ValueError(
@@ -277,7 +168,6 @@ def security_effective_service_rate(config) -> float:
 
 
 def queue_capacity_rate(server_count: int, service_time_minutes: float) -> float:
-    """Ortak kapasite hesabı: c * mu; invalid config sessizce kabul edilmez."""
     if server_count <= 0:
         raise ValueError(f"server_count > 0 olmalı (alınan={server_count})")
     if service_time_minutes <= 0:
@@ -289,11 +179,6 @@ def queue_capacity_rate(server_count: int, service_time_minutes: float) -> float
 
 
 def passport_capacity_rate(config) -> float:
-    """
-    4 gişe x gişe başına 2 paralel görevli = 8 efektif server;
-    mu = 1/1.5 = 0.6666667 pax/dk/görevli ->
-    capacity_rate = 8 x 0.6666667 = 5.333333 pax/dk = 320 pax/saat.
-    """
     return queue_capacity_rate(
         passport_effective_server_count(config),
         config.passport_service_time_minutes,
@@ -301,7 +186,6 @@ def passport_capacity_rate(config) -> float:
 
 
 def passport_departure_capacity_rate(config) -> float:
-    """Departure passport havuzunun KENDİ referans kapasitesi (server_count x 1/service_time)."""
     return queue_capacity_rate(
         passport_departure_server_count(config),
         config.passport_service_time_minutes,
@@ -309,7 +193,6 @@ def passport_departure_capacity_rate(config) -> float:
 
 
 def passport_arrival_capacity_rate(config) -> float:
-    """Arrival passport havuzunun KENDİ referans kapasitesi - departure'dan BAĞIMSIZ."""
     return queue_capacity_rate(
         passport_arrival_server_count(config),
         config.passport_service_time_minutes,
@@ -324,14 +207,6 @@ def security_capacity_rate(config) -> float:
 
 
 def domestic_security_capacity_rate(config) -> float:
-    """
-    `PROCESS_SECURITY_DOMESTIC`'in KENDİ fiziksel lane sayısı.
-
-    Bu süreç passport->security kuplajından tamamen bağımsızdır (domestic
-    kalkış passport'u hiç görmeden doğrudan security'ye girer) - bu
-    yüzden `security_lane_count`'tan (birleşik/international'ın da
-    kullandığı) AYRI, airport-bazlı bir değer güvenle kullanılabilir.
-    """
     return queue_capacity_rate(
         config.domestic_security_lane_count,
         config.security_service_time_minutes,
@@ -339,12 +214,6 @@ def domestic_security_capacity_rate(config) -> float:
 
 
 def international_security_capacity_rate(config) -> float:
-    """
-    `PROCESS_SECURITY_INTL`'in KENDİ fiziksel lane sayısı
-    (`international_security_lane_count`) - artık gerçek event-driven
-    international security hesabında (bkz. engine.py
-    `_event_driven_queue_demand`) KULLANILIYOR.
-    """
     return queue_capacity_rate(
         config.international_security_lane_count,
         config.security_service_time_minutes,
@@ -352,13 +221,6 @@ def international_security_capacity_rate(config) -> float:
 
 
 def passport_staff_count_mismatch(config) -> bool:
-    """
-    passport_staff_count, counter_count * staff_per_counter ile
-    uyuşmuyor mu?
-
-    Sadece bilgilendirme amaçlıdır - kapasite hesabına (rho, mu)
-    hiçbir şekilde girmez; staff_count orada zaten kullanılmıyor.
-    """
     expected = config.passport_counter_count * config.passport_staff_per_counter
     return config.passport_staff_count != expected
 
@@ -375,45 +237,6 @@ def queue_capacity_model(
     demand_override: float | None = None,
     risk_backlog_start: float = 0.0,
 ) -> dict:
-    """
-    Passport ve security için TEK queue matematik implementasyonu.
-
-    - Stable (`backlog_start<=0`, `rho<1`): klasik Erlang-C.
-    - Overload/backlog: current-arrived demand ve geçen servis süresinden
-      gerçek anlık kuyruk/wait.
-    - Backlog recurrence her zaman TAM pencere demand'ini kullanır.
-
-    demand_override : PASSPORT→SECURITY zaman-kuplajı için (bkz.
-                       `engine.py:_passport_security_minute_simulation`).
-                       Verilirse `demand`, `window_flights` üzerinden
-                       TOPLANMAZ - doğrudan bu değer kullanılır (ör.
-                       security'nin bu pencerede GERÇEKTEN karşılaştığı,
-                       passport'tan zaman-kaydırmalı serbest bırakılmış
-                       yolcu sayısı). `window_flights` bu durumda SADECE
-                       `flight_count`/neden tespiti için kullanılmaya
-                       devam eder - AŞAĞIDAKİ formülün (lam/rho/backlog/
-                       wait) KENDİSİ HİÇ DEĞİŞMEDİ, sadece demand'in
-                       KAYNAĞI değişti. Verilmezse (None) eski davranış
-                       birebir korunur.
-
-    risk_backlog_start : `backlog_start` (yukarıdaki, WAIT hesabını
-                       besleyen, fluid/analitik backlog) İLE
-                       KARIŞTIRILMAMALI: bu, SADECE `queue_pressure`
-                       (operasyonel kapasite baskısı metriği) için
-                       kullanılan, GERÇEK/event-türevli ("T anında henüz
-                       servise başlamamış, önceki pencerelerden taşınan
-                       gerçek bekleyen yolcu sayısı" - bkz. `engine.py:
-                       _event_derived_backlog_by_hour()`) backlog'dur.
-                       ADIM (Wait-Based Passenger Risk) SONRASI: `risk`
-                       (yolcu bekleme riski) ARTIK `queue_pressure`'dan
-                       türemez - SADECE `wq`'dan (aşağıda) türer, bu
-                       yüzden bu parametre `risk`'i HİÇ ETKİLEMEZ,
-                       SADECE dönen `queue_pressure` alanını besler.
-                       `rho` (= incoming-only utilization, `utilization`
-                       API alanı) da bu parametreden HİÇ ETKİLENMEZ.
-                       Verilmezse (varsayılan 0.0) `queue_pressure ==
-                       rho` olur.
-    """
     demand = (
         sum(demand_fn(f) for f in window_flights)
         if demand_override is None else demand_override
@@ -427,45 +250,13 @@ def queue_capacity_model(
     service_capacity = capacity_rate * window_minutes
     backlog_end = max(0.0, backlog_start + demand - service_capacity)
 
-    # ADIM (Visible Risk = Gerçek Queue Pressure) - `queue_pressure`
-    # ("bu saat sunucuların temizlemesi gereken TOPLAM yük - eski
-    # bekleyen + yeni gelen - / toplam kapasite") BURADA HÂLÂ AYNEN
-    # HESAPLANIYOR ve dönen sözlükte `queue_pressure`/`utilization`
-    # alanlarında KALMAYA DEVAM EDİYOR - ADIM (Wait-Based Passenger
-    # Risk) bunları SİLMEDİ, SADECE `risk`'in ARTIK bu ikisinden değil,
-    # aşağıdaki `wq`'dan türemesini sağladı (risk = yolcu bekleme
-    # riski, utilization/queue_pressure = operasyonel kapasite baskısı,
-    # ARTIK BİRBİRİNDEN BAĞIMSIZ İKİ SİNYAL).
     queue_pressure = (demand + risk_backlog_start) / service_capacity
 
-    # `PASSPORT_OVERLOAD_MESSAGE` KASITLI olarak HÂLÂ `queue_pressure`'a
-    # bağlı bırakıldı (risk'e DEĞİL) - bu, "operasyonel kapasite fiilen
-    # aşıldı" tanısı, passenger-facing risk etiketinden BAĞIMSIZ bir
-    # sinyal olarak korunuyor.
     reasons = [PASSPORT_OVERLOAD_MESSAGE] if queue_pressure >= 1.0 else []
 
     if backlog_start <= 0.0 and rho < 1.0:
         wq = erlang_c_wait_time(c, lam, mu)
     elif demand <= 0.0:
-        # ADIM (Consistent Backlog-Only Wait Semantic) - bu pencereye
-        # YENİ hiç kimse gelmedi (`demand`/incoming == 0), sadece önceki
-        # pencerelerden taşınan backlog var. Wait HER ZAMAN "bu
-        # pencerenin BAŞINDAKİ backlog / o andaki kapasite" anlamına
-        # gelir - bu pencerenin `now`'a göre geçmişte/şimdi/gelecekte
-        # olması SONUCU DEĞİŞTİRMEZ. Eskiden (aşağıdaki ELSE dalı, HER
-        # pencere için kullanılıyordu) `elapsed_minutes`/`current_
-        # arrived_demand` "now" sınırına göre farklı davranıyordu -
-        # tamamlanmış (geçmiş) bir backlog-only saat `backlog_start +
-        # 0 - tam_saat_kapasitesi` (küçük/backlog_end'e yakın) kullanırken,
-        # şimdiki/gelecek bir saat `backlog_start + 0 - 0 = backlog_
-        # start` kullanıyordu - AYNI fiziksel backlog için İKİ FARKLI
-        # sayı, "now" sınırında yapay bir sıçrama üretiyordu (bkz.
-        # rapor - IST canlı-veri denetiminde bulunan 21:00->22:00
-        # 338.1->370.4 sıçraması). `demand > 0` olan pencereler (ELSE
-        # dalı) HİÇ DEĞİŞTİRİLMEDİ - onlar zaten `event_driven_wait_
-        # override` tarafından ezilir (4 görünür süreç, bkz. engine.py),
-        # bu dal SADECE legacy/birleşik PROCESS_PASSPORT/PROCESS_
-        # SECURITY için hâlâ tüketiliyor.
         wq = backlog_start / capacity_rate
     else:
         arrived = demand if current_arrived_demand is None else current_arrived_demand
@@ -475,16 +266,6 @@ def queue_capacity_model(
         current_queue = max(0.0, backlog_start + arrived - served_since_window_start)
         wq = current_queue / capacity_rate
 
-    # ADIM (Wait-Based Passenger Risk) - risk ARTIK `queue_pressure`/
-    # `rho`'dan DEĞİL, GERÇEK, yolcunun yaşayacağı bekleme süresinden
-    # (`wq`) türer (bkz. `risk_from_wait()` docstring'i - eşikler
-    # 5/15/30 dk). `_predict_window_core` bu değeri, event-driven
-    # override varsa (4 visible süreç) O GERÇEK wait ile YENİDEN
-    # hesaplayarak ÜZERİNE YAZAR (bkz. engine.py) - burada `wq`'dan
-    # türeyen risk, HENÜZ event-driven override uygulanmamış "ham"
-    # bir başlangıç değeridir (doğrudan `queue_capacity_model()`
-    # çağıranlar - ör. `predict_window()`, testler - için zaten
-    # KENDİ İÇİNDE tutarlıdır).
     risk = risk_from_wait(wq)
 
     return {
@@ -516,41 +297,6 @@ def passport_queue_model(
     risk_backlog_start: float = 0.0,
     server_count_override: float | None = None,
 ) -> dict:
-    """
-    Passport wrapper.
-
-    pool : ADIM (Airport-Scale Queue Capacity) - `None` ise (varsayılan,
-           geriye dönük uyumlu) ESKİ birleşik `passport_effective_
-           server_count()` (4 gişe x 2 görevli) kullanılır - legacy
-           `PROCESS_PASSPORT` (combined) satırı için hâlâ geçerli.
-           "departure"/"arrival" verilirse `passport_server_count(config,
-           pool)` - AYRI fiziksel havuzun KENDİ server sayısı - kullanılır
-           (bkz. `engine.py`'nin PROCESS_PASSPORT_DEPARTURE/ARRIVAL
-           hesabı).
-    demand_override : security_queue_model() ile AYNI amaç - departure/
-           arrival event-driven demand'i `window_flights`'tan YENİDEN
-           TOPLAMAK yerine doğrudan kullanmak için (bkz. Bölüm 6'daki
-           bulgu: eski kodda PASSPORT için bu parametre HİÇ
-           kullanılmıyordu - artık departure/arrival AYRI havuzlar
-           event-driven demand'e ihtiyaç duyuyor).
-    server_count_override : ADIM (Dynamic Capacity / Scoring Consistency) -
-           verilirse (None DEĞİLSE), `config`'ten çözülen `server_count`
-           YERİNE bu değer kullanılır - SADECE LARGE dynamic havuzlar
-           için `engine.py`'nin o pencere için hesapladığı GERÇEK,
-           zaman-ağırlıklı aktif server ortalamasını taşımak amacıyla
-           (bkz. `domain/dynamic_staffing.py:effective_capacity_by_hour()`).
-           `queue_pressure`/risk eşikleri/formülü HİÇ DEĞİŞMEDİ - sadece
-           bu ÇAĞRIDA hangi kapasite SAYISININ kullanıldığı değişiyor.
-           Verilmezse (None, MEDIUM/SMALL/UNKNOWN, override'lı LARGE
-           alanları VE legacy PROCESS_PASSPORT dahil diğer TÜM yollarda
-           hep None) eski davranış (config-derived, statik) birebir korunur.
-           `round()` ile en yakın TAM sayıya yuvarlanır - Erlang-C'nin
-           `c!`/`range(c)` kullanan kombinatorik formülü (bkz.
-           `core/erlang.py`) YAPISAL OLARAK tam sayı gerektirir, zaman-
-           ağırlıklı ortalamanın kesirli KISMI (ör. 40.3) sadece
-           RAPORLAMA/audit amaçlı `effective_capacity_by_hour()`
-           çıktısında saklanır, buraya TAM SAYI olarak girer.
-    """
     server_count = (
         round(server_count_override) if server_count_override is not None
         else passport_effective_server_count(config) if pool is None
@@ -582,18 +328,6 @@ def security_queue_model(
     lane_count_override: int | None = None,
     risk_backlog_start: float = 0.0,
 ) -> dict:
-    """
-    Security wrapper: c=lane_count, service time config'ten.
-
-    lane_count_override : ADIM (Domestic/International Security Lane
-                           Ayrımı) - verilirse `config.security_lane_count`
-                           yerine bu değer `c` olarak kullanılır (ör.
-                           `PROCESS_SECURITY_DOMESTIC` için
-                           `config.domestic_security_lane_count`).
-                           Verilmezse (None) eski davranış birebir
-                           korunur - birleşik/`PROCESS_SECURITY_INTL`
-                           çağıranları ETKİLENMEZ.
-    """
     return queue_capacity_model(
         window_flights=window_flights,
         demand_fn=demand_fn,
@@ -617,12 +351,6 @@ def confidence_score(
     aircraft_match_rate: float,
     config_is_default: bool,
 ) -> float:
-    """
-    AŞAMA 7 - Tahminin ne kadar sağlam veriye dayandığı.
-
-    Load factor ve boarding buffer HER ZAMAN statik varsayım olduğu
-    için bu iki ceza koşulsuz uygulanır.
-    """
     score = 1.0
 
     score -= CONFIDENCE_PENALTY_LOAD_FACTOR

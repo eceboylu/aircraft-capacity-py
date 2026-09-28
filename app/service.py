@@ -1,22 +1,3 @@
-"""
-MADDE 1 - Ana kapasite servisi
-
-KATMAN SIRASI (MADDE 4 ile güncellendi):
-  1) airline_fleet_seat_config - exact airline + ICAO
-     (havayolunun o tipteki TEK varyantı)
-  2) airline_fleet_seat_config - airline + ICAO filo ağırlıklı ortalaması
-     (SUM(seats*fleet_count) / SUM(fleet_count))
-  3) aircraft_capacity
-     (yolcu_ucaklari.json + yedek)
-  4) aircraft_capacity_family
-     (kategori/önek fallback, genel havacılık dahil)
-  5) Hiçbiri yoksa: sabit varsayılan (180) +
-     ATOMIC upsert ile unknown_aircraft_types'a kayıt
-     (dosya yazma yok, race condition yok)
-
-Tek kapasite çözüm noktası burasıdır - queue tarafında ikinci bir
-resolver YOKTUR, hepsi bu servisi enjekte edip kullanır.
-"""
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -47,7 +28,6 @@ class CapacityResult:
 
 class AircraftCapacityService:
 
-    # Verilen uçak kodundan kapasiteyi çözümle/bul. 
     
     def __init__(self, session: Session):
         self.session = session
@@ -61,7 +41,6 @@ class AircraftCapacityService:
         code = (icao_code or "").strip().upper()
         airline = (airline_iata or "").strip().upper() or None
 
-        # Katman 1-2: airline_fleet_seat_config (exact / weighted average)
         if airline:
             fleet_result = self._resolve_airline_fleet(code, airline)
             if fleet_result is not None:
@@ -77,7 +56,6 @@ class AircraftCapacityService:
                 True
             )
 
-        # Katman 3: aircraft_capacity
         cached = self.session.execute(
             select(AircraftCapacity)
             .where(AircraftCapacity.icao_code == code)
@@ -93,7 +71,6 @@ class AircraftCapacityService:
                 True
             )
 
-        # Katman 4: Kategori/önek fallback
         families = self.session.execute(
             select(AircraftCapacityFamily)
             .order_by(
@@ -134,7 +111,6 @@ class AircraftCapacityService:
                     True
                 )
 
-        # Katman 5: Varsayılan + atomic log
         self._flag_unknown(code, "no_match")
 
         return CapacityResult(
@@ -149,9 +125,6 @@ class AircraftCapacityService:
     def _resolve_airline_fleet(
         self, code: str, airline: str
     ) -> CapacityResult | None:
-        """
-        MADDE 4 - Havayoluna özel filo koltuk konfigürasyonu.
-        """
         if code:
             rows = self.session.execute(
                 select(AirlineFleetSeatConfig).where(
@@ -199,13 +172,6 @@ class AircraftCapacityService:
         )
 
     def _flag_unknown(self, code: str, reason: str) -> None:
-        """
-        Atomic upsert - dosya oku/değiştir/yaz YOK.
-
-        Önce increment dene, satır yoksa oluşturmayı dene.
-        Aynı anda başka bir process oluşturduysa
-        (gerçek race condition) increment'e geri dön.
-        """
 
         now = datetime.now(timezone.utc)
 

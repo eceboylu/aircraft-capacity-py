@@ -14,7 +14,7 @@ from app.queue.config import default_config
 STATIC_SCALES = ("large", "medium", "small")
 
 EXPECTED = {
-    "mega": {"departure": 30, "arrival": 35},
+    "mega": {"departure": 15, "arrival": 30},
     "large": {"departure": 10, "arrival": 12},
     "medium": {"departure": 4, "arrival": 4},
     "small": {"departure": 2, "arrival": 2},

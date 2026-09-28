@@ -129,4 +129,4 @@ def test_default_config_without_session_never_touches_db_table():
     """
     cfg = default_config("XXX", scale="large")
     assert cfg.passport_departure_server_count == 10
-    assert cfg.domestic_security_lane_count == 8
+    assert cfg.domestic_security_lane_count == 15

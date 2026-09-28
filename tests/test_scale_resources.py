@@ -19,18 +19,19 @@ def test_scales_are_exactly_four_tiers_in_precedence_order():
 def test_mega_resource_contract():
     resources = SCALE_RESOURCES[SCALE_MEGA]
     assert resources["domestic_security_lanes"] == 30
-    assert resources["departure_passport_servers"] == 30
-    assert resources["departure_passport_servers_max"] == 45
-    assert resources["international_security_lanes"] == 20
-    assert resources["arrival_passport_servers"] == 35
-    assert resources["arrival_passport_servers_max"] == 45
+    assert resources["departure_passport_servers"] == 15
+    assert resources["departure_passport_servers_max"] == 40
+    assert resources["international_security_lanes"] == 15
+    assert resources["international_security_lanes_max"] == 40
+    assert resources["arrival_passport_servers"] == 30
+    assert resources["arrival_passport_servers_max"] == 40
 
 
 def test_large_resource_contract():
     resources = SCALE_RESOURCES[SCALE_LARGE]
-    assert resources["domestic_security_lanes"] == 8
+    assert resources["domestic_security_lanes"] == 15
     assert resources["departure_passport_servers"] == 10
-    assert resources["international_security_lanes"] == 6
+    assert resources["international_security_lanes"] == 15
     assert resources["arrival_passport_servers"] == 12
 
 

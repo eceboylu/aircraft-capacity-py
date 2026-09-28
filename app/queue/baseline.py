@@ -1,17 +1,3 @@
-"""
-Neden 1 (clustering) için geçmiş ortalama uçuş sayısı.
-
-Geçmiş veri birikmemişse None döner. SAHTE BASELINE ÜRETİLMEZ -
-bu durumda security riski "UNKNOWN" olur, clustering nedeni atlanır.
-
-MADDE 3 - idempotency:
-HistoricalFlightCount, (airport, process, hour_of_day, day_of_week)
-bazlı bir HAVUZDUR - aynı saat dilimine düşen birçok farklı tarihin
-ortalamasını biriktirir. Bu havuza aynı somut pencerenin (aynı
-airport+process+window_start) birden fazla kez eklenmesini önlemek
-için BaselineObservation deftere ayrı bir kayıt düşülür; defterde
-zaten varsa bu çağrı NO-OP'tur (havuz bir daha güncellenmez).
-"""
 
 from datetime import datetime, timezone
 
@@ -20,35 +6,12 @@ from sqlalchemy.exc import IntegrityError
 
 from .models import BaselineObservation, HistoricalFlightCount
 
-# ADIM (MySQL Performance Fix - Phase 2) - `existing_baseline_observation_
-# keys()`'in bulk-lookup chunk boyutu - `engine.py:PREDICTION_PERSIST_
-# CHUNK_SIZE`/`refresh.py:REFRESH_CHUNK_SIZE` ile AYNI ölçek (her modül
-# kendi sabitini taşır - BİLEREK ayrık, bkz. o modüllerin başlıkları).
 BASELINE_KEY_LOOKUP_CHUNK_SIZE = 500
 
 
 def existing_baseline_observation_keys(
     session, keys: list[tuple[str, str, datetime]]
 ) -> set[tuple[str, str, datetime]]:
-    """
-    ADIM (MySQL Performance Fix - Phase 2) - verilen (airport_iata,
-    process, window_start) üçlülerinden HANGİLERİNİN `BaselineObservation`
-    defterinde ZATEN kayıtlı olduğunu TEK (veya `BASELINE_KEY_LOOKUP_
-    CHUNK_SIZE`'lık parçalar halinde) bulk sorguda döner.
-
-    Bu, `record_observation()`'ın MEVCUT idempotency garantisini
-    (aynı üçlü ikinci kez INSERT edilmeye çalışılırsa unique constraint
-    + `IntegrityError` + rollback ile reddedilir - bkz. o fonksiyonun
-    docstring'i, DEĞİŞTİRİLMEDİ) YOK ETMEZ - SADECE çağıran tarafın
-    (`engine.py:record_baseline_observations()`) GERÇEKTEN yeni olan
-    üçlüler için `record_observation()`'ı çağırmasını, zaten kayıtlı
-    olanlar için BAŞTAN atlamasını sağlar. Böylece normal (tek worker,
-    race YOK) tekrar/identical cycle'da hiç IntegrityError/rollback
-    ÜRETİLMEZ - ama gerçek bir race (iki eşzamanlı worker) olursa
-    `record_observation()`'ın KENDİ unique-constraint savunma hattı
-    HÂLÂ devrede kalır (bu fonksiyon SADECE bir performans ön-kontrolü,
-    doğruluk garantisinin YERİNE geçmez).
-    """
     if not keys:
         return set()
 
@@ -95,10 +58,6 @@ def get_baseline(
     hour_of_day: int,
     day_of_week: int,
 ) -> float | None:
-    """
-    Bu havalimanı + süreç + saat + gün için geçmiş ortalama UÇUŞ sayısı.
-    Kayıt yoksa veya örneklem boşsa None.
-    """
     row = _bucket(session, airport_iata, process, hour_of_day, day_of_week)
 
     if row is None or row.sample_size <= 0:
@@ -113,15 +72,6 @@ def get_passenger_baseline(
     hour_of_day: int,
     day_of_week: int,
 ) -> float | None:
-    """
-    MADDE 7 - geçmiş ortalama YOLCU talebi.
-
-    Yolcu örneklemi uçuş örnekleminden AYRI sayılır: bu sütunlar
-    sisteme sonradan eklendiği için eski satırlarda yolcu verisi
-    yoktur. Böyle bir satırda passenger_sample_size 0'dır ve burada
-    None döner - sahte geçmiş yolcu verisi ÜRETİLMEZ. Çağıran taraf
-    bu durumda passenger_ratio'yu hesaplamaz.
-    """
     row = _bucket(session, airport_iata, process, hour_of_day, day_of_week)
 
     if row is None or row.passenger_sample_size <= 0:
@@ -139,23 +89,6 @@ def record_observation(
     flight_count: int,
     expected_passengers: int | None = None,
 ) -> float:
-    """
-    Bu somut pencereyi (airport+process+window_start) hareketli
-    ortalamaya ekler ve güncel UÇUŞ ortalamasını döndürür.
-
-    expected_passengers verilirse yolcu ortalaması da AYRI bir
-    örneklem sayacıyla güncellenir (bkz. get_passenger_baseline).
-    None ise yolcu havuzuna hiç dokunulmaz - o pencere için yolcu
-    talebi bilinmiyordur, sıfır sayılmaz.
-
-    Idempotency: window_start için BaselineObservation defterine önce
-    bir satır yazılmaya çalışılır. Aynı üçlü (airport, process,
-    window_start) DAHA ÖNCE kaydedilmişse - unique constraint DB
-    seviyesinde reddeder (IntegrityError) - havuz GÜNCELLENMEZ, mevcut
-    ortalama olduğu gibi döner. Bu, aynı sorguyu aynı anda gönderen iki
-    refresh (race condition) durumunda da tekilliği garanti eder;
-    sadece uygulama seviyesinde bir "var mı?" kontrolü değildir.
-    """
     now = datetime.now(timezone.utc)
 
     session.add(BaselineObservation(
@@ -218,39 +151,6 @@ def record_observation(
 
 
 def reset_baseline_pool(session) -> dict:
-    """
-    ADIM 6D-2 HOURLY MIGRATION - kontrollü, AÇIK baseline reset'i.
-
-    SADECE `HistoricalFlightCount` ve `BaselineObservation` tablolarını
-    temizler - `Flight`/`Airport`/`AircraftCapacity`/`QueuePrediction`
-    dahil HİÇBİR başka tabloya dokunmaz. Bu fonksiyon `app/queue/
-    pipeline.py`'nin normal akışından ASLA çağrılmaz (grep ile
-    doğrulanabilir) - SADECE elle, açıkça (`python -m app.queue.baseline
-    --reset-pool`) tetiklenir.
-
-    GEREKÇE (bkz. ADIM 6D-2 Hourly Migration Audit): `HistoricalFlightCount`
-    anahtarı (`airport_iata`, `process`, `hour_of_day`, `day_of_week`)
-    pencere GENİŞLİĞİNİ hiç içermiyor - `DEMAND_WINDOW_MINUTES` 15'ten
-    60'a değişince, eski 15 dk'lık gözlemler (küçük sayılar) ile yeni
-    60 dk'lık gözlemler (aynı saat için ~4x büyük sayılar) AYNI havuzda
-    kümülatif olarak karışıp `flight_ratio`/`baseline_ratio`'yu KALICI
-    olarak bozar (`record_observation()`'ın ortalaması decay/pencere
-    içermeyen basit bir kümülatif ortalamadır - bir kez karışan veri
-    kendi kendine düzelmez). Proje henüz production'a çıkmadığı için bu
-    iki tabloyu kontrollü temizlemek kabul edilebilir; `window_minutes`
-    kolonu ekleyip şemayı genişletmek (eski/yeni veriyi AYRI satırlarda
-    tutmak) teorik olarak da mümkündür ama `HistoricalFlightCount`/
-    `BaselineObservation`'ı okuyan HER sorguya (`_bucket`, `get_baseline`,
-    `get_passenger_baseline`, `record_observation`, testler) yeni bir
-    parametre eklemeyi gerektirir - çok daha geniş bir blast radius'a
-    sahip bir şema migration'ı için bu ADIM'da GEREKÇE yok (proje
-    henüz canlı değil, geriye dönük veri saklamanın hiçbir faydası
-    yok) - bu yüzden daha küçük, daha güvenli seçenek (reset) seçildi.
-
-    İdempotent: tablolar zaten boşsa 0/0 döner, hata vermez. Aynı
-    session'da `Flight`/`QueuePrediction` gibi başka nesneler yüklü
-    olsa bile onlara HİÇ dokunmaz (sadece bu iki tablo için `DELETE`).
-    """
     before_hist = session.scalar(
         select(func.count()).select_from(HistoricalFlightCount)
     ) or 0
@@ -269,12 +169,6 @@ def reset_baseline_pool(session) -> dict:
 
 
 def main(argv: list[str] | None = None) -> None:
-    """
-    CLI: `python -m app.queue.baseline --reset-pool`.
-
-    Bayrak VERİLMEZSE hiçbir şey silinmez, sadece yardım metni basılır
-    - yanlışlıkla (argümansız) çalıştırılıp veri kaybına yol açılamaz.
-    """
     import argparse
     import sys
 
