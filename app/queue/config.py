@@ -3,7 +3,11 @@ from dataclasses import dataclass
 
 from sqlalchemy import select
 
-from .constants import DEFAULT_DYNAMIC_CONTROL_INTERVAL_MINUTES
+from .constants import (
+    ARRIVAL_PASSPORT_PROACTIVE_LOOKAHEAD_MINUTES,
+    DEFAULT_DYNAMIC_CONTROL_INTERVAL_MINUTES,
+    DYNAMIC_TARGET_UTILIZATION,
+)
 from .domain.airport_scale import resource_view_for_scale
 from .models import Airport, AirportOperationalConfig, AirportScaleConfig
 
@@ -68,6 +72,16 @@ class AirportConfigView:
     international_security_lane_count_max: int | None = None
     security_dynamic_control_interval_minutes: int = DEFAULT_DYNAMIC_CONTROL_INTERVAL_MINUTES
     passport_dynamic_control_interval_minutes: int = DEFAULT_DYNAMIC_CONTROL_INTERVAL_MINUTES
+    # ADIM (Editable Dynamic Staffing Config) - process-özel checkpoint
+    # aralığı (DB'de özel kolon DOLUYSA onu, YOKSA yukarıdaki paylaşılan
+    # `passport_dynamic_control_interval_minutes`'ı kullanır - bkz.
+    # `_build_config_view`). `dynamic_target_utilization`/`passport_
+    # arrival_lookahead_minutes` de aynı şekilde DB'den override
+    # edilebilir, NULL ise `constants.py`'nin sabitlerine düşer.
+    passport_departure_control_interval_minutes: int = DEFAULT_DYNAMIC_CONTROL_INTERVAL_MINUTES
+    passport_arrival_control_interval_minutes: int = DEFAULT_DYNAMIC_CONTROL_INTERVAL_MINUTES
+    dynamic_target_utilization: float = DYNAMIC_TARGET_UTILIZATION
+    passport_arrival_lookahead_minutes: int = ARRIVAL_PASSPORT_PROACTIVE_LOOKAHEAD_MINUTES
 
 
 def _resolve_passport_server_counts(
@@ -122,6 +136,14 @@ def _scale_resources_from_db(session) -> dict[str, dict]:
             entry["security_dynamic_control_interval_minutes"] = row.security_dynamic_control_interval_minutes
         if row.passport_dynamic_control_interval_minutes is not None:
             entry["passport_dynamic_control_interval_minutes"] = row.passport_dynamic_control_interval_minutes
+        if row.passport_departure_control_interval_minutes is not None:
+            entry["passport_departure_control_interval_minutes"] = row.passport_departure_control_interval_minutes
+        if row.passport_arrival_control_interval_minutes is not None:
+            entry["passport_arrival_control_interval_minutes"] = row.passport_arrival_control_interval_minutes
+        if row.dynamic_target_utilization is not None:
+            entry["dynamic_target_utilization"] = row.dynamic_target_utilization
+        if row.passport_arrival_lookahead_minutes is not None:
+            entry["passport_arrival_lookahead_minutes"] = row.passport_arrival_lookahead_minutes
         result[row.scale] = entry
     return result
 
@@ -155,6 +177,45 @@ def _build_config_view(
         resources.get("passport_dynamic_control_interval_minutes", DEFAULT_DYNAMIC_CONTROL_INTERVAL_MINUTES)
         if resources else DEFAULT_DYNAMIC_CONTROL_INTERVAL_MINUTES
     )
+    # ADIM (Editable Dynamic Staffing Config) - process-özel kolon
+    # DOLUYSA öncelik onda, YOKSA yukarıdaki paylaşılan `passport_
+    # control_interval`'a (o da NULL ise DEFAULT'a) düşülür - "SQL'den
+    # sadece passport_dep interval'ı değiştir, arr AYNI kalsın" gibi
+    # kısmi override'lar da desteklenir.
+    passport_departure_control_interval = (
+        resources.get("passport_departure_control_interval_minutes", passport_control_interval)
+        if resources else passport_control_interval
+    )
+    passport_arrival_control_interval = (
+        resources.get("passport_arrival_control_interval_minutes", passport_control_interval)
+        if resources else passport_control_interval
+    )
+    dynamic_target_utilization = (
+        resources.get("dynamic_target_utilization", DYNAMIC_TARGET_UTILIZATION)
+        if resources else DYNAMIC_TARGET_UTILIZATION
+    )
+    passport_arrival_lookahead = (
+        resources.get("passport_arrival_lookahead_minutes", ARRIVAL_PASSPORT_PROACTIVE_LOOKAHEAD_MINUTES)
+        if resources else ARRIVAL_PASSPORT_PROACTIVE_LOOKAHEAD_MINUTES
+    )
+
+    # ADIM (Editable Dynamic Staffing Config) - Bölüm 23: phpMyAdmin'den
+    # SQL'de geçersiz bir değer (`interval=0`, `target_utilization=0`
+    # veya `>1`, negatif lookahead) girilirse SESSİZCE ilgili sabite
+    # düşülür - runtime hiçbir zaman `ValueError`/bozuk bir checkpoint
+    # ÜRETMEZ ("fail-safe", `event_queue.py`'nin geri kalanıyla AYNI
+    # savunmacı üslup - bkz. `effective_levels` boşsa `[default]`'a
+    # düşen desen).
+    if not isinstance(security_control_interval, int) or security_control_interval <= 0:
+        security_control_interval = DEFAULT_DYNAMIC_CONTROL_INTERVAL_MINUTES
+    if not isinstance(passport_departure_control_interval, int) or passport_departure_control_interval <= 0:
+        passport_departure_control_interval = DEFAULT_DYNAMIC_CONTROL_INTERVAL_MINUTES
+    if not isinstance(passport_arrival_control_interval, int) or passport_arrival_control_interval <= 0:
+        passport_arrival_control_interval = DEFAULT_DYNAMIC_CONTROL_INTERVAL_MINUTES
+    if not isinstance(dynamic_target_utilization, (int, float)) or not (0 < dynamic_target_utilization <= 1):
+        dynamic_target_utilization = DYNAMIC_TARGET_UTILIZATION
+    if not isinstance(passport_arrival_lookahead, int) or passport_arrival_lookahead <= 0:
+        passport_arrival_lookahead = ARRIVAL_PASSPORT_PROACTIVE_LOOKAHEAD_MINUTES
 
     if row is not None:
         base_fields = {name: getattr(row, name) for name in _CONFIG_FIELDS}
@@ -179,6 +240,10 @@ def _build_config_view(
         international_security_lane_count_max=international_security_max if security_intl_dynamic else None,
         security_dynamic_control_interval_minutes=security_control_interval,
         passport_dynamic_control_interval_minutes=passport_control_interval,
+        passport_departure_control_interval_minutes=passport_departure_control_interval,
+        passport_arrival_control_interval_minutes=passport_arrival_control_interval,
+        dynamic_target_utilization=dynamic_target_utilization,
+        passport_arrival_lookahead_minutes=passport_arrival_lookahead,
         scale=scale,
         **base_fields,
     )

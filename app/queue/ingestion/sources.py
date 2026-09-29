@@ -262,6 +262,33 @@ def dedupe_codeshares(records: list[dict]) -> list[dict]:
     return result
 
 
+def codeshare_skip_counts_by_airport(
+    records: list[dict], direction: str
+) -> dict[str, int]:
+    """
+    ADIM (Codeshare Audit Attribution) - `dedupe_codeshares()`'ın atladığı
+    kayıtları, `queue_routing_summary_audit.codeshare_records_removed`
+    (havalimanı başına) doldurabilmek için ilgili havalimanına göre
+    sayar. Departure kaydı için ilgili havalimanı `dep_iata`, arrival
+    kaydı için `arr_iata`'dır - `parse_source_a_record()`'ın `airport_
+    iata` seçimiyle AYNI kural. `dedupe_codeshares()`'ın KENDİSİ
+    DEĞİŞTİRİLMEDİ - bu SADECE aynı fonksiyonun sonucunu, atlanan
+    kayıtları geri bulmak için tekrar kullanan, salt-okunur bir sayım.
+    """
+    kept_ids = {id(r) for r in dedupe_codeshares(records)}
+    airport_field = "dep_iata" if direction == DIRECTION_DEPARTURE else "arr_iata"
+    airport_field_camel = "depIata" if direction == DIRECTION_DEPARTURE else "arrIata"
+
+    counts: dict[str, int] = {}
+    for record in records:
+        if id(record) in kept_ids:
+            continue
+        airport = (field(record, airport_field, airport_field_camel) or "").upper()
+        if airport:
+            counts[airport] = counts.get(airport, 0) + 1
+    return counts
+
+
 def parse_source_a_record(
     record: dict,
     direction: str,
@@ -445,6 +472,8 @@ __all__ = [
     "build_aircraft_index",
     "build_flight_key",
     "clean_text",
+    "codeshare_skip_counts_by_airport",
+    "dedupe_codeshares",
     "field",
     "load_source_payload",
     "normalize_flight_number",

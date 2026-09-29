@@ -5,6 +5,8 @@ taban (default) sayıyı DEĞİL.
 """
 from datetime import datetime, timedelta
 
+import pytest
+
 from app.queue.domain.dynamic_staffing import active_capacity_at
 
 
@@ -27,11 +29,15 @@ def test_active_capacity_at_empty_schedule_returns_none():
     assert active_capacity_at([], datetime(2026, 3, 10, 12, 0)) is None
 
 
-def test_dynamic_passport_queue_state_reflects_ramped_capacity_not_static_default():
+def test_dynamic_passport_display_wait_reflects_ramped_capacity_not_static_default():
     """
-    MEGA departure passport: default=15, max=40. Aşırı yüklü bir senaryoda
-    dynamic staffing ramp-up yapar - queue-state sampler bu ramp'i
-    (sabit 15 değil) kullanmalı, yoksa wait OLDUĞUNDAN YÜKSEK çıkar.
+    ADIM (Passenger-Weighted Display Wait) - eski "queue-state sampler"ı
+    (virtual_arrival_wait, KALDIRILDI) test ediyordu; şimdi display wait
+    GERÇEK `simulate_fifo_queue_dynamic()` event'lerinden (`ServiceEvent.
+    wait_minutes`) geliyor - bu event'ler zaten dynamic ramp'in GERÇEK
+    etkisini taşıyor (ayrı bir "hangi server sayısını kullanayım" probe'u
+    YOK, bu yüzden ramp'i YANLIŞLIKLA görmezden gelme riski YAPISAL
+    olarak ORTADAN KALKTI). MEGA departure passport: default=30, max=60.
     """
     from app.queue.config import default_config
     from app.queue.domain.demand import DemandCalculator
@@ -43,8 +49,8 @@ def test_dynamic_passport_queue_state_reflects_ramped_capacity_not_static_defaul
     demand = DemandCalculator(resolver)
     config = default_config("XXX", scale="mega")
     assert config.passport_departure_dynamic is True
-    assert config.passport_departure_server_count == 15
-    assert config.passport_departure_server_count_max == 40
+    assert config.passport_departure_server_count == 30
+    assert config.passport_departure_server_count_max == 60
 
     # Çok sayıda ağır yüklü uçuş - aynı ~1 saatlik pencereye yoğun show-up.
     flights = [
@@ -57,12 +63,17 @@ def test_dynamic_passport_queue_state_reflects_ramped_capacity_not_static_defaul
 
     now = datetime(2026, 3, 10, 12, 30)
     series = event_driven_display_series(flights, config, demand, now=now)
-    points = dict(series[PROCESS_PASSPORT_DEPARTURE])
+    points = {p.window_start: p for p in series[PROCESS_PASSPORT_DEPARTURE]}
 
     probe = datetime(2026, 3, 10, 12, 30)
     assert probe in points
     # Negatif olmayan gerçek bir sayı üretmeli (NaN/None DEĞİL) -
     # asıl garanti: fonksiyon hatasız, dynamic schedule'ı kullanarak
-    # tutarlı bir sonuç üretiyor (mutlak sayı senaryonun tam yüküne
-    # bağlı olduğu için burada sadece well-formed olduğunu doğruluyoruz).
-    assert points[probe] >= 0.0
+    # üretilmiş GERÇEK event'lerden tutarlı bir sonuç üretiyor (mutlak
+    # sayı senaryonun tam yüküne bağlı olduğu için burada sadece
+    # well-formed olduğunu doğruluyoruz).
+    assert points[probe].wait_minutes >= 0.0
+    assert points[probe].passenger_count >= 0.0
+    assert points[probe].wait_numerator == pytest.approx(
+        points[probe].wait_minutes * points[probe].passenger_count
+    )

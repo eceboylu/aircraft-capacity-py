@@ -47,6 +47,15 @@ class DemandCalculator:
             return 0
         return result.capacity
 
+    def capacity_result(self, flight):
+        # ADIM (SQL Audit/Traceability Genişletme, Bölüm 1) - `passenger_
+        # demand()`'in KENDİSİ hâlâ SADECE `int` döndürür (davranış
+        # DEĞİŞMEDİ); bu salt-okunur ek accessor, AYNI `_resolve()`
+        # cache'ini kullanarak (yeniden DB sorgusu/`_flag_unknown()`
+        # ÇAĞIRMADAN - key zaten `passenger_demand()` ile ısınmış olur)
+        # `CapacityResult.source`/`confidence`'ı audit'e taşımak içindir.
+        return self._resolve(flight)
+
 
 def effective_time(flight) -> datetime | None:
     if flight.direction == DIRECTION_DEPARTURE:
@@ -74,6 +83,19 @@ def _departure_show_up_base(flight) -> datetime | None:
         flight.dep_actual_utc
         or flight.dep_estimated_utc
         or flight.dep_scheduled_utc
+    )
+
+
+def _arrival_release_base(flight) -> datetime | None:
+    # `effective_time()`'daki arrival dalının AYNISI, SADECE `+ PASSPORT_
+    # RELEASE_BUFFER_MINUTES` offset'i UYGULANMADAN önceki ham zaman
+    # damgası - audit.py'nin "hangi zaman kaynağı (actual/estimated/
+    # scheduled) kullanıldı" sorusunu, farklı bir formül İCAT ETMEDEN
+    # cevaplayabilmesi için (bkz. audit.py `record_flight_resolution_audit`).
+    return (
+        flight.arr_actual_utc
+        or flight.arr_estimated_utc
+        or flight.arr_scheduled_utc
     )
 
 

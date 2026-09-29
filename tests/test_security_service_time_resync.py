@@ -12,6 +12,8 @@ DATABASE_URL bir `..._test` veritabanını göstermeli) gerektirir - bu
 oturumda Docker/MySQL erişimi olmadığı için ÇALIŞTIRILAMADI, ileride
 uygun bir ortamda çalıştırılmak üzere yazıldı.
 """
+import pytest
+
 from app.queue.constants import SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES
 from app.queue.models import Airport, AirportOperationalConfig
 from app.queue.pipeline import ensure_airport_operational_configs, resync_security_service_time
@@ -46,8 +48,10 @@ def test_resync_updates_only_seeded_default_rows(db_session):
     assert resynced_count == 1
 
     session.expire_all()
-    assert session.get(AirportOperationalConfig, "IST").security_service_time_minutes == SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES
-    assert session.get(AirportOperationalConfig, "ESB").security_service_time_minutes == 0.6
+    assert session.get(AirportOperationalConfig, "IST").security_service_time_minutes == pytest.approx(
+        SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES
+    )
+    assert session.get(AirportOperationalConfig, "ESB").security_service_time_minutes == pytest.approx(0.6)
 
 
 def test_resync_is_idempotent(db_session):

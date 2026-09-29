@@ -261,43 +261,6 @@ def total_count(events: Sequence[ServiceEvent]) -> float:
     return sum(e.count for e in events)
 
 
-def virtual_arrival_wait(
-    events: Sequence[ServiceEvent],
-    probe_time: datetime,
-    server_count: int,
-    service_time_minutes: float,
-) -> float:
-    server_count = int(round(server_count))
-    if server_count <= 0 or service_time_minutes <= 0:
-        return 0.0
-
-    busy_free_times: list[datetime] = []
-    backlog = 0.0
-    for event in events:
-        if event.service_start_time <= probe_time < event.completion_time:
-            busy_free_times.extend([event.completion_time] * int(round(event.count)))
-        elif event.arrival_time <= probe_time < event.service_start_time:
-            backlog += event.count
-
-    busy_free_times.sort()
-    if len(busy_free_times) > server_count:
-        busy_free_times = busy_free_times[:server_count]
-    idle_count = server_count - len(busy_free_times)
-
-    heap = busy_free_times + [probe_time] * idle_count
-    heapq.heapify(heap)
-
-    service_delta = timedelta(minutes=service_time_minutes)
-    for _ in range(int(round(backlog))):
-        free_time = heapq.heappop(heap)
-        service_start = max(free_time, probe_time)
-        heapq.heappush(heap, service_start + service_delta)
-
-    virtual_free_time = heap[0] if heap else probe_time
-    virtual_service_start = max(virtual_free_time, probe_time)
-    return max(0.0, (virtual_service_start - probe_time).total_seconds() / 60.0)
-
-
 
 @dataclass(frozen=True)
 class DynamicStaffingParams:
@@ -350,6 +313,19 @@ class DynamicStaffingCheckpoint:
     ramp: int
     pending_retirements_after: int
     reason: str
+    # ADIM (SQL Audit/Traceability Genişletme, Bölüm 16) - `lookahead_
+    # demand`/`needed_servers` (yukarıda) passport_arr için normal (5dk)
+    # ve proaktif (20dk) pencerelerin TOPLAMINI/BÜYÜĞÜNÜ taşır - hangi
+    # pencerenin kararı verdiğini AYRI görebilmek için ham (toplanmamış)
+    # değerler burada AYRICA tutulur. `extended_look_ahead_minutes` set
+    # edilmemiş süreçlerde (security_intl, passport_dep) extended_* hep
+    # 0 kalır ve `winning_forecast` her zaman "normal" olur - production
+    # kararı (target/ramp) BUNLARDAN ETKİLENMEZ, sadece açıklayıcı.
+    normal_lookahead_demand: float = 0.0
+    extended_lookahead_demand: float = 0.0
+    normal_needed_servers: int = 0
+    extended_needed_servers: int = 0
+    winning_forecast: str = "normal"
 
 
 def simulate_fifo_queue_dynamic(
@@ -524,6 +500,15 @@ def simulate_fifo_queue_dynamic(
         else:
             reason = "demand_threshold"
 
+        if extended_look_ahead_delta is None:
+            winning_forecast = "normal"
+        elif extended_needed_servers > needed_servers:
+            winning_forecast = "extended"
+        elif needed_servers > extended_needed_servers:
+            winning_forecast = "normal"
+        else:
+            winning_forecast = "tie"
+
         checkpoint_log.append(DynamicStaffingCheckpoint(
             checkpoint_time=checkpoint_time,
             previous_count=previous_count,
@@ -535,6 +520,11 @@ def simulate_fifo_queue_dynamic(
             ramp=target - previous_count,
             pending_retirements_after=pending_retirements,
             reason=reason,
+            normal_lookahead_demand=lookahead_demand,
+            extended_lookahead_demand=extended_lookahead_demand,
+            normal_needed_servers=needed_servers,
+            extended_needed_servers=extended_needed_servers,
+            winning_forecast=winning_forecast,
         ))
 
     events: list[ServiceEvent] = []

@@ -40,6 +40,8 @@ from .core.scoring import (
     international_security_capacity_rate,
 )
 from .domain.demand import (
+    _arrival_release_base,
+    _departure_show_up_base,
     arrival_passenger_release_events_detailed,
     departure_show_up_events_detailed,
 )
@@ -53,11 +55,13 @@ from .domain.flows import (
 )
 from .domain.schengen import is_schengen_country
 from .models import (
+    QueueAirportDepartureFlow5m,
     QueueCalculationHourlyAudit,
     QueueCohortAudit,
     QueueCountryRoutingAudit,
     QueueDynamicStaffingAudit,
     QueueFlightHourContributionAudit,
+    QueueFlightResolutionAudit,
     QueueGraphDisplayAudit,
     QueueResourceConfigAudit,
     QueueRoutingSummaryAudit,
@@ -121,6 +125,16 @@ def _flight_shares_of(source_flight_keys) -> dict[str, float]:
     return source_flight_keys or {}
 
 
+def _time_source_label(actual, estimated, scheduled) -> str | None:
+    if actual is not None:
+        return "actual"
+    if estimated is not None:
+        return "estimated"
+    if scheduled is not None:
+        return "scheduled"
+    return None
+
+
 def _is_domestic_arrival(flight) -> bool:
     return flight.direction == DIRECTION_ARRIVAL and flight.location == LOCATION_DOMESTIC
 
@@ -139,6 +153,26 @@ def _bulk_add(session, rows: list) -> None:
 # Table 5 (resource config snapshot)
 # ---------------------------------------------------------------------------
 
+def _allowed_levels_snapshot(config) -> str | None:
+    """`_dynamic_staffing_params_for()` (engine.py) SADECE lazy import
+    edilir - audit.py'nin bu 3 sürecin `allowed_levels`'ını GÖRÜNTÜLEMEK
+    için AYNI, tek kaynak formülü (`_operational_levels_for`) tekrar
+    hesaplamak yerine ÇAĞIRMASI için (Bölüm 18 - "farklı formülle üretme"
+    kuralı)."""
+    from .engine import _dynamic_staffing_params_for
+
+    parts = []
+    for label, pool in (
+        ("security_intl", "security_intl"),
+        ("passport_dep", "departure"),
+        ("passport_arr", "arrival"),
+    ):
+        params = _dynamic_staffing_params_for(config, pool)
+        if params is not None and params.allowed_levels:
+            parts.append(f"{label}={','.join(str(lvl) for lvl in params.allowed_levels)}")
+    return ";".join(parts) if parts else None
+
+
 def record_resource_config_audit(session, run_id: str, airport_iata: str, config) -> None:
     row = QueueResourceConfigAudit(
         run_id=run_id,
@@ -153,11 +187,19 @@ def record_resource_config_audit(session, run_id: str, airport_iata: str, config
         arrival_passport_desks_max=config.passport_arrival_server_count_max,
         security_control_interval_minutes=config.security_dynamic_control_interval_minutes,
         passport_control_interval_minutes=config.passport_dynamic_control_interval_minutes,
+        passport_departure_control_interval_minutes=config.passport_departure_control_interval_minutes,
+        passport_arrival_control_interval_minutes=config.passport_arrival_control_interval_minutes,
+        dynamic_target_utilization=config.dynamic_target_utilization,
+        passport_arrival_lookahead_minutes=config.passport_arrival_lookahead_minutes,
         security_service_time_minutes=config.security_service_time_minutes,
         passport_service_time_minutes=config.passport_service_time_minutes,
         domestic_security_capacity_per_hour=domestic_security_capacity_rate(config) * 60,
         international_security_capacity_per_hour=international_security_capacity_rate(config) * 60,
         config_source="scale_default" if config.is_default else "airport_specific_db_override",
+        allowed_levels_snapshot=_allowed_levels_snapshot(config),
+        security_intl_dynamic_enabled=config.security_intl_dynamic,
+        passport_departure_dynamic_enabled=config.passport_departure_dynamic,
+        passport_arrival_dynamic_enabled=config.passport_arrival_dynamic,
     )
     session.add(row)
     session.flush()
@@ -206,6 +248,15 @@ def record_flight_cohort_and_contribution_audit(
     """
     cohort_rows: list[QueueCohortAudit] = []
     contribution_rows: list[QueueFlightHourContributionAudit] = []
+    # ADIM (Airport Departure Passenger Flow) - queue wait DEĞİL, "kaç
+    # departure yolcusu havalimanına GELİYOR" sorusu için, AYNI `detailed`
+    # (cohort_time, count) listesinden TEK bir ek geçişte, sınıflandırma
+    # bazında (domestic/schengen/non_schengen) toplanan bir yan-ürün
+    # akümülatör - bkz. `_accumulate_departure_flow`/`record_airport_
+    # departure_flow_5m` altta.
+    departure_flow_by_bucket: dict[datetime, dict] = defaultdict(
+        lambda: {"domestic": 0.0, "schengen": 0.0, "non_schengen": 0.0, "flight_keys": set()}
+    )
 
     passport_dep_events = coupling.get("process_events", {}).get(PROCESS_PASSPORT_DEPARTURE, [])
 
@@ -250,6 +301,15 @@ def record_flight_cohort_and_contribution_audit(
             requires_passport=getattr(flight, "requires_passport", True),
             aircraft_icao=getattr(flight, "aircraft_icao", None),
             resolved_aircraft_capacity=total_demand,
+            dep_time_effective_utc=_departure_show_up_base(flight),
+            dep_time_source=_time_source_label(
+                flight.dep_actual_utc, flight.dep_estimated_utc, flight.dep_scheduled_utc,
+            ),
+            arr_time_effective_utc=_arrival_release_base(flight),
+            arr_time_source=_time_source_label(
+                flight.arr_actual_utc, flight.arr_estimated_utc, flight.arr_scheduled_utc,
+            ),
+            aircraft_capacity_source=demand.capacity_result(flight).source,
         )
 
         # ---- DOMESTIC DEPARTURE -> security_dom (direct show-up) ----
@@ -261,6 +321,7 @@ def record_flight_cohort_and_contribution_audit(
                 routing_source="departure_show_up", routing_destination=PROCESS_SECURITY_DOMESTIC,
                 security_arrival_source="direct_show_up",
             )
+            _accumulate_departure_flow(departure_flow_by_bucket, detailed, "domestic", flight.flight_key)
 
         # ---- SCHENGEN INTERNATIONAL DEPARTURE -> security_intl direct ----
         elif is_schengen_departure_skipping_passport(flight):
@@ -271,6 +332,7 @@ def record_flight_cohort_and_contribution_audit(
                 routing_source="departure_show_up", routing_destination=PROCESS_SECURITY_INTL,
                 security_arrival_source="direct_show_up",
             )
+            _accumulate_departure_flow(departure_flow_by_bucket, detailed, "schengen", flight.flight_key)
 
         # ---- NON-SCHENGEN INTERNATIONAL DEPARTURE -> passport_dep -> security_intl ----
         elif is_international_departure_requiring_passport(flight):
@@ -281,6 +343,7 @@ def record_flight_cohort_and_contribution_audit(
                 routing_source="departure_show_up", routing_destination=PROCESS_PASSPORT_DEPARTURE,
                 security_arrival_source="passport_completion",
             )
+            _accumulate_departure_flow(departure_flow_by_bucket, detailed, "non_schengen", flight.flight_key)
             real_hours = _real_completions_for_flight(passport_dep_events, flight.flight_key)
             for hour, passengers in sorted(real_hours.items()):
                 contribution_rows.append(QueueFlightHourContributionAudit(
@@ -314,6 +377,51 @@ def record_flight_cohort_and_contribution_audit(
 
     _bulk_add(session, cohort_rows)
     _bulk_add(session, contribution_rows)
+    record_airport_departure_flow_5m(session, run_id, airport_iata, departure_flow_by_bucket, tz)
+
+
+def _accumulate_departure_flow(
+    bucket_map: dict[datetime, dict], detailed, category: str, flight_key: str,
+) -> None:
+    """`detailed`: `departure_show_up_events_detailed()`'in ZATEN ürettiği
+    `(cohort_time, count, segment)` üçlüleri - burada YENİDEN üretilmiyor,
+    SADECE `category` (domestic/schengen/non_schengen) bazında 5dk
+    bucket'a göre toplanıyor (Airport Departure Passenger Flow, queue
+    wait DEĞİL)."""
+    for cohort_time, count, _segment in detailed:
+        bucket = bucket_map[cohort_time]
+        bucket[category] += count
+        bucket["flight_keys"].add(flight_key)
+
+
+def record_airport_departure_flow_5m(
+    session, run_id: str, airport_iata: str, bucket_map: dict[datetime, dict], tz,
+) -> None:
+    """`queue_airport_departure_flow_5m`'e yazar - `bucket_map` zaten
+    `_accumulate_departure_flow()` ile doldurulmuş, burada SADECE
+    toplamlar (`total=domestic+schengen+non_schengen`) hesaplanıp satıra
+    dönüştürülüyor. `calculation_method='departure_showup_cohort_sum'`
+    - SQL'den bu run'ın hangi yöntemle üretildiği her satırda görülebilir."""
+    rows: list[QueueAirportDepartureFlow5m] = []
+    for window_start, bucket in sorted(bucket_map.items()):
+        domestic = bucket["domestic"]
+        schengen = bucket["schengen"]
+        non_schengen = bucket["non_schengen"]
+        total = domestic + schengen + non_schengen
+        window_end = window_start + timedelta(minutes=DEPARTURE_SHOWUP_BUCKET_MINUTES)
+        rows.append(QueueAirportDepartureFlow5m(
+            run_id=run_id, airport_iata=airport_iata,
+            window_start_utc=window_start, window_start_local=_to_local(window_start, tz),
+            window_end_utc=window_end, window_end_local=_to_local(window_end, tz),
+            total_departure_pax=total,
+            domestic_departure_pax=domestic,
+            international_departure_pax=schengen + non_schengen,
+            schengen_departure_pax=schengen,
+            non_schengen_departure_pax=non_schengen,
+            flight_count=len(bucket["flight_keys"]),
+            calculation_method="departure_showup_cohort_sum",
+        ))
+    _bulk_add(session, rows)
 
 
 def _emit_departure_cohorts_and_contributions(
@@ -394,6 +502,70 @@ def _emit_arrival_cohorts_and_contributions(
             routing_source=routing_source, routing_destination=routing_destination,
             security_arrival_source=security_arrival_source,
         ))
+
+
+# ---------------------------------------------------------------------------
+# Table 10 (per-physical-flight resolution snapshot)
+# ---------------------------------------------------------------------------
+
+def _routing_path_for(flight) -> str:
+    if is_domestic_departure(flight):
+        return "domestic_departure->security_dom"
+    if _is_domestic_arrival(flight):
+        return "domestic_arrival->none"
+    if is_schengen_departure_skipping_passport(flight):
+        return "schengen_departure->security_intl_direct"
+    if is_international_departure_requiring_passport(flight):
+        return "non_schengen_departure->passport_dep->security_intl"
+    if _is_schengen_arrival_bypassing_passport(flight):
+        return "schengen_arrival->bypass_passport"
+    if is_international_arrival_requiring_passport(flight):
+        return "non_schengen_arrival->passport_arr"
+    return "unclassified"
+
+
+def record_flight_resolution_audit(
+    session, run_id: str, airport_iata: str, flights: list, demand, country_by_iata: dict[str, str],
+) -> None:
+    """Her fiziksel flight için TEK satır (Bölüm 1) - `passenger_demand()`
+    zaten HER flight için ana hesaplama sırasında çağrıldığından, burada
+    `demand.capacity_result(flight)` AYNI cache'ten okur (yeniden DB
+    sorgusu/`_flag_unknown()` tetiklenmez, bkz. demand.py docstring'i)."""
+    rows: list[QueueFlightResolutionAudit] = []
+    for flight in flights:
+        if flight.status in EXCLUDED_STATUSES:
+            continue
+        classification = _classify_flight(flight, country_by_iata)
+        total_demand = demand.passenger_demand(flight)
+        if total_demand <= 0:
+            continue
+        capacity = demand.capacity_result(flight)
+
+        rows.append(QueueFlightResolutionAudit(
+            run_id=run_id, airport_iata=airport_iata,
+            flight_key=flight.flight_key, flight_iata=getattr(flight, "flight_iata", None),
+            airline_iata=getattr(flight, "airline_iata", None), direction=flight.direction,
+            dep_iata=flight.dep_iata, arr_iata=flight.arr_iata,
+            dep_scheduled_utc=flight.dep_scheduled_utc, dep_estimated_utc=flight.dep_estimated_utc,
+            dep_actual_utc=flight.dep_actual_utc, dep_effective_utc=_departure_show_up_base(flight),
+            dep_time_source=_time_source_label(
+                flight.dep_actual_utc, flight.dep_estimated_utc, flight.dep_scheduled_utc,
+            ),
+            arr_scheduled_utc=flight.arr_scheduled_utc, arr_estimated_utc=flight.arr_estimated_utc,
+            arr_actual_utc=flight.arr_actual_utc, arr_effective_utc=_arrival_release_base(flight),
+            arr_time_source=_time_source_label(
+                flight.arr_actual_utc, flight.arr_estimated_utc, flight.arr_scheduled_utc,
+            ),
+            aircraft_icao=getattr(flight, "aircraft_icao", None),
+            aircraft_match_found=getattr(flight, "aircraft_match_found", None),
+            resolved_capacity=total_demand, capacity_source=capacity.source,
+            capacity_confidence=capacity.confidence,
+            is_domestic=classification["is_domestic"], is_international=classification["is_international"],
+            is_schengen=classification["is_schengen"],
+            requires_passport=getattr(flight, "requires_passport", True),
+            routing_path=_routing_path_for(flight),
+        ))
+    _bulk_add(session, rows)
 
 
 # ---------------------------------------------------------------------------
@@ -599,7 +771,43 @@ def record_routing_and_country_audit(
 # Table 8 (dynamic passport staffing checkpoints)
 # ---------------------------------------------------------------------------
 
-def record_dynamic_staffing_audit(session, run_id: str, airport_iata: str, coupling: dict, tz) -> None:
+def _dynamic_params_snapshot_by_process(config) -> dict:
+    """
+    ADIM (Editable Dynamic Staffing Config, Bölüm 19) - `queue_dynamic_
+    staffing_audit`'in "kaç yolcuda kaça çıktı" sorusunu JOIN'siz
+    cevaplayabilmesi için, her dynamic sürecin O ANDA GEÇERLİ (DB'den
+    okunmuş) base/max/interval/service_time/target_utilization'ının bir
+    anlık görüntüsü - `record_service_event_audit`'in `resource_by_
+    process` deseniyle AYNI, sadece daha fazla alan taşıyor.
+    """
+    return {
+        PROCESS_SECURITY_INTL: {
+            "base": config.international_security_lane_count,
+            "max": config.international_security_lane_count_max,
+            "interval": config.security_dynamic_control_interval_minutes,
+            "service_time": config.security_service_time_minutes,
+            "target_utilization": config.dynamic_target_utilization,
+        },
+        PROCESS_PASSPORT_DEPARTURE: {
+            "base": config.passport_departure_server_count,
+            "max": config.passport_departure_server_count_max,
+            "interval": config.passport_departure_control_interval_minutes,
+            "service_time": config.passport_service_time_minutes,
+            "target_utilization": config.dynamic_target_utilization,
+        },
+        PROCESS_PASSPORT_ARRIVAL: {
+            "base": config.passport_arrival_server_count,
+            "max": config.passport_arrival_server_count_max,
+            "interval": config.passport_arrival_control_interval_minutes,
+            "service_time": config.passport_service_time_minutes,
+            "target_utilization": config.dynamic_target_utilization,
+        },
+    }
+
+
+def record_dynamic_staffing_audit(
+    session, run_id: str, airport_iata: str, coupling: dict, tz, config,
+) -> None:
     # ADIM (Section 16 - backlog/lookahead/needed artık NULL değil):
     # `simulate_fifo_queue_dynamic()` artık `checkpoint_log`'u (Section
     # 17'deki `reason` dahil) production math'ten TAMAMEN AYRI, ek bir
@@ -608,10 +816,21 @@ def record_dynamic_staffing_audit(session, run_id: str, airport_iata: str, coupl
     # değişmedi, sadece zaten hesaplanan ara değerler dışarı sızdırıldı.
     checkpoint_logs = coupling.get("dynamic_checkpoint_logs", {})
     schedules = coupling.get("dynamic_schedules", {})
+    snapshots = _dynamic_params_snapshot_by_process(config)
     rows = []
     for process, log in checkpoint_logs.items():
         if not log:
             continue
+        snap = snapshots.get(process, {})
+        service_time = snap.get("service_time")
+        per_minute_rate = (1.0 / service_time) if service_time else None
+
+        def _capacity(count):
+            if per_minute_rate is None or count is None:
+                return None, None
+            per_minute = count * per_minute_rate
+            return per_minute, per_minute * 60
+
         # İlk (başlangıç) satırı - `checkpoint_log` sadece GERÇEK `_apply_
         # checkpoint()` çağrılarını içerir; sürecin `default_server_count`
         # ile başladığı ANIN kendisi (schedule'ın ilk elemanı) ayrı olarak
@@ -619,14 +838,25 @@ def record_dynamic_staffing_audit(session, run_id: str, airport_iata: str, coupl
         schedule = schedules.get(process)
         if schedule:
             first_time, first_count = sorted(schedule, key=lambda item: item[0])[0]
+            cap_min, cap_hour = _capacity(first_count)
             rows.append(QueueDynamicStaffingAudit(
                 run_id=run_id, airport_iata=airport_iata, process=process,
                 checkpoint_time_utc=first_time, checkpoint_time_local=_to_local(first_time, tz),
                 previous_server_count=None, new_server_count=first_count,
                 backlog=None, lookahead_demand=None, needed_servers=None,
                 ramp_delta=None, pending_retirements=None, reason="initial",
+                base_resource_count=snap.get("base"), max_resource_count=snap.get("max"),
+                total_workload=None, control_interval_minutes=snap.get("interval"),
+                service_time_minutes=service_time, target_utilization=snap.get("target_utilization"),
+                effective_capacity_per_minute=cap_min, effective_capacity_per_hour=cap_hour,
             ))
         for entry in sorted(log, key=lambda item: item.checkpoint_time):
+            cap_min, cap_hour = _capacity(entry.new_count)
+            total_workload = (
+                entry.backlog + entry.lookahead_demand
+                if entry.backlog is not None and entry.lookahead_demand is not None
+                else None
+            )
             rows.append(QueueDynamicStaffingAudit(
                 run_id=run_id, airport_iata=airport_iata, process=process,
                 checkpoint_time_utc=entry.checkpoint_time, checkpoint_time_local=_to_local(entry.checkpoint_time, tz),
@@ -636,6 +866,15 @@ def record_dynamic_staffing_audit(session, run_id: str, airport_iata: str, coupl
                 pending_retirements=entry.pending_retirements_after,
                 target_operational_level=entry.target_operational_level,
                 reason=entry.reason,
+                base_resource_count=snap.get("base"), max_resource_count=snap.get("max"),
+                total_workload=total_workload, control_interval_minutes=snap.get("interval"),
+                service_time_minutes=service_time, target_utilization=snap.get("target_utilization"),
+                effective_capacity_per_minute=cap_min, effective_capacity_per_hour=cap_hour,
+                normal_lookahead_demand=entry.normal_lookahead_demand,
+                extended_lookahead_demand=entry.extended_lookahead_demand,
+                normal_needed_servers=entry.normal_needed_servers,
+                extended_needed_servers=entry.extended_needed_servers,
+                winning_forecast=entry.winning_forecast,
             ))
     _bulk_add(session, rows)
 
@@ -646,42 +885,55 @@ def record_dynamic_staffing_audit(session, run_id: str, airport_iata: str, coupl
 
 def record_graph_display_audit(
     session, run_id: str, airport_iata: str, process: str,
-    five_minute_points: list[tuple[datetime, float]], tz, now: datetime,
+    five_minute_points: list, tz, now: datetime,
 ) -> None:
     """`five_minute_points`: `event_driven_display_series()`'in ÜRETTİĞİ
-    (window_start_utc, wait_minutes) listesi - 5dk queue-state (bkz.
-    `virtual_arrival_wait`). Bu fonksiyon SADECE frontend'in `index.html:
-    to30MinuteVisualBuckets()` ile yaptığı AYNI 30dk ortalama aggregation'ı
-    sunucu tarafında bir kez daha (salt gözlem için) hesaplayıp SQL'den
-    görünür kılar - frontend'in kendi hesabını DEĞİŞTİRMEZ/OKUMAZ."""
+    `FiveMinuteWaitPoint` listesi - ADIM (Current-Queue Weighted
+    Remaining Wait): her nokta artık "o checkpoint anında hâlâ kuyrukta
+    bekleyenlerin ortalama KALAN bekleme süresi" (`_remaining_wait_at_
+    checkpoint`, eski arrival-window metriği/`virtual_arrival_wait`
+    İKİSİ DE KALDIRILDI). 30dk bar 6 adet checkpoint'in basit ortalaması
+    DEĞİL - o 30dk'daki TÜM 6 checkpoint'in numerator/passenger_count'
+    larının TOPLANIP bölünmesi (`SUM(numerator)/SUM(pax)`) - formül
+    (`_bucket_weighted_wait` ile AYNI desen) DEĞİŞMEDİ, sadece girdinin
+    (`passenger_count`) anlamı değişti. Frontend'in kendi hesabını
+    DEĞİŞTİRMEZ/OKUMAZ - sadece SUNUCU tarafında bir kez daha (salt
+    gözlem için) hesaplayıp SQL'den görünür kılar."""
     from .core.scoring import risk_from_wait
 
-    buckets: dict[datetime, list[float]] = defaultdict(list)
-    for window_start, wait_minutes in five_minute_points:
-        bucket_minute = 0 if window_start.minute < 30 else 30
-        bucket_start = window_start.replace(minute=bucket_minute, second=0, microsecond=0)
-        if wait_minutes is not None:
-            buckets[bucket_start].append(wait_minutes)
+    buckets: dict[datetime, dict] = defaultdict(
+        lambda: {"numerator": 0.0, "passengers": 0.0, "source_points": 0, "peak": 0.0}
+    )
+    for point in five_minute_points:
+        bucket_minute = 0 if point.window_start.minute < 30 else 30
+        bucket_start = point.window_start.replace(minute=bucket_minute, second=0, microsecond=0)
+        bucket = buckets[bucket_start]
+        bucket["numerator"] += point.wait_numerator
+        bucket["passengers"] += point.passenger_count
+        bucket["source_points"] += 1
+        bucket["peak"] = max(bucket["peak"], point.wait_minutes)
 
     current_bucket = None
     if five_minute_points:
-        past = [t for t, _ in five_minute_points if t <= now]
+        past = [p.window_start for p in five_minute_points if p.window_start <= now]
         if past:
             latest = max(past)
             bucket_minute = 0 if latest.minute < 30 else 30
             current_bucket = latest.replace(minute=bucket_minute, second=0, microsecond=0)
 
     rows = []
-    for bucket_start, waits in sorted(buckets.items()):
-        average = sum(waits) / len(waits) if waits else None
-        peak = max(waits) if waits else None
+    for bucket_start, bucket in sorted(buckets.items()):
+        passengers = bucket["passengers"]
+        weighted_average = bucket["numerator"] / passengers if passengers > 0 else 0.0
         rows.append(QueueGraphDisplayAudit(
             run_id=run_id, airport_iata=airport_iata, process=process,
             bucket_start_utc=bucket_start, bucket_start_local=_to_local(bucket_start, tz),
             source_resolution_minutes=5, visual_bucket_minutes=30,
-            source_point_count=len(waits),
-            average_wait_minutes=average, peak_wait_minutes=peak, display_wait_minutes=average,
-            status=risk_from_wait(average) if average is not None else None,
+            source_point_count=bucket["source_points"],
+            wait_numerator=bucket["numerator"], passenger_count=passengers,
+            average_wait_minutes=weighted_average, peak_wait_minutes=bucket["peak"],
+            display_wait_minutes=weighted_average,
+            status=risk_from_wait(weighted_average),
             is_current=(bucket_start == current_bucket),
         ))
     _bulk_add(session, rows)
@@ -695,6 +947,7 @@ _AUDIT_MODELS = (
     QueueCalculationHourlyAudit, QueueFlightHourContributionAudit, QueueCohortAudit,
     QueueServiceEventAudit, QueueRoutingSummaryAudit, QueueCountryRoutingAudit,
     QueueResourceConfigAudit, QueueDynamicStaffingAudit, QueueGraphDisplayAudit,
+    QueueFlightResolutionAudit, QueueAirportDepartureFlow5m,
 )
 
 

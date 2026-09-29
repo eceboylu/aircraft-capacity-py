@@ -66,10 +66,10 @@ def test_missing_db_row_falls_back_to_hardcoded_scale_resources(db_session):
     # AirportScaleConfig tablosu KASITLI olarak BOŞ bırakıldı.
 
     cfg = get_config(session, "ADB")
-    assert cfg.passport_departure_server_count == 4
-    assert cfg.passport_arrival_server_count == 4
-    assert cfg.domestic_security_lane_count == 3
-    assert cfg.international_security_lane_count == 2
+    assert cfg.passport_departure_server_count == 8
+    assert cfg.passport_arrival_server_count == 8
+    assert cfg.domestic_security_lane_count == 6
+    assert cfg.international_security_lane_count == 5
 
 
 def test_partial_db_table_only_overrides_the_scale_that_has_a_row(db_session):
@@ -94,7 +94,7 @@ def test_partial_db_table_only_overrides_the_scale_that_has_a_row(db_session):
     assert ist_cfg.passport_departure_server_count == 999
 
     adb_cfg = get_config(session, "ADB")
-    assert adb_cfg.passport_departure_server_count == 4  # hardcoded MEDIUM, DB'den ETKİLENMEDİ
+    assert adb_cfg.passport_departure_server_count == 8  # hardcoded MEDIUM, DB'den ETKİLENMEDİ
 
 
 def test_get_configs_batch_uses_db_override_without_n_plus_1(db_session):
@@ -128,5 +128,5 @@ def test_default_config_without_session_never_touches_db_table():
     session'ı YOK).
     """
     cfg = default_config("XXX", scale="large")
-    assert cfg.passport_departure_server_count == 10
+    assert cfg.passport_departure_server_count == 15
     assert cfg.domestic_security_lane_count == 15

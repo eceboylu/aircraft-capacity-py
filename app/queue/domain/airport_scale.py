@@ -19,31 +19,94 @@ SCALE_RESOURCES: dict[str, dict[str, int]] = {
         # 5 dakikalık checkpoint ile (bkz. constants.py DEFAULT_DYNAMIC_
         # CONTROL_INTERVAL_MINUTES). Eski değerler (dep base=30/max=45,
         # arr base=35/max=45, security static=20) ARTIK KULLANILMIYOR.
-        "departure_passport_servers": 15,
-        "departure_passport_servers_max": 40,
+        #
+        # ADIM (MEGA Base Revision) - security_intl base'i 15'ten 20'ye
+        # YÜKSELTİLDİ (kullanıcı talebi - "artık 15 aktif resource count
+        # OLAMAZ"). passport_arr base'i (30) DEĞİŞMEDİ.
+        #
+        # ADIM (phpMyAdmin'den canlı güncelleme) - `departure_passport_
+        # servers`/`_max` kullanıcı tarafından SQL'den (airport_scale_
+        # configs.scale='mega') 30/45'e GÜNCELLENDİ ve bu Python sabiti
+        # o kararı yansıtacak şekilde SENKRONİZE edildi ("ona göre de
+        # kodda güncelle" talebi) - böylece bu satır ileride SIFIRDAN
+        # (fresh) bir DB'de yeniden seed edilirse de AYNI (30/45) değerle
+        # başlar, eski (20/40) değere GERİ DÜŞMEZ. Runtime'ın KENDİSİ zaten
+        # DB'deki satırı Python sabitinin ÖNÜNE koyuyordu (bkz. `pipeline.
+        # py:ensure_airport_scale_resource_config` - satır VARSA asla
+        # üzerine yazılmaz) - bu değişiklik sadece "ileride sıfırdan
+        # kurulan bir ortamın varsayılanı" için gerekli, MEVCUT DB
+        # davranışını hiç ETKİLEMEDİ (zaten DB'deki 30/45 kullanılıyordu).
+        # ADIM (Kapasite/Talep Uyumsuzluğu - 60'a Yükseltme) - kullanıcı
+        # talebi: IST'e eklenen gerçekçi tam-gün tarifede passport_dep
+        # günlük toplam talebi ~56.000 yolcuya, tepe saatlerde 7.700+
+        # yolcu/saate ulaşıyordu; max=45 gişe * 1dk/yolcu = 2.700/saat
+        # teorik tavan bunun ÇOK altında kalıp 9+ saatlik backlog'a yol
+        # açıyordu (bkz. queue_predictions kanıtı - saat 15:00'te 553dk
+        # bekleme). 45->60 yükseltmesi bu somut tepe-saat açığını (7.700
+        # vs 2.700) kapatmak için seçildi (60*1=3.600/saat tavan, hâlâ tek
+        # başına tepe saati tam karşılamaz ama backlog'un GÜNÜ AŞAN
+        # birikimini önemli ölçüde azaltır - bkz. rapor).
+        # `PASSPORT_DEP_OPERATIONAL_LEVELS` (constants.py) fallback'i de
+        # AYNI şekilde (30/35/40/45/50/55/60) güncellendi.
+        #
+        # ADIM (International Arrival - Aynı Uyumsuzluk, Aynı Çözüm) -
+        # passport_arr için de AYNI tespit: IST'in tam-gün tarifesinde
+        # tepe saat (14:00) talebi 8.244 yolcu/saate çıkıyor, eski max=40
+        # gişe * 1dk/yolcu = 2.400/saat tavan bunun ÇOK altında kalıp
+        # backlog'un ERTESİ GÜNE (2026-09-30 05:00'e kadar) taşmasına yol
+        # açıyordu (peak=767dk ≈ 12.8 saat). departure ile TUTARLI olacak
+        # şekilde AYNI 60 tavanına yükseltildi (60*1=3.600/saat) - tepe
+        # saati tek başına karşılamıyor ama backlog artık GÜN İÇİNDE
+        # eriyor, ertesi güne sarkmıyor (bkz. rapor).
+        # `PASSPORT_ARR_OPERATIONAL_LEVELS` (constants.py) AYNI şekilde
+        # (30/35/40/45/50/55/60) güncellendi.
+        "departure_passport_servers": 30,
+        "departure_passport_servers_max": 60,
         "arrival_passport_servers": 30,
-        "arrival_passport_servers_max": 40,
+        "arrival_passport_servers_max": 60,
         "domestic_security_lanes": 30,
-        "international_security_lanes": 15,
+        "international_security_lanes": 20,
         "international_security_lanes_max": 40,
+        # ADIM (Editable Dynamic Staffing Config) - phpMyAdmin'den
+        # doğrudan görülebilsin diye NULL değil, GERÇEK varsayılan
+        # değerlerle seed edilir (bkz. `pipeline.py:ensure_airport_
+        # scale_resource_config`, `config.py`'nin okuma fallback zinciri
+        # bunlar boş/silinmiş olsa bile AYNI sabitlere düşmeye devam
+        # eder).
+        "passport_departure_control_interval_minutes": 5,
+        "passport_arrival_control_interval_minutes": 5,
+        "dynamic_target_utilization": 0.85,
+        "passport_arrival_lookahead_minutes": 20,
     },
     SCALE_LARGE: {
-        "departure_passport_servers": 10,
-        "arrival_passport_servers": 12,
+        # ADIM (Real-World Averages Update) - kullanıcı talebi: passport
+        # (manuel) gişe sayıları 10/12'den güncel havalimanı ortalamasına
+        # yükseltildi. Security lane sayıları (domestic/international=15)
+        # bu talepte DEĞİŞMEDİ.
+        "departure_passport_servers": 15,
+        "arrival_passport_servers": 16,
         "domestic_security_lanes": 15,
         "international_security_lanes": 15,
     },
     SCALE_MEDIUM: {
+        # ADIM (Real-World Averages Update) - kullanıcı talebi: "Orta
+        # ölçekli havalimanı ortalaması" - Domestic Security X-ray=6 lane,
+        # Intl Departure Manuel Passport=8 gişe, Intl Departure Security
+        # X-ray=5 lane, Intl Arrival Manuel Passport=8 gişe.
+        "departure_passport_servers": 8,
+        "arrival_passport_servers": 8,
+        "domestic_security_lanes": 6,
+        "international_security_lanes": 5,
+    },
+    SCALE_SMALL: {
+        # ADIM (Real-World Averages Update) - kullanıcı talebi: "SMALL
+        # ortalama" - Domestic Security X-ray=3 lane, Intl Departure
+        # Manuel Passport=4 gişe, Intl Departure Security X-ray=3 lane,
+        # Intl Arrival Manuel Passport=4 gişe.
         "departure_passport_servers": 4,
         "arrival_passport_servers": 4,
         "domestic_security_lanes": 3,
-        "international_security_lanes": 2,
-    },
-    SCALE_SMALL: {
-        "departure_passport_servers": 2,
-        "arrival_passport_servers": 2,
-        "domestic_security_lanes": 2,
-        "international_security_lanes": 2,
+        "international_security_lanes": 3,
     },
 }
 

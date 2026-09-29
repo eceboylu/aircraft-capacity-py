@@ -7,43 +7,45 @@ from app.queue.models import Airport
 
 
 def test_default_config_mega_scale_exact_values():
-    """MEGA dynamic resource policy (source of truth): passport_dep
-    base=15/max=40, passport_arr base=30/max=40, security_intl artık
-    dynamic base=15/max=40 (domestic security static kalıyor)."""
+    """MEGA dynamic resource policy (source of truth): passport_dep VE
+    passport_arr ikisi de base=30/max=60 (kapasite/talep uyumsuzluğu
+    tespiti sonrası 45/40'tan yükseltildi - kullanıcının SQL'den yaptığı
+    güncelleme + Python varsayılanının senkronizasyonu), security_intl
+    dynamic base=20/max=40 (domestic security static kalıyor)."""
     cfg = default_config("IST", scale="mega")
     assert cfg.domestic_security_lane_count == 30
-    assert cfg.passport_departure_server_count == 15
-    assert cfg.passport_departure_server_count_max == 40
-    assert cfg.international_security_lane_count == 15
+    assert cfg.passport_departure_server_count == 30
+    assert cfg.passport_departure_server_count_max == 60
+    assert cfg.international_security_lane_count == 20
     assert cfg.international_security_lane_count_max == 40
     assert cfg.security_intl_dynamic is True
     assert cfg.passport_arrival_server_count == 30
-    assert cfg.passport_arrival_server_count_max == 40
+    assert cfg.passport_arrival_server_count_max == 60
     assert cfg.scale == "mega"
 
 
 def test_default_config_large_scale_exact_values():
     cfg = default_config("ESB", scale="large")
     assert cfg.domestic_security_lane_count == 15
-    assert cfg.passport_departure_server_count == 10
+    assert cfg.passport_departure_server_count == 15
     assert cfg.international_security_lane_count == 15
-    assert cfg.passport_arrival_server_count == 12
+    assert cfg.passport_arrival_server_count == 16
 
 
 def test_default_config_medium_scale_exact_values():
     cfg = default_config("ADB", scale="medium")
-    assert cfg.domestic_security_lane_count == 3
-    assert cfg.passport_departure_server_count == 4
-    assert cfg.international_security_lane_count == 2
-    assert cfg.passport_arrival_server_count == 4
+    assert cfg.domestic_security_lane_count == 6
+    assert cfg.passport_departure_server_count == 8
+    assert cfg.international_security_lane_count == 5
+    assert cfg.passport_arrival_server_count == 8
 
 
 def test_default_config_small_scale_exact_values():
     cfg = default_config("ASR", scale="small")
-    assert cfg.domestic_security_lane_count == 2
-    assert cfg.passport_departure_server_count == 2
-    assert cfg.international_security_lane_count == 2
-    assert cfg.passport_arrival_server_count == 2
+    assert cfg.domestic_security_lane_count == 3
+    assert cfg.passport_departure_server_count == 4
+    assert cfg.international_security_lane_count == 3
+    assert cfg.passport_arrival_server_count == 4
 
 
 def test_get_config_reads_mega_scale_from_db(db_session):
@@ -58,11 +60,13 @@ def test_get_config_reads_mega_scale_from_db(db_session):
     cfg = get_config(session, "IST")
     assert cfg.domestic_security_lane_count == 30
     assert cfg.passport_departure_server_count == 30
-    assert cfg.passport_departure_server_count_max == 45
+    assert cfg.passport_departure_server_count_max == 60
     assert cfg.passport_departure_dynamic is True
     assert cfg.international_security_lane_count == 20
-    assert cfg.passport_arrival_server_count == 35
-    assert cfg.passport_arrival_server_count_max == 45
+    assert cfg.international_security_lane_count_max == 40
+    assert cfg.security_intl_dynamic is True
+    assert cfg.passport_arrival_server_count == 30
+    assert cfg.passport_arrival_server_count_max == 60
     assert cfg.passport_arrival_dynamic is True
     assert cfg.is_default is True
 
@@ -78,9 +82,9 @@ def test_get_config_reads_large_medium_small_from_db_as_fully_static(db_session)
     session.commit()
 
     expected = {
-        "ESB": (10, 12, 15, 15),
-        "ADB": (4, 4, 3, 2),
-        "ASR": (2, 2, 2, 2),
+        "ESB": (15, 16, 15, 15),
+        "ADB": (8, 8, 6, 5),
+        "ASR": (4, 4, 3, 3),
     }
     for iata, (dep, arr, dom, intl) in expected.items():
         cfg = get_config(session, iata)

@@ -28,7 +28,7 @@ from .domain.operational_day import (
     operational_day_window,
     resolve_airport_timezone,
 )
-from .models import Airport, Flight, QueuePrediction, QueueWaitDisplay5m
+from .models import Airport, Flight, QueueAirportDepartureFlow5m, QueuePrediction, QueueWaitDisplay5m
 
 RISK_TO_UI_LABEL = {
     RISK_LOW: "Normal",
@@ -341,6 +341,11 @@ def _display_point_to_dict(row: QueueWaitDisplay5m, tz=None) -> dict:
         "window_start": row.window_start.isoformat(),
         "window_start_local": _to_local_iso(row.window_start, tz),
         "estimated_wait_minutes": row.estimated_wait_minutes,
+        # ADIM (Passenger-Weighted Display Wait) - frontend'in 30dk bar'ı
+        # ARTIK 6 noktanın basit ortalaması değil, passenger-weighted
+        # toplama - `to30MinuteVisualBuckets()` bu iki alanı kullanır.
+        "wait_numerator": row.wait_numerator,
+        "passenger_count": row.passenger_count,
         "risk": row.risk,
         "risk_label": ui_label_for_risk(row.risk),
     }
@@ -361,6 +366,66 @@ def display_5m_series(
     query = query.order_by(QueueWaitDisplay5m.window_start)
     rows = session.execute(query).scalars().all()
     return [_display_point_to_dict(row, tz) for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# Airport Departure Passenger Flow - QUEUE WAIT DEĞİL. "Bu havalimanına
+# şu an ne kadar departure yolcusu GELİYOR (show-up)?" - security/
+# passport/backlog/remaining-wait hesaplarından TAMAMEN AYRI, salt-okunur
+# bir congestion/flow serisi (bkz. audit.py:record_airport_departure_
+# flow_5m). `queue_airport_departure_flow_5m` run_id bazlı/tarihsel
+# (audit tablosu) olduğu için, bir havalimanı için EN SON run'ın
+# satırları seçiliyor.
+# ---------------------------------------------------------------------------
+
+def _departure_flow_point_to_dict(row: QueueAirportDepartureFlow5m, tz=None) -> dict:
+    return {
+        "window_start": row.window_start_utc.isoformat(),
+        "window_start_local": _to_local_iso(row.window_start_utc, tz),
+        "window_end": row.window_end_utc.isoformat(),
+        "window_end_local": _to_local_iso(row.window_end_utc, tz),
+        "total_departure_pax": row.total_departure_pax,
+        "domestic_departure_pax": row.domestic_departure_pax,
+        "international_departure_pax": row.international_departure_pax,
+        "schengen_departure_pax": row.schengen_departure_pax,
+        "non_schengen_departure_pax": row.non_schengen_departure_pax,
+        "flight_count": row.flight_count,
+    }
+
+
+def _latest_departure_flow_run_id(session, airport_iata: str) -> str | None:
+    return session.execute(
+        select(QueueAirportDepartureFlow5m.run_id)
+        .where(QueueAirportDepartureFlow5m.airport_iata == airport_iata)
+        .order_by(QueueAirportDepartureFlow5m.created_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def airport_departure_flow_5m_series(
+    session, airport_iata: str,
+    day_start: datetime | None = None, day_end: datetime | None = None, tz=None,
+) -> dict:
+    run_id = _latest_departure_flow_run_id(session, airport_iata)
+    if run_id is None:
+        return {"run_id": None, "calculation_method": None, "points": []}
+
+    query = select(QueueAirportDepartureFlow5m).where(
+        QueueAirportDepartureFlow5m.airport_iata == airport_iata,
+        QueueAirportDepartureFlow5m.run_id == run_id,
+    )
+    if day_start is not None:
+        query = query.where(QueueAirportDepartureFlow5m.window_start_utc >= day_start)
+    if day_end is not None:
+        query = query.where(QueueAirportDepartureFlow5m.window_start_utc < day_end)
+    query = query.order_by(QueueAirportDepartureFlow5m.window_start_utc)
+    rows = session.execute(query).scalars().all()
+
+    return {
+        "run_id": run_id,
+        "calculation_method": rows[0].calculation_method if rows else None,
+        "points": [_departure_flow_point_to_dict(row, tz) for row in rows],
+    }
 
 
 def process_series(
@@ -434,59 +499,6 @@ def _pick_current_window(windows: list[dict], now: datetime) -> dict | None:
     return windows[0]
 
 
-def _merge_overall_series(*process_results: dict, now: datetime) -> dict:
-    by_window: dict[str, list[dict]] = {}
-    for result in process_results:
-        for window in result["windows"]:
-            by_window.setdefault(window["window_start"], []).append(window)
-
-    def _worst_of(entries: list[dict]) -> dict:
-        base = _pick_highest_severity_entry(entries)
-        wait = base["estimated_wait_minutes"]
-        return {
-            "window_start": base["window_start"],
-            "window_end": base["window_end"],
-            "window_start_local": base.get("window_start_local"),
-            "window_end_local": base.get("window_end_local"),
-            "risk": base["risk"],
-            "risk_label": base["risk_label"],
-            "estimated_wait_minutes": wait,
-        }
-
-    windows = [_worst_of(by_window[start]) for start in sorted(by_window)]
-
-    current = _pick_current_window(windows, now)
-
-    return {"process": "overall", "current": current, "windows": windows}
-
-
-def _merge_overall_display_5m(*process_display_5m_lists: list[dict]) -> list[dict]:
-    # "overall" için de diğer 4 grafik gibi 30dk'lık görsel bar (48/gün)
-    # istendi (kullanıcı talebi) - `_merge_overall_series` ile AYNI
-    # "worst-of-4 per bucket" mantığı, ama saatlik `windows` yerine
-    # ZATEN hesaplanmış 5dk `display_5m` noktaları üzerinde - hiçbir
-    # yeni wait/queue hesaplaması YAPILMAZ, sadece 4 sürecin ZATEN VAR
-    # olan 5dk noktaları saat başına en kötü risk'e göre birleştirilir.
-    # Frontend'in `to30MinuteVisualBuckets()`'ı (DEĞİŞMEDİ) bunu diğer
-    # süreçlerle AYNI şekilde 30dk bar'lara indirger.
-    by_window: dict[str, list[dict]] = {}
-    for points in process_display_5m_lists:
-        for point in points:
-            by_window.setdefault(point["window_start"], []).append(point)
-
-    def _worst_of(entries: list[dict]) -> dict:
-        base = _pick_highest_severity_entry(entries)
-        return {
-            "window_start": base["window_start"],
-            "window_start_local": base.get("window_start_local"),
-            "estimated_wait_minutes": base["estimated_wait_minutes"],
-            "risk": base["risk"],
-            "risk_label": base["risk_label"],
-        }
-
-    return [_worst_of(by_window[start]) for start in sorted(by_window)]
-
-
 def _international_departure_split(
     passport_departure: dict, international_security: dict,
 ) -> dict:
@@ -515,14 +527,6 @@ def airport_predictions(
     passport_departure["display_5m"] = display_5m_series(session, airport_iata, PROCESS_PASSPORT_DEPARTURE, day_start, day_end, tz)
     passport_arrival["display_5m"] = display_5m_series(session, airport_iata, PROCESS_PASSPORT_ARRIVAL, day_start, day_end, tz)
 
-    overall = _merge_overall_series(
-        domestic_security, international_security,
-        passport_departure, passport_arrival, now=now,
-    )
-    overall["display_5m"] = _merge_overall_display_5m(
-        domestic_security["display_5m"], international_security["display_5m"],
-        passport_departure["display_5m"], passport_arrival["display_5m"],
-    )
     international_departure = _international_departure_split(
         passport_departure, international_security,
     )
@@ -535,7 +539,10 @@ def airport_predictions(
         "international_passport": passport,
         "international_departure": international_departure,
         "international_arrival": passport_arrival,
-        "overall": overall,
         "security": security,
         "passport": passport,
+        # ADIM (Airport Departure Passenger Flow) - queue wait DEĞİL,
+        # ayrı/bağımsız bir congestion serisi (bkz. app/queue/api.py
+        # üstündeki modül yorumu).
+        "departure_flow": airport_departure_flow_5m_series(session, airport_iata, day_start, day_end, tz),
     }

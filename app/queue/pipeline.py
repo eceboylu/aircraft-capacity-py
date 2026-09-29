@@ -21,6 +21,7 @@ from .domain.retention_time import USAGE_HORIZON_HOURS
 from .ingestion.sources import (
     aircraft_match_rate,
     build_aircraft_index,
+    codeshare_skip_counts_by_airport,
     load_source_payload,
     parse_source_a,
 )
@@ -113,6 +114,10 @@ def ensure_airport_scale_resource_config(session) -> int:
             international_security_lanes_max=resources.get("international_security_lanes_max"),
             security_dynamic_control_interval_minutes=resources.get("security_dynamic_control_interval_minutes"),
             passport_dynamic_control_interval_minutes=resources.get("passport_dynamic_control_interval_minutes"),
+            passport_departure_control_interval_minutes=resources.get("passport_departure_control_interval_minutes"),
+            passport_arrival_control_interval_minutes=resources.get("passport_arrival_control_interval_minutes"),
+            dynamic_target_utilization=resources.get("dynamic_target_utilization"),
+            passport_arrival_lookahead_minutes=resources.get("passport_arrival_lookahead_minutes"),
         ))
         created += 1
     if created:
@@ -171,17 +176,29 @@ def ensure_airport_operational_configs(session) -> dict:
 def resync_security_service_time(session) -> int:
     from .constants import SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES
 
+    # ADIM (Security Service Time - 50 saniye) - MySQL `FLOAT` kolonu
+    # (4 byte, ~7 anlamlı basamak) tekrarlayan ondalıkları (50/60=
+    # 0.8333333333333334...) TAM saklayamıyor; SQL-taraflı `!=` filtresi
+    # bu yüzden (stored≈0.833333 vs Python sabiti) HER ZAMAN "farklı"
+    # görüp gereksiz yere resync ediyordu (1.0 gibi "temiz" değerlerle
+    # bu görülmüyordu). Karşılaştırma artık Python tarafında, küçük bir
+    # tolerans ile yapılıyor - şema/kolon tipi DEĞİŞMEDİ (migration yok),
+    # sadece "gerçekten farklı mı" testi artık float rounding noise'una
+    # duyarsız.
     rows = (
         session.query(AirportOperationalConfig)
         .filter(AirportOperationalConfig.is_seeded_default.is_(True))
-        .filter(AirportOperationalConfig.security_service_time_minutes != SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES)
         .all()
     )
-    for row in rows:
+    changed = [
+        row for row in rows
+        if abs(row.security_service_time_minutes - SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES) > 1e-6
+    ]
+    for row in changed:
         row.security_service_time_minutes = SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES
-    if rows:
+    if changed:
         session.commit()
-    return len(rows)
+    return len(changed)
 
 
 class CapacitySeedError(RuntimeError):
@@ -238,7 +255,7 @@ def load_flight_rows(
     source_a=None,
     source_b=None,
     now: datetime | None = None,
-) -> list[dict]:
+) -> tuple[list[dict], dict[str, int]]:
     countries = country_lookup(session)
     source_a = source_a or file_source_a(data_dir)
     source_b = source_b or file_source_b(data_dir)
@@ -262,6 +279,13 @@ def load_flight_rows(
 
     rows: list[dict] = []
     source_a_total = 0
+    # ADIM (Codeshare Audit Attribution) - `queue_routing_summary_audit.
+    # codeshare_records_removed`'ı havalimanı başına doldurabilmek için;
+    # `parse_source_a()`'nın KENDİSİ değiştirilmedi, sadece AYNI dedup
+    # sonucunu (`codeshare_skip_counts_by_airport`) tekrar kullanan
+    # salt-okunur bir sayım - iki kez HTTP/dosya okuması YAPILMAZ (aynı
+    # `records` listesi üzerinde, bellek içi).
+    codeshare_removed_by_airport: dict[str, int] = {}
     for direction in SOURCE_A_FILES:
         try:
             records = source_a(direction)
@@ -281,12 +305,16 @@ def load_flight_rows(
                 min_operational_time=min_operational_time,
             )
         )
+        for airport, count in codeshare_skip_counts_by_airport(records, direction).items():
+            codeshare_removed_by_airport[airport] = (
+                codeshare_removed_by_airport.get(airport, 0) + count
+            )
 
     logger.info(
         "ingestion sonucu: %d uçuş satırı ayrıştırıldı (Kaynak A ham kayıt=%d, Kaynak B ham kayıt=%d)",
         len(rows), source_a_total, len(source_b_records),
     )
-    return rows
+    return rows, codeshare_removed_by_airport
 
 
 def run(
@@ -309,7 +337,9 @@ def run(
         operational_configs = ensure_airport_operational_configs(session)
         security_service_time_resynced = resync_security_service_time(session)
         capacity_seeded = ensure_capacity_reference(session)
-        rows = load_flight_rows(session, data_dir, source_a, source_b, now=now)
+        rows, codeshare_removed_by_airport = load_flight_rows(
+            session, data_dir, source_a, source_b, now=now,
+        )
         match_rate = aircraft_match_rate(rows)
         refreshed = refresh_flights(session, rows)
         logger.info(
@@ -325,6 +355,7 @@ def run(
             update_baseline=update_baseline,
             now=now,
             apply_usage_horizon=apply_usage_horizon,
+            codeshare_removed_by_airport=codeshare_removed_by_airport,
         )
         logger.info(
             "prediction completed: predictions=%d pruned=%d airports_ok=%d airports_failed=%d",

@@ -1,7 +1,15 @@
 
 DEMAND_WINDOW_MINUTES = 60
 
-SECURITY_PASSENGERS_PER_HOUR_PER_LANE = 60
+# ADIM (Security Service Time - 50 saniye/yolcu) - kullanıcı talebi: "1
+# passenger / 1 security lane = 50 seconds". TEK kaynak burası -
+# `SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES` (dakika, `AirportOperational
+# Config.security_service_time_minutes`'in Python-taraflı varsayılanı,
+# bkz. models.py) bu sabitten TÜRETİLİYOR; hiçbir yerde "50" veya "0.8333"
+# ayrıca hardcode EDİLMEDİ. 3600/50=72 pax/saat/lane -> 60/72=0.8333...
+# dakika/yolcu. Passport service time (`passport_service_time_minutes`,
+# ayrı bir alan) bu değişiklikten TAMAMEN BAĞIMSIZ, DOKUNULMADI.
+SECURITY_PASSENGERS_PER_HOUR_PER_LANE = 72
 
 SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES = 60.0 / SECURITY_PASSENGERS_PER_HOUR_PER_LANE
 
@@ -41,7 +49,13 @@ DEFAULT_DYNAMIC_CONTROL_INTERVAL_MINUTES = 5
 ARRIVAL_PASSPORT_PROACTIVE_LOOKAHEAD_MINUTES = 20
 
 DYNAMIC_TARGET_UTILIZATION = 0.85
-DYNAMIC_RAMP_STEP = 5
+# ADIM (Kademeleri 10'a Çıkarma) - kullanıcı talebi: "5'er 5'er değil
+# artık 30-40-50 diye artsın" - MEGA'nın 3 dynamic süreci (passport_dep/
+# passport_arr/security_intl) artık HER checkpoint'te 10'luk kademelerle
+# hareket ediyor (`_operational_levels_for()`'ın `range(base, max+1,
+# step)` formülü - bkz. engine.py). Eski step=5 (30,35,40,45,50,55,60)
+# ARTIK KULLANILMIYOR.
+DYNAMIC_RAMP_STEP = 10
 
 # ADIM (Discrete Operational Levels) - MEGA dynamic resource'lar artık
 # rastgele bir tamsayıya (ör. 19, 24, 31, 38) DEĞİL, sadece bu sabit
@@ -50,9 +64,14 @@ DYNAMIC_RAMP_STEP = 5
 # event_queue.py `_apply_checkpoint`. Liste kodda sabit ama TAVAN DB'den
 # geliyor; "40" burada sadece "olası en yüksek seviye", zorunlu hedef
 # değil.
-SECURITY_INTL_OPERATIONAL_LEVELS = (15, 20, 25, 30, 35, 40)
-PASSPORT_DEP_OPERATIONAL_LEVELS = (15, 20, 25, 30, 35, 40)
-PASSPORT_ARR_OPERATIONAL_LEVELS = (30, 35, 40)
+SECURITY_INTL_OPERATIONAL_LEVELS = (20, 30, 40)
+# ADIM (phpMyAdmin'den canlı güncelleme) - passport_dep/passport_arr
+# base/max SQL'den 30/60'a güncellendi; bu SADECE bir FALLBACK'tir
+# (DB'deki base/max geçerliyse hiç kullanılmaz, bkz. engine.py
+# `_operational_levels_for`) ama tutarlılık için AYNI 30/40/50/60
+# değerine senkronize edildi.
+PASSPORT_DEP_OPERATIONAL_LEVELS = (30, 40, 50, 60)
+PASSPORT_ARR_OPERATIONAL_LEVELS = (30, 40, 50, 60)
 
 DIRECTION_DEPARTURE = "departure"
 DIRECTION_ARRIVAL = "arrival"

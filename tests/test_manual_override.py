@@ -73,5 +73,5 @@ def test_seeded_default_row_is_resynced_to_new_scale_contract(db_session):
 
     row = session.get(AirportOperationalConfig, "IST")
     assert row.domestic_security_lane_count == 30  # yeni MEGA değeri
-    assert row.international_security_lane_count == 20  # yeni MEGA değeri
+    assert row.international_security_lane_count == 20  # yeni MEGA değeri (dynamic base)
     assert result["resynced"] == 1

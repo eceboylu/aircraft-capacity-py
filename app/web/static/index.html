@@ -445,13 +445,18 @@
   var VISUAL_BUCKET_MINUTES = 30;
 
   // 5dk `display_5m` noktalarını 30dk'lık görsel bar'lara indirger -
-  // her bar, o yarım saatteki 5dk noktalarının `estimated_wait_minutes`
-  // ORTALAMASI (max/son değer DEĞİL - bkz. görev notu: tek bir anlık
-  // spike yarım saati olduğundan sert göstermesin, ama artış/azalış
-  // trendi de kaybolmasın). Çıktı, mevcut `estimated_wait_minutes`/
-  // `risk`/`risk_label`/`window_start[_local]`/`window_end[_local]`
-  // alan adlarını AYNEN taşır - bu yüzden `peakBestSummary`/`drawChart`/
-  // `windowLabelRange` DEĞİŞMEDEN bu bar'ları da çizebilir.
+  // her bar 6 noktanın BASİT ortalaması DEĞİL - o yarım saatteki TÜM
+  // 5dk checkpoint'lerinin `wait_numerator`/`passenger_count` TOPLAMININ
+  // bölümü (SUM(numerator)/SUM(pax) - bkz. app/queue/audit.py:record_
+  // graph_display_audit, AYNI formül). ADIM (Current-Queue Weighted
+  // Remaining Wait): backend'deki `passenger_count` artık "o 5dk'da
+  // yeni gelenler" değil, "o checkpoint anında HÂLÂ kuyrukta bekleyenler"
+  // - bu JS fonksiyonunun KENDİSİ değişmedi (formül aynı kaldı), sadece
+  // topladığı sayının anlamı backend tarafında değişti. Çıktı, mevcut
+  // `estimated_wait_minutes`/`risk`/`risk_label`/`window_start[_local]`/
+  // `window_end[_local]` alan adlarını AYNEN taşır - bu yüzden
+  // `peakBestSummary`/`drawChart`/`windowLabelRange` DEĞİŞMEDEN bu
+  // bar'ları da çizebilir.
   function to30MinuteVisualBuckets(points) {
     if (!points || !points.length) return points || [];
     var buckets = {};
@@ -473,22 +478,24 @@
           window_start_local: startLocal,
           window_end: addMinutesToIsoLocal(startUtc, VISUAL_BUCKET_MINUTES),
           window_end_local: addMinutesToIsoLocal(startLocal, VISUAL_BUCKET_MINUTES),
-          _sum: 0, _count: 0,
+          _numerator: 0, _passengers: 0,
         };
         order.push(bucketIndex);
       }
       var bucket = buckets[bucketIndex];
-      if (p.estimated_wait_minutes != null) {
-        bucket._sum += p.estimated_wait_minutes;
-        bucket._count += 1;
-      }
+      var pax = p.passenger_count != null ? p.passenger_count : 0;
+      var numerator = p.wait_numerator != null
+        ? p.wait_numerator
+        : (p.estimated_wait_minutes != null ? p.estimated_wait_minutes * pax : 0);
+      bucket._numerator += numerator;
+      bucket._passengers += pax;
     });
     order.sort(function (a, b) {
       return buckets[a].window_start_local < buckets[b].window_start_local ? -1 : 1;
     });
     return order.map(function (idx) {
       var b = buckets[idx];
-      var avg = b._count > 0 ? b._sum / b._count : null;
+      var avg = b._passengers > 0 ? b._numerator / b._passengers : 0;
       var risk = riskFromWaitMinutes(avg);
       return {
         window_start: b.window_start,
@@ -558,6 +565,13 @@
       international_departure_passport: null, international_departure_security: null,
       international_arrival: null,
     },
+    // ADIM (Gerçek "Last updated" Zamanı) - kullanıcı talebi: sayfada F5
+    // yapmak (tarayıcı render zamanı) "Last updated" satırını DEĞİŞTİRMEMELİ
+    // - orada backend'in GERÇEKTEN en son ne zaman hesapladığı (`/health`'in
+    // `newest_prediction_at`'i, worker'ın 5dk'lık döngüsünün sonucu)
+    // gösterilmeli. `null` = henüz `/health`'ten hiç başarılı yanıt
+    // alınmadı (ilk yüklemede kısa bir an).
+    lastRefreshAt: null,
   };
 
   function escapeHtml(text) {
@@ -870,15 +884,19 @@
     // saatini ASLA EZMEZ (ZRH regresyonu, bkz. api.py
     // `_international_departure_split`). Beşinci bir "domestic arrival"
     // grafiği YOK (Bölüm 16, değişmedi).
+    // ADIM (Overall Airport Congestion = Departure Passenger Flow) -
+    // "OVERALL AIRPORT CONGESTION" artık `data.overall` (eski wait/risk
+    // merge, KALDIRILDI) DEĞİL, `data.departure_flow` kullanıyor - AYRI
+    // bir "Departure Passenger Flow" bölümü YOK.
     root.innerHTML =
       "<h2>" + escapeHtml(heading) + "</h2>" +
-      graphSectionHtml("overall", "OVERALL AIRPORT CONGESTION", data.overall) +
+      overallCongestionSectionHtml(data.departure_flow) +
       graphSectionHtml("domestic_security", "DOMESTIC SECURITY", data.domestic_security) +
       graphSectionHtml("international_departure_passport", "INTERNATIONAL DEPARTURE — PASSPORT", data.international_departure.passport) +
       graphSectionHtml("international_departure_security", "INTERNATIONAL DEPARTURE — SECURITY", data.international_departure.security) +
       graphSectionHtml("international_arrival", "INTERNATIONAL ARRIVAL", data.international_arrival);
 
-    drawChart(data.overall, "chart-overall", "overall");
+    drawOverallCongestionChart(annotateFlowPointsWithRisk(to30MinuteFlowBuckets((data.departure_flow && data.departure_flow.points) || [])));
     drawChart(data.domestic_security, "chart-domestic_security", "domestic_security");
     drawChart(data.international_departure.passport, "chart-international_departure_passport", "international_departure_passport");
     drawChart(data.international_departure.security, "chart-international_departure_security", "international_departure_security");
@@ -968,7 +986,26 @@
   // adlarını taşıdığı için (bkz. api.py `_display_point_to_dict`/
   // `_window_to_dict`) `peakBestSummary`/`drawChart` TEK bir kod
   // yolunu paylaşabilir.
-  function displayPoints(section) {
+  // ADIM (Display Wait Semantics Unification) - `security_dom`/
+  // `security_intl`/`passport_dep`/`passport_arr` (frontend key'leriyle:
+  // domestic_security/international_departure_security/international_
+  // departure_passport/international_arrival) HEP `current_queue_
+  // weighted_remaining_wait` (`display_5m`) göstermeli - saatlik `windows`
+  // (`queue_predictions.estimated_wait_minutes`, "o saate girenlerin TAM
+  // deneyimlediği wait" - FARKLI bir metrik) bu 4 süreç için ASLA sessizce
+  // karışmamalı. Bu 4 süreçte production HER ZAMAN 288 nokta/gün
+  // KOŞULSUZ yazdığı için (bkz. `event_driven_display_series()`) bu dal
+  // pratikte tetiklenmemeli - ama tetiklenirse (ör. hiç pipeline run
+  // edilmemiş taze bir havalimanı) YANLIŞ metriği göstermek yerine BOŞ
+  // grafik göstermek tercih edilir.
+  var EVENT_DRIVEN_DISPLAY_KEYS = {
+    domestic_security: true,
+    international_departure_security: true,
+    international_departure_passport: true,
+    international_arrival: true,
+  };
+
+  function displayPoints(section, key) {
     if (section.display_5m && section.display_5m.length) {
       // Aynı `section` nesnesi için TEK SEFER hesapla ve önbelleğe al -
       // `pickCurrentPoint()` ve `drawChart()` AYNI dizi REFERANSINI
@@ -980,6 +1017,9 @@
       }
       return section._visualBuckets;
     }
+    if (key != null && EVENT_DRIVEN_DISPLAY_KEYS[key]) {
+      return [];
+    }
     return section.windows || [];
   }
 
@@ -990,9 +1030,9 @@
   // riski YOK, offset string'in içinde zaten var). `windows` fallback'inde
   // ise backend'in KENDİ seçtiği `section.current` kullanılır - frontend
   // KENDİ "şu an" mantığını İCAT ETMEZ.
-  function pickCurrentPoint(section) {
+  function pickCurrentPoint(section, key) {
     if (section.display_5m && section.display_5m.length) {
-      var points = displayPoints(section); // 30dk'lık görsel bar'lar - bkz. to30MinuteVisualBuckets
+      var points = displayPoints(section, key); // 30dk'lık görsel bar'lar - bkz. to30MinuteVisualBuckets
       var nowMs = Date.now();
       var chosen = null;
       for (var i = 0; i < points.length; i++) {
@@ -1001,6 +1041,13 @@
         if (!isNaN(ms) && ms <= nowMs) chosen = points[i];
       }
       return chosen || points[0];
+    }
+    // `section.current` de backend'in `windows` (saatlik/hourly-arrival-
+    // experienced-wait) üzerinden seçtiği bir nokta - event-driven 4
+    // süreç için `displayPoints()` ile AYNI kural: display_5m yoksa
+    // hourly metriğe sessizce düşme, "veri yok" göster.
+    if (key != null && EVENT_DRIVEN_DISPLAY_KEYS[key]) {
+      return null;
     }
     return section.current || null;
   }
@@ -1033,8 +1080,267 @@
       '<span class="legend-item"><i class="legend-dot legend-dot-current"></i>Current</span>' +
     "</div>";
 
+  // ---------------------------------------------------------------------
+  // ADIM (Overall Airport Congestion = Departure Passenger Flow) -
+  // kullanıcı talebi: AYRI bir "Departure Passenger Flow" grafiği
+  // İSTENMİYOR - mevcut "OVERALL AIRPORT CONGESTION" kartının data
+  // source'u artık `data.departure_flow` (queue wait/risk DEĞİL, bkz.
+  // app/queue/api.py:airport_departure_flow_5m_series). Diğer 4 grafik
+  // (`graphSectionHtml`/`drawChart`, wait-minute'a özel) HİÇ
+  // DEĞİŞTİRİLMEDİ - bu tamamen kendi küçük, bağımsız render fonksiyonları.
+  // ---------------------------------------------------------------------
+
+  // 5dk departure-flow noktalarını 30dk bar'a indirger - ORTALAMA DEĞİL,
+  // TOPLAM (SUM) - `to30MinuteVisualBuckets()` (wait, weighted-average)
+  // ile KARIŞTIRILMAMALI, burada yolcu SAYISI toplanıyor.
+  function to30MinuteFlowBuckets(points) {
+    if (!points || !points.length) return [];
+    var buckets = {};
+    var order = [];
+    points.forEach(function (p) {
+      var rawLocal = p.window_start_local || p.window_start;
+      var rawUtc = p.window_start;
+      var minute = localMinuteOf(rawLocal);
+      if (minute == null) return;
+      var bucketMinute = minute < 30 ? 0 : 30;
+      var backOffset = -(minute - bucketMinute);
+      var bucketIndex = (localHourOf(rawLocal) * 2) + (bucketMinute === 30 ? 1 : 0) + "@" + rawLocal.slice(0, 10);
+      if (!buckets[bucketIndex]) {
+        var startLocal = addMinutesToIsoLocal(rawLocal, backOffset);
+        var startUtc = addMinutesToIsoLocal(rawUtc, backOffset);
+        buckets[bucketIndex] = {
+          window_start: startUtc,
+          window_start_local: startLocal,
+          window_end: addMinutesToIsoLocal(startUtc, 30),
+          window_end_local: addMinutesToIsoLocal(startLocal, 30),
+          total_departure_pax: 0, domestic_departure_pax: 0,
+          schengen_departure_pax: 0, non_schengen_departure_pax: 0,
+          flight_count: 0,
+        };
+        order.push(bucketIndex);
+      }
+      var bucket = buckets[bucketIndex];
+      bucket.total_departure_pax += p.total_departure_pax || 0;
+      bucket.domestic_departure_pax += p.domestic_departure_pax || 0;
+      bucket.schengen_departure_pax += p.schengen_departure_pax || 0;
+      bucket.non_schengen_departure_pax += p.non_schengen_departure_pax || 0;
+      bucket.flight_count = Math.max(bucket.flight_count, p.flight_count || 0);
+    });
+    order.sort(function (a, b) { return buckets[a].window_start_local < buckets[b].window_start_local ? -1 : 1; });
+    return order.map(function (idx) { return buckets[idx]; });
+  }
+
+  // ADIM (Distribution-Based Congestion, Bölüm 7) - eski wait-minute
+  // eşikleri (10/15/30dk) departure passenger SAYISINA hiç uygulanmaz
+  // (birim tamamen farklı) - bunun yerine BU HAVALİMANININ KENDİ 30dk
+  // departure-flow dağılımından (o günkü noktalar) P50/P75/P90
+  // hesaplanır, hardcoded bir eşik YOK. Mevcut 4-kategorili görsel
+  // dil (LOW/MEDIUM/HIGH/CRITICAL -> Fast/Normal/Slow/Severe, AYNI
+  // renkler/pill'ler) KORUNUYOR - sadece hangi sayının hangi kategoriye
+  // düştüğünü belirleyen eşiğin KAYNAĞI değişti.
+  function flowCongestionThresholds(points) {
+    var values = (points || [])
+      .map(function (p) { return p.total_departure_pax; })
+      .filter(function (v) { return v != null; })
+      .sort(function (a, b) { return a - b; });
+    if (!values.length) return null;
+    function percentile(p) {
+      var idx = Math.min(values.length - 1, Math.floor(p * values.length));
+      return values[idx];
+    }
+    return { p50: percentile(0.50), p75: percentile(0.75), p90: percentile(0.90) };
+  }
+
+  function congestionRiskForFlow(pax, thresholds) {
+    if (pax == null || !thresholds) return "UNKNOWN";
+    if (pax <= thresholds.p50) return "LOW";
+    if (pax <= thresholds.p75) return "MEDIUM";
+    if (pax <= thresholds.p90) return "HIGH";
+    return "CRITICAL";
+  }
+
+  // Her 30dk bucket'a KENDİ havalimanının percentile dağılımına göre
+  // `risk`/`risk_label` etiketler - bu sayede `pillHtml`/`estimateLabel`/
+  // `colorForWindow` (mevcut, wait grafiklerinin de kullandığı) AYNEN
+  // yeniden kullanılabilir, yeni bir görsel dil İCAT EDİLMEZ.
+  function annotateFlowPointsWithRisk(points) {
+    var thresholds = flowCongestionThresholds(points);
+    points.forEach(function (p) {
+      p.risk = congestionRiskForFlow(p.total_departure_pax, thresholds);
+      p.risk_label = RISK_UI_LABEL[p.risk] || RISK_UI_LABEL.UNKNOWN;
+    });
+    return points;
+  }
+
+  function pickCurrentFlowPoint(points) {
+    var nowMs = Date.now();
+    var chosen = null;
+    for (var i = 0; i < points.length; i++) {
+      var raw = points[i].window_start_local || points[i].window_start;
+      var ms = new Date(raw).getTime();
+      if (!isNaN(ms) && ms <= nowMs) chosen = points[i];
+    }
+    return chosen || points[0] || null;
+  }
+
+  // `peakBestSummary()` (wait-minute'a özel) ile AYNI desen, ama Bölüm 9
+  // talebi gereği etiket yerine GERÇEK yolcu sayısı gösterir ("Peak 2,840
+  // pax at 10:30"). "best"/lowest SIFIR OLMAYAN en düşük değeri arar -
+  // sıfır (hiç departure yok) "en iyi" değil, sadece "veri yok" demektir.
+  function flowPeakBestSummary(points) {
+    var scored = (points || []).filter(function (p) { return p.total_departure_pax != null; });
+    if (!scored.length) return null;
+    var peak = scored[0];
+    scored.forEach(function (p) { if (p.total_departure_pax > peak.total_departure_pax) peak = p; });
+    var nonZero = scored.filter(function (p) { return p.total_departure_pax > 0; });
+    var lowest = nonZero.length ? nonZero[0] : null;
+    nonZero.forEach(function (p) { if (p.total_departure_pax < lowest.total_departure_pax) lowest = p; });
+    var peakHour = localHourOf(peak.window_start_local || peak.window_start);
+    var lowestHour = lowest ? localHourOf(lowest.window_start_local || lowest.window_start) : null;
+    return {
+      peakPax: Math.round(peak.total_departure_pax),
+      peakHour: peakHour != null ? formatHour12(peakHour) : "",
+      lowestPax: lowest ? Math.round(lowest.total_departure_pax) : null,
+      lowestHour: lowestHour != null ? formatHour12(lowestHour) : "",
+    };
+  }
+
+  function overallCongestionSectionHtml(flowData) {
+    var points = annotateFlowPointsWithRisk(to30MinuteFlowBuckets((flowData && flowData.points) || []));
+    var selectedStart = state.detail.overall;
+    var displayWindow = null;
+    var usingCurrent = false;
+    if (selectedStart != null) {
+      for (var i = 0; i < points.length; i++) {
+        if (points[i].window_start === selectedStart) { displayWindow = points[i]; break; }
+      }
+    }
+    if (!displayWindow) {
+      displayWindow = pickCurrentFlowPoint(points);
+      usingCurrent = true;
+    }
+
+    var canvasId = "chart-overall";
+    var chartArea = points.length
+      ? '<div class="chart-wrap"><canvas id="' + canvasId + '"></canvas></div>'
+      : '<div class="chart-empty">No windows yet for this airport.</div>';
+
+    var currentPoint = pickCurrentFlowPoint(points);
+    var badgeRisk = currentPoint ? currentPoint.risk : null;
+    var badgeText = badgeRisk ? "Estimated " + (estimateLabel(badgeRisk) || currentPoint.risk_label) : "No data";
+    var badgeClass = "estimate-badge-" + (badgeRisk || "none");
+    var summary = flowPeakBestSummary(points);
+    var summaryLine = summary
+      ? "peak " + summary.peakPax + " pax at " + summary.peakHour +
+        (summary.lowestPax != null ? " &middot; lowest " + summary.lowestPax + " pax at " + summary.lowestHour : "")
+      : "Not enough data yet for a typical pattern";
+
+    var rangeText = displayWindow ? windowLabelRange(displayWindow) : "";
+    var suffix = displayWindow && usingCurrent ? " · current" : "";
+    var risk = displayWindow ? displayWindow.risk : null;
+    var label = displayWindow ? displayWindow.risk_label : null;
+    var detailText = displayWindow ? "Total departure passengers: " + Math.round(displayWindow.total_departure_pax) : "";
+
+    return (
+      '<div class="process-block">' +
+        '<div class="process-block-head">' +
+          '<div>' +
+            "<h3>OVERALL AIRPORT CONGESTION</h3>" +
+            '<div class="eyebrow">Today &bull; Departure passenger flow</div>' +
+          "</div>" +
+          '<div class="estimate-summary">' +
+            '<span class="estimate-badge ' + badgeClass + '">' + escapeHtml(badgeText) + "</span>" +
+            '<div class="peak-best-line">' + summaryLine + "</div>" +
+          "</div>" +
+        "</div>" +
+        chartArea +
+        '<div class="current-line">' + pillHtml(risk, label) + "</div>" +
+        (rangeText ? '<div class="wait-detail">' + escapeHtml(rangeText + suffix) + "</div>" : "") +
+        (detailText ? '<div class="wait-detail">' + escapeHtml(detailText) + "</div>" : "") +
+        PROCESS_LEGEND_HTML +
+      "</div>"
+    );
+  }
+
+  function drawOverallCongestionChart(points) {
+    var canvasId = "chart-overall";
+    if (!points.length) return;
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    var axisLabelHours = pickAxisLabelHours();
+    var labels = points.map(function (p) {
+      var hour = localHourOf(p.window_start_local);
+      var minute = localMinuteOf(p.window_start_local);
+      var isHourMark = minute === 0;
+      return hour != null && isHourMark && axisLabelHours[hour] ? formatHour12(hour) : "";
+    });
+    var currentPoint = pickCurrentFlowPoint(points);
+    var currentIndex = currentPoint ? points.indexOf(currentPoint) : -1;
+    var maxPax = Math.max.apply(null, points.map(function (p) { return p.total_departure_pax || 0; }));
+    var axisMax = Math.max(10, Math.ceil(maxPax * 1.1 / 10) * 10);
+
+    state.charts[canvasId] = new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [{
+          data: points.map(function (p) { return p.total_departure_pax; }),
+          backgroundColor: points.map(colorForWindow),
+          borderColor: points.map(function (p, i) { return i === currentIndex ? "#6fcf97" : "rgba(0,0,0,0)"; }),
+          borderWidth: points.map(function (p, i) { return i === currentIndex ? 2 : 0; }),
+          borderRadius: 2,
+          maxBarThickness: 10,
+          minBarLength: 3,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 400, easing: "easeOutQuart" },
+        onClick: function (evt, elements) {
+          if (!elements.length) return;
+          state.detail.overall = points[elements[0].index].window_start;
+          renderContent();
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            displayColors: false,
+            callbacks: {
+              title: function (items) {
+                var p = points[items[0].dataIndex];
+                var value = p.window_start_local || p.window_start;
+                return value ? "Time: " + hhmm(value) : "";
+              },
+              label: function (item) {
+                var p = points[item.dataIndex];
+                return [
+                  "Total: " + Math.round(p.total_departure_pax) + " pax",
+                  "Domestic: " + Math.round(p.domestic_departure_pax) + " pax",
+                  "Schengen: " + Math.round(p.schengen_departure_pax) + " pax",
+                  "Non-Schengen: " + Math.round(p.non_schengen_departure_pax) + " pax",
+                  "Status: " + (p.risk_label || RISK_UI_LABEL.UNKNOWN),
+                ];
+              },
+            },
+          },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { autoSkip: false, maxRotation: 0 } },
+          y: {
+            beginAtZero: true,
+            max: axisMax,
+            title: { display: true, text: "Passengers", font: { size: 10 } },
+            ticks: { font: { size: 10 } },
+          },
+        },
+      },
+    });
+  }
+
   function graphSectionHtml(key, title, section) {
-    var points = displayPoints(section);
+    var points = displayPoints(section, key);
     var selectedStart = state.detail[key];
     var displayWindow = null;
     var usingCurrent = false;
@@ -1044,7 +1350,7 @@
       }
     }
     if (!displayWindow) {
-      displayWindow = pickCurrentPoint(section);
+      displayWindow = pickCurrentPoint(section, key);
       usingCurrent = true;
     }
     var canvasId = "chart-" + key;
@@ -1069,22 +1375,37 @@
         chartArea +
         '<div class="current-line">' + pillHtml(risk, label) + "</div>" +
         (rangeText ? '<div class="wait-detail">' + escapeHtml(rangeText + suffix) + "</div>" : "") +
-        // ADIM (Genel Yoğunluk'ta Süre Gizle) - kullanıcı talebi: "OVERALL
-        // AIRPORT CONGESTION" (genel havalimanı yoğunluğu) bölümünde dakika
-        // cinsinden süre METNİ ("Estimated wait: X min") GÖSTERİLMEZ - risk
-        // pill'i (Fast/Normal/Slow/Severe) ve grafiğin kendisi DEĞİŞMEDİ,
-        // sadece bu tek satır "overall" için bastırılıyor. Diğer 4 süreç
-        // grafiğinde (domestic/international security, passport dep/arr)
-        // süre metni AYNEN gösterilmeye devam ediyor.
-        (key === "overall" ? "" : waitDetailHtml(displayWindow)) +
+        // ADIM (Overall Airport Congestion Ayrıldı) - "overall" artık bu
+        // fonksiyondan hiç geçmiyor (kendi `overallCongestionSectionHtml()`'ı
+        // var, bkz. yukarısı) - bu yüzden dakika METNİ burada HER ZAMAN
+        // gösterilir, eski `key === "overall"` istisnasına gerek kalmadı.
+        waitDetailHtml(displayWindow) +
         PROCESS_LEGEND_HTML +
       "</div>"
     );
   }
 
+  // Backend'in GERÇEKTEN en son ne zaman hesapladığını `/health`'ten
+  // (`newest_prediction_at`, aware ISO string - `new Date(...)` burada
+  // GÜVENLİDİR, bkz. `hhmm()`/local-time yorumları yukarıda) okur;
+  // tarayıcının F5/render anını DEĞİL. `loadAll()`'dan BAĞIMSIZ ayrı bir
+  // fetch - bir prediction isteği başarısız olsa bile bu satırın kendi
+  // güncelliğini etkilemez.
+  function refreshHealthInfo() {
+    return fetchJSON("/health").then(function (report) {
+      state.lastRefreshAt = report.newest_prediction_at || report.last_successful_refresh || state.lastRefreshAt;
+      renderRefreshInfo();
+    }).catch(function () {
+      // Sessizce yut - eldeki son bilinen `state.lastRefreshAt` ekranda kalır.
+    });
+  }
+
   function renderRefreshInfo() {
+    var label = state.lastRefreshAt
+      ? new Date(state.lastRefreshAt).toLocaleTimeString()
+      : "…";
     document.getElementById("refresh-info").textContent =
-      "Last updated: " + new Date().toLocaleTimeString() + " · refreshes in 5 min";
+      "Last updated: " + label + " · refreshes in 5 min";
   }
 
   function setError(isError) {
@@ -1148,7 +1469,7 @@
   }
 
   function drawChart(section, canvasId, key) {
-    var points = displayPoints(section);
+    var points = displayPoints(section, key);
     if (!points.length) return;
     var canvas = document.getElementById(canvasId);
     if (!canvas) return;
@@ -1157,7 +1478,7 @@
     // İLE AYNI seçim (GERÇEK duvar saatine en yakın GEÇMİŞTEKİ bucket,
     // `window_start_local`'ın açık UTC offset'i sayesinde `new Date(...)`
     // burada güvenli) - o bucket'ın index'i outline için kullanılır.
-    var currentPoint = pickCurrentPoint(section);
+    var currentPoint = pickCurrentPoint(section, key);
     var currentIndex = currentPoint ? points.indexOf(currentPoint) : -1;
 
     var axisLabelHours = pickAxisLabelHours();
@@ -1250,11 +1571,10 @@
               label: function (item) {
                 var w = points[item.dataIndex];
                 var riskText = estimateLabel(w.risk) || w.risk_label || RISK_UI_LABEL.UNKNOWN;
-                // ADIM (Genel Yoğunluk'ta Süre Gizle - Hover) - "overall"
-                // (OVERALL AIRPORT CONGESTION) grafiğinde hover tooltip'i de
-                // dakika göstermiyor - sadece Status. Diğer 4 süreç
-                // grafiğinde (security/passport) Wait satırı AYNEN kalıyor.
-                if (key === "overall") return ["Status: " + riskText];
+                // ADIM (Overall Airport Congestion Ayrıldı) - "overall" bu
+                // fonksiyondan (`drawChart`) hiç geçmiyor artık (kendi
+                // `drawOverallCongestionChart()`'ı var) - eski istisnaya
+                // gerek kalmadı, Wait satırı diğer 4 grafikte AYNEN kalıyor.
                 return [
                   "Wait: " + waitTimeText(w),
                   "Status: " + riskText,
@@ -1286,7 +1606,9 @@
 
   wireAirportSelector();
   loadAll();
+  refreshHealthInfo();
   setInterval(loadAll, POLL_MS);
+  setInterval(refreshHealthInfo, POLL_MS);
 })();
 </script>
 </body>

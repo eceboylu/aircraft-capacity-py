@@ -151,7 +151,25 @@ class AirportScaleConfig(Base):
     # dakikaya düşülür (bkz. constants.py DEFAULT_DYNAMIC_CONTROL_
     # INTERVAL_MINUTES).
     security_dynamic_control_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # ADIM (Editable Dynamic Staffing Config) - eski, TEK paylaşılan
+    # `passport_dynamic_control_interval_minutes` GERİYE DÖNÜK UYUMLULUK
+    # için KALDI (kaldırılmadı) - process-özel iki kolon (`departure`/
+    # `arrival`) BUNUN ÜSTÜNE eklendi, DOLU olan öncelikli okunur (bkz.
+    # `config.py:_resolve_passport_control_intervals`). Hiçbiri DOLU
+    # değilse (üçü de NULL) kod tarafında 5 dakikaya düşülür.
     passport_dynamic_control_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    passport_departure_control_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    passport_arrival_control_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # ADIM (Editable Dynamic Staffing Config) - security_intl/passport_dep/
+    # passport_arr'ın ÜÇÜ de bu TEK ortak hedef doluluk oranını kullanır
+    # (bkz. constants.py DYNAMIC_TARGET_UTILIZATION) - NULL ise o sabite
+    # düşülür.
+    dynamic_target_utilization: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # ADIM (Editable Dynamic Staffing Config) - SADECE passport_arr'ın
+    # proaktif ("backlog oluşmadan ÖNCE gör") ek pencere uzunluğu - bkz.
+    # constants.py ARRIVAL_PASSPORT_PROACTIVE_LOOKAHEAD_MINUTES. NULL ise
+    # o sabite düşülür.
+    passport_arrival_lookahead_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class QueuePrediction(Base):
@@ -188,12 +206,23 @@ class QueuePrediction(Base):
 
 
 class QueueWaitDisplay5m(Base):
-    # estimated_wait_minutes = queue-state / virtual-arrival wait: "şu an
-    # bir yolcu gelse mevcut FIFO durumuna göre kaç dakika beklerdi"
-    # (bkz. engine.py:event_driven_display_series, core/event_queue.py:
-    # virtual_arrival_wait) - "o pencerede yeni gelenlerin ortalama
-    # wait'i" DEĞİL. Her operasyonel gün için process başına sabit 288
-    # satır (5dk aralıklarla) - yeni arrival olmasa da satır YOK OLMAZ.
+    # ADIM (Current-Queue Weighted Remaining Wait) - `estimated_wait_
+    # minutes` ARTIK "queue-state/virtual-arrival wait" (KALDIRILAN
+    # `virtual_arrival_wait`) DEĞİL, ve ARTIK "bu 5dk'da yeni gelenlerin
+    # ortalama wait'i" (bir önceki adımda denenen, IST'te yeni arrival
+    # kesilince 213dk'dan aniden 0'a düşen artifact'e yol açan
+    # `passenger_weighted_arrival_window`) DA DEĞİL. Şimdi: "ŞU checkpoint
+    # ANINDA (`window_start`) GERÇEKTEN kuyrukta bekleyen (`arrival_time
+    # <= checkpoint < service_start_time`) yolcuların passenger-weighted
+    # ORTALAMA KALAN bekleme süresi" (bkz. engine.py:event_driven_
+    # display_series/_remaining_wait_at_checkpoint). Alan adı GERİYE
+    # DÖNÜK UYUMLULUK için korundu, anlamı değişti. `aggregation_method`
+    # = 'current_queue_weighted_remaining_wait'. `wait_numerator`/
+    # `passenger_count` SQL'den "bu değer neden X?" sorusunu join'siz
+    # cevaplar - kimse beklemiyorsa (pax=0) `estimated_wait_minutes=0.0`
+    # (fallback/carry-forward YOK), ama backlog varsa yeni arrival
+    # gelmese bile 0'a ANİDEN düşmez. Her operasyonel gün için process
+    # başına sabit 288 satır (5dk aralıklarla).
 
     __tablename__ = "queue_wait_display_5m"
 
@@ -202,6 +231,9 @@ class QueueWaitDisplay5m(Base):
     process: Mapped[str] = mapped_column(String(16))
     window_start: Mapped[datetime] = mapped_column(DateTime, index=True)
     estimated_wait_minutes: Mapped[float] = mapped_column(Float)
+    wait_numerator: Mapped[float | None] = mapped_column(Float, nullable=True)
+    passenger_count: Mapped[float | None] = mapped_column(Float, nullable=True)
+    aggregation_method: Mapped[str | None] = mapped_column(String(40), nullable=True)
     risk: Mapped[str] = mapped_column(String(16))
     calculated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
@@ -329,6 +361,18 @@ class QueueFlightHourContributionAudit(Base):
 
     aircraft_icao: Mapped[str | None] = mapped_column(String(8), nullable=True)
     resolved_aircraft_capacity: Mapped[int | None] = mapped_column("cozumlenen_ucak_kapasitesi", Integer, nullable=True)
+    # ADIM (SQL Audit/Traceability Genişletme, Bölüm 1) - `dep_time_utc`/
+    # `arr_time_utc` (yukarıda) HER ZAMAN scheduled'ı taşır; production
+    # cohort üretimi (`demand.py:_departure_show_up_base`/`effective_
+    # time`) GERÇEKTE actual->estimated->scheduled sırasıyla düşer - bu
+    # 2+2 kolon o GERÇEK seçimin (ve kaynağının) bir kopyasıdır, ayrıca
+    # `aircraft_capacity_source` ilgili `CapacityResult.source`'un
+    # kopyasıdır (bkz. app/service.py `CapacityResult`).
+    dep_time_effective_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    dep_time_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    arr_time_effective_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    arr_time_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    aircraft_capacity_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     profile_name: Mapped[str] = mapped_column("profil_adi", String(32))
     profile_segment: Mapped[str | None] = mapped_column("profil_segmenti", String(32), nullable=True)
@@ -377,6 +421,49 @@ class QueueCohortAudit(Base):
     destination_process: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class QueueAirportDepartureFlow5m(Base):
+    # ADIM (Airport Departure Passenger Flow) - QUEUE WAIT DEĞİL. "Bu 5dk
+    # penceresinde havalimanına kaç departure yolcusu GELİYOR (show-up)?"
+    # sorusunun cevabı - `queue_cohort_audit`'teki (direction='departure')
+    # cohort satırlarının AYNI anda, TEK bir ek geçişte, process bazında
+    # (security_dom=domestic, security_intl=schengen-direct, passport_dep
+    # =non-schengen) toplanmasıdır - FARKLI bir yolcu-üretim formülü YOK,
+    # `departure_show_up_events_detailed()`'in ZATEN ürettiği (cohort_
+    # time, count) çiftleri re-aggregate ediliyor (bkz. audit.py:record_
+    # flight_cohort_and_contribution_audit). Arrival flight'lar HİÇ dahil
+    # değil. `domestic+schengen+non_schengen=total` invariant'ı process
+    # sınıflandırmasının if/elif/elif (karşılıklı ayrık) yapısından gelir.
+
+    __tablename__ = "queue_airport_departure_flow_5m"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(36), index=True)
+    airport_iata: Mapped[str] = mapped_column(String(10), index=True)
+
+    window_start_utc: Mapped[datetime] = mapped_column(DateTime, index=True)
+    window_start_local: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    window_end_utc: Mapped[datetime] = mapped_column(DateTime)
+    window_end_local: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    total_departure_pax: Mapped[float] = mapped_column(Float, default=0)
+    domestic_departure_pax: Mapped[float] = mapped_column(Float, default=0)
+    international_departure_pax: Mapped[float] = mapped_column(Float, default=0)
+    schengen_departure_pax: Mapped[float] = mapped_column(Float, default=0)
+    non_schengen_departure_pax: Mapped[float] = mapped_column(Float, default=0)
+
+    flight_count: Mapped[int] = mapped_column(Integer, default=0)
+    calculation_method: Mapped[str | None] = mapped_column(String(40), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id", "airport_iata", "window_start_utc",
+            name="uq_queue_airport_departure_flow_5m",
+        ),
+    )
 
 
 class QueueServiceEventAudit(Base):
@@ -501,6 +588,10 @@ class QueueResourceConfigAudit(Base):
 
     security_control_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     passport_control_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    passport_departure_control_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    passport_arrival_control_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dynamic_target_utilization: Mapped[float | None] = mapped_column(Float, nullable=True)
+    passport_arrival_lookahead_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     security_service_time_minutes: Mapped[float | None] = mapped_column(Float, nullable=True)
     passport_service_time_minutes: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -509,6 +600,18 @@ class QueueResourceConfigAudit(Base):
     international_security_capacity_per_hour: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     config_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    # ADIM (SQL Audit/Traceability Genişletme, Bölüm 18) - `range(base,
+    # max+1, 5)`'ten runtime'da TÜRETİLEN seviye listesinin bu run'daki
+    # görüntüsü (ör. "20,25,30,35,40") - okuyucu manuel hesaplamasın diye;
+    # SADECE GÖSTERİM, `_operational_levels_for()`'ın KENDİSİ hâlâ tek
+    # kaynak. `*_dynamic_enabled` üç süreç için AYRI AYRI (max dolu mu)
+    # okunabilir bayraklar - bugün MEGA'da üçü de aynı ama şema seviyesinde
+    # süreçler birbirinden bağımsız.
+    allowed_levels_snapshot: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    security_intl_dynamic_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    passport_departure_dynamic_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    passport_arrival_dynamic_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
@@ -544,10 +647,44 @@ class QueueDynamicStaffingAudit(Base):
     # / peak_pressure / scale_down - bkz. event_queue.py _apply_checkpoint.
     reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
+    # ADIM (SQL Audit/Traceability Genişletme, Bölüm 16) - `lookahead_
+    # demand`/`needed_servers` (yukarıda) normal(5dk)+extended(20dk)
+    # pencerelerinin TOPLAMI/BÜYÜĞÜ; bu 5 kolon HAM (ayrıştırılmış)
+    # değerleri taşır - hangi pencerenin karara yol açtığı JOIN'siz
+    # görülebilsin diye (bkz. event_queue.py DynamicStaffingCheckpoint).
+    normal_lookahead_demand: Mapped[float | None] = mapped_column(Float, nullable=True)
+    extended_lookahead_demand: Mapped[float | None] = mapped_column(Float, nullable=True)
+    normal_needed_servers: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    extended_needed_servers: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    winning_forecast: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+    # ADIM (Editable Dynamic Staffing Config) - "kaç yolcuda kaça çıktı"
+    # sorusunu TEK satırdan, join'siz cevaplayabilmek için - hepsi bu
+    # checkpoint'in kullandığı GERÇEK (DB'den okunmuş) parametrelerin bir
+    # kopyası, ayrıca hesap YAPMAZ.
+    base_resource_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_resource_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_workload: Mapped[float | None] = mapped_column(Float, nullable=True)
+    control_interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    service_time_minutes: Mapped[float | None] = mapped_column(Float, nullable=True)
+    target_utilization: Mapped[float | None] = mapped_column(Float, nullable=True)
+    effective_capacity_per_minute: Mapped[float | None] = mapped_column(Float, nullable=True)
+    effective_capacity_per_hour: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class QueueGraphDisplayAudit(Base):
+    # ADIM (Passenger-Weighted 30-Minute Graph) - `average_wait_minutes`/
+    # `display_wait_minutes` ARTIK 6 adet 5dk noktasının BASİT ortalaması
+    # DEĞİL - bu 30dk'daki TÜM 5dk checkpoint'lerinin `wait_numerator`/
+    # `passenger_count` TOPLAMININ bölümü (`SUM(numerator)/SUM(pax)` -
+    # bkz. audit.py:record_graph_display_audit). ADIM (Current-Queue
+    # Weighted Remaining Wait) - `passenger_count` artık "o 5dk'da yeni
+    # gelenler" DEĞİL, "o checkpoint ANINDA hâlâ kuyrukta bekleyenler"
+    # (bkz. `queue_wait_display_5m` yorumu) - formül DEĞİŞMEDİ, girdinin
+    # anlamı değişti. `peak_wait_minutes` = bu 30dk'yı oluşturan 6 gerçek
+    # checkpoint'in en yükseği (ayrı bir hesap DEĞİL).
 
     __tablename__ = "queue_graph_display_audit"
 
@@ -563,6 +700,9 @@ class QueueGraphDisplayAudit(Base):
     visual_bucket_minutes: Mapped[int] = mapped_column(Integer, default=30)
     source_point_count: Mapped[int] = mapped_column("kaynak_nokta_sayisi", Integer, default=0)
 
+    wait_numerator: Mapped[float | None] = mapped_column(Float, nullable=True)
+    passenger_count: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     average_wait_minutes: Mapped[float | None] = mapped_column("ortalama_bekleme_dakika", Float, nullable=True)
     peak_wait_minutes: Mapped[float | None] = mapped_column("maksimum_bekleme_dakika", Float, nullable=True)
     display_wait_minutes: Mapped[float | None] = mapped_column("grafikte_gosterilen_bekleme_dakika", Float, nullable=True)
@@ -571,6 +711,60 @@ class QueueGraphDisplayAudit(Base):
     is_current: Mapped[bool] = mapped_column(Boolean, default=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class QueueFlightResolutionAudit(Base):
+    # ADIM (SQL Audit/Traceability Genişletme, Bölüm 1) - HER fiziksel
+    # (codeshare-dedup edilmiş) flight için TEK satır: hangi zaman
+    # damgası (scheduled/estimated/actual) kullanıldı, uçak kapasitesi
+    # hangi kaynaktan çözüldü, routing/Schengen kararı ne oldu - hepsi
+    # ZATEN var olan `Flight`/`CapacityResult`/`flows.py` sınıflandırma
+    # sonuçlarının bir kopyası (yeniden, farklı formülle hesaplanmaz).
+
+    __tablename__ = "queue_flight_resolution_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(String(36), index=True)
+    airport_iata: Mapped[str] = mapped_column(String(10), index=True)
+
+    flight_key: Mapped[str] = mapped_column(String(64), index=True)
+    flight_iata: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    airline_iata: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    direction: Mapped[str] = mapped_column(String(16))
+    dep_iata: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    arr_iata: Mapped[str | None] = mapped_column(String(10), nullable=True)
+
+    dep_scheduled_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    dep_estimated_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    dep_actual_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    dep_effective_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    dep_time_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+    arr_scheduled_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    arr_estimated_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    arr_actual_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    arr_effective_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    arr_time_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+    aircraft_icao: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    aircraft_match_found: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    resolved_capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    capacity_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    capacity_confidence: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+    is_domestic: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_international: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_schengen: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    requires_passport: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    routing_path: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "run_id", "flight_key", name="uq_queue_flight_resolution_audit",
+        ),
+    )
 
 
 class BaselineObservation(Base):

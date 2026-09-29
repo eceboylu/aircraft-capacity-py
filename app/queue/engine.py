@@ -10,10 +10,8 @@ from sqlalchemy import select, tuple_
 from .baseline import existing_baseline_observation_keys, record_observation
 from .config import AirportConfigView, get_configs
 from .constants import (
-    ARRIVAL_PASSPORT_PROACTIVE_LOOKAHEAD_MINUTES,
     DEMAND_WINDOW_MINUTES,
     DYNAMIC_RAMP_STEP,
-    DYNAMIC_TARGET_UTILIZATION,
     EXCLUDED_STATUSES,
     NO_BASELINE_MESSAGE,
     PASSPORT_ARR_OPERATIONAL_LEVELS,
@@ -36,9 +34,8 @@ from .core.event_queue import (
     DynamicStaffingParams,
     simulate_passport,
     simulate_security,
-    virtual_arrival_wait,
 )
-from .domain.dynamic_staffing import active_capacity_at, effective_capacity_by_hour
+from .domain.dynamic_staffing import effective_capacity_by_hour
 from .domain.operational_day import (
     filter_flights_for_operational_day,
     operational_date,
@@ -442,36 +439,64 @@ def _event_derived_backlog_by_hour(events, starts) -> dict[datetime, float]:
     }
 
 
+def _operational_levels_for(
+    default_count: int | None, maximum: int | None, fallback_levels: tuple[int, ...],
+) -> tuple[int, ...]:
+    """
+    ADIM (SQL-Editable Operational Levels) - seviyeler artık (mümkünse)
+    `base`/`max`'tan runtime'da TÜRETİLİR (base, base+5, ..., max) -
+    "SQL'den max=35 yaparsam 40 hiç kullanılamasın" isteği, AYRI bir
+    "levels" kolonu AÇMADAN bu formülle karşılanır (Bölüm 17).
+
+    Geçersiz/tutarsız bir DB durumunda (max < base, ya da aradaki fark
+    `DYNAMIC_RAMP_STEP`'in (5) tam katı DEĞİLSE - ör. max=37) GÜVENLİ
+    TARAFTA kalınır: sabit `fallback_levels` (kod-içi, testli liste)
+    AYNEN kullanılır - hiçbir zaman boş/hatalı bir seviye listesi
+    ÜRETİLMEZ (Bölüm 23 - "step invalid rejected").
+    """
+    step = DYNAMIC_RAMP_STEP
+    if (
+        default_count is None or maximum is None
+        or maximum < default_count
+        or (maximum - default_count) % step != 0
+    ):
+        return fallback_levels
+    return tuple(range(default_count, maximum + 1, step))
+
+
 def _dynamic_staffing_params_for(
     config: AirportConfigView, pool: str,
 ) -> DynamicStaffingParams | None:
     """`pool`: "departure" | "arrival" (passport) | "security_intl".
-    Control interval/look-ahead artık DB-driven (`config.*_control_
-    interval_minutes`) - eski hardcoded 10dk YOK. `pool="arrival"` için
-    ek olarak `extended_look_ahead_minutes` set edilir (Bölüm 11 -
-    proaktif, backlog oluşmadan ÖNCE gören uzun pencere); diğer iki
-    pool'da bu `None` kalır, davranışları BİREBİR aynı kalır."""
+    Control interval/look-ahead/target_utilization artık DB-driven
+    (`config.*_control_interval_minutes`/`dynamic_target_utilization`/
+    `passport_arrival_lookahead_minutes`) - eski hardcoded sabitler
+    SADECE "DB'de değer YOKSA" fallback'i olarak kalır (bkz. config.py
+    `_build_config_view`). `pool="arrival"` için ek olarak `extended_
+    look_ahead_minutes` set edilir (Bölüm 11 - proaktif, backlog
+    oluşmadan ÖNCE gören uzun pencere); diğer iki pool'da bu `None`
+    kalır, davranışları BİREBİR aynı kalır."""
     if pool == "departure":
         enabled = config.passport_departure_dynamic
         default = config.passport_departure_server_count
         maximum = config.passport_departure_server_count_max
-        control_interval = config.passport_dynamic_control_interval_minutes
+        control_interval = config.passport_departure_control_interval_minutes
         extended_look_ahead = None
-        allowed_levels = PASSPORT_DEP_OPERATIONAL_LEVELS
+        allowed_levels = _operational_levels_for(default, maximum, PASSPORT_DEP_OPERATIONAL_LEVELS)
     elif pool == "arrival":
         enabled = config.passport_arrival_dynamic
         default = config.passport_arrival_server_count
         maximum = config.passport_arrival_server_count_max
-        control_interval = config.passport_dynamic_control_interval_minutes
-        extended_look_ahead = ARRIVAL_PASSPORT_PROACTIVE_LOOKAHEAD_MINUTES
-        allowed_levels = PASSPORT_ARR_OPERATIONAL_LEVELS
+        control_interval = config.passport_arrival_control_interval_minutes
+        extended_look_ahead = config.passport_arrival_lookahead_minutes
+        allowed_levels = _operational_levels_for(default, maximum, PASSPORT_ARR_OPERATIONAL_LEVELS)
     else:
         enabled = config.security_intl_dynamic
         default = config.international_security_lane_count
         maximum = config.international_security_lane_count_max
         control_interval = config.security_dynamic_control_interval_minutes
         extended_look_ahead = None
-        allowed_levels = SECURITY_INTL_OPERATIONAL_LEVELS
+        allowed_levels = _operational_levels_for(default, maximum, SECURITY_INTL_OPERATIONAL_LEVELS)
 
     if not enabled or maximum is None:
         return None
@@ -481,7 +506,7 @@ def _dynamic_staffing_params_for(
         max_server_count=maximum,
         control_interval_minutes=control_interval,
         look_ahead_minutes=control_interval,
-        target_utilization=DYNAMIC_TARGET_UTILIZATION,
+        target_utilization=config.dynamic_target_utilization,
         ramp_step=DYNAMIC_RAMP_STEP,
         allowed_levels=allowed_levels,
         extended_look_ahead_minutes=extended_look_ahead,
@@ -706,10 +731,9 @@ def _event_driven_queue_demand(
         "process_events": process_events,
         # ADIM (MEGA Dynamic Security) - eskiden sadece passport'un iki
         # havuzunu taşıyordu ("passport_schedules"); artık security_intl
-        # de (SADECE MEGA'da dynamic ise) buraya ekleniyor - anahtar adı
-        # `dynamic_schedules` olarak güncellendi (audit.py ve
-        # `_resource_for_display_process` genel, `process` bazlı okuyor,
-        # tek değişiklik gereken yer buydu).
+        # de (SADECE MEGA'da dynamic ise) buraya ekleniyor - `_predict_
+        # airport_with_coupling`'in `effective_servers_by_hour` hesabı
+        # bunu process bazlı okuyor.
         "dynamic_schedules": {
             PROCESS_PASSPORT_DEPARTURE: passport_result.get("departure_schedule"),
             PROCESS_PASSPORT_ARRIVAL: passport_result.get("arrival_schedule"),
@@ -731,16 +755,29 @@ DISPLAY_5M_PROCESSES = (
 
 def five_minute_wait_series(
     events, window_minutes: int = WAIT_DISPLAY_BUCKET_MINUTES,
-) -> list[tuple[datetime, float, float]]:
-    weighted_sum: dict[datetime, float] = {}
+) -> list[tuple[datetime, float, float, float]]:
+    """ADIM (Current-Queue Weighted Remaining Wait) - bu fonksiyon ANA
+    display grafiğinin kaynağı DEĞİL ARTIK (bkz. `event_driven_display_
+    series`/`_remaining_wait_at_checkpoint` - "şu an kuyrukta bekleyenlerin
+    ortalama KALAN wait'i"). `five_minute_wait_series()` ESKİ "bu
+    pencerede yeni gelenlerin ortalama wait'i" metriğini hesaplıyor -
+    IST'te 20:17'den sonra yeni arrival kesilince değerin 213dk'dan
+    aniden 0'a düşmesine (yanıltıcı "queue bitti" izlenimi) yol açtığı
+    için ana grafikten kaldırıldı. Fonksiyonun KENDİSİ (doğru, test
+    edilmiş, saf bir yardımcı) SQL-yan audit/validation karşılaştırması
+    için KORUNDU - `window_minutes`'lık pencerelerde, o pencerede
+    `arrival_time`'ı düşen event'lerin passenger-weighted ortalama
+    wait'i - `(window_start, weighted_avg_wait, passenger_count,
+    wait_numerator)`. Sadece VERİSİ OLAN pencereleri döndürür."""
+    wait_numerator: dict[datetime, float] = {}
     passenger_count: dict[datetime, float] = {}
     for event in events:
         key = floor_to_window(event.arrival_time, window_minutes)
-        weighted_sum[key] = weighted_sum.get(key, 0.0) + event.wait_minutes * event.count
+        wait_numerator[key] = wait_numerator.get(key, 0.0) + event.wait_minutes * event.count
         passenger_count[key] = passenger_count.get(key, 0.0) + event.count
     return sorted(
-        (key, weighted_sum[key] / passenger_count[key], passenger_count[key])
-        for key in weighted_sum
+        (key, wait_numerator[key] / passenger_count[key], passenger_count[key], wait_numerator[key])
+        for key in wait_numerator
         if passenger_count[key] > 0
     )
 
@@ -752,23 +789,46 @@ def _display_day_bounds(now: datetime, tz=None) -> tuple[datetime, datetime]:
     return day_start, day_start + timedelta(days=1)
 
 
-def _resource_for_display_process(
-    process: str, config: AirportConfigView, schedules: dict,
-) -> tuple[list[tuple[datetime, int]] | None, int, float]:
-    if process == PROCESS_PASSPORT_DEPARTURE:
-        return schedules.get(process), passport_departure_server_count(config), config.passport_service_time_minutes
-    if process == PROCESS_PASSPORT_ARRIVAL:
-        return schedules.get(process), passport_arrival_server_count(config), config.passport_service_time_minutes
-    if process == PROCESS_SECURITY_DOMESTIC:
-        return None, config.domestic_security_lane_count, config.security_service_time_minutes
-    if process == PROCESS_SECURITY_INTL:
-        # ADIM (MEGA Dynamic Security) - `schedules.get(process)` dolu ise
-        # (sadece MEGA + dynamic aktifse) 5dk queue-state grafiği artık
-        # dynamic lane sayısını yansıtıyor; boşsa (LARGE/MEDIUM/SMALL veya
-        # manuel override) eskisi gibi sabit `international_security_
-        # lane_count` kullanılır - davranış DEĞİŞMEDİ.
-        return schedules.get(process), config.international_security_lane_count, config.security_service_time_minutes
-    raise ValueError(f"display series desteklemiyor: {process!r}")
+@dataclass(frozen=True)
+class FiveMinuteWaitPoint:
+    # ADIM (Current-Queue Weighted Remaining Wait) - grafik metriği
+    # ARTIK "bu pencerede yeni gelenlerin ortalama wait'i" (eski
+    # `passenger_weighted_arrival_window`, IST 20:17 sonrası yeni arrival
+    # kesilince 213dk'dan aniden 0'a düşen artifact'e yol açmıştı) DEĞİL
+    # - "ŞU CHECKPOINT ANINDA hâlâ kuyrukta bekleyen (arrival_time<=
+    # checkpoint<service_start) yolcuların passenger-weighted ORTALAMA
+    # KALAN bekleme süresi" (`remaining_wait = service_start-checkpoint`).
+    # Yeni arrival gelmese bile, kuyrukta bekleyen biri VARSA değer
+    # sıfırdan BÜYÜK kalır (yalancı ani düşüş YOK); bir yolcu `service_
+    # start`'a ulaştığı anda (artık serviste/tamamlanmış) hesaba hiç
+    # DAHİL EDİLMEZ - bkz. `_remaining_wait_at_checkpoint`.
+    window_start: datetime
+    wait_minutes: float
+    passenger_count: float
+    wait_numerator: float
+
+
+def _remaining_wait_at_checkpoint(
+    events, checkpoint_time: datetime,
+) -> tuple[float, float, float]:
+    """Şu ANDA (checkpoint_time) GERÇEKTEN kuyrukta bekleyen (henüz
+    servise girmemiş) her event için `remaining_wait = service_start_
+    time - checkpoint_time`, passenger-weighted ortalaması. Farklı bir
+    hesap İCAT EDİLMİYOR - SADECE production'ın zaten ürettiği `arrival_
+    time`/`service_start_time`/`count` okunuyor, FIFO/dynamic staffing/
+    service-time matematiğine HİÇ dokunulmuyor. `service_start_time <=
+    checkpoint_time` olan (artık serviste veya tamamlanmış) event'ler
+    KASITLI OLARAK hariç tutuluyor - onlar artık "bekleyen" değil.
+    Kimse beklemiyorsa (`denominator=0`) `(0.0, 0.0, 0.0)` döner."""
+    numerator = 0.0
+    denominator = 0.0
+    for event in events:
+        if event.arrival_time <= checkpoint_time < event.service_start_time:
+            remaining_minutes = (event.service_start_time - checkpoint_time).total_seconds() / 60.0
+            numerator += remaining_minutes * event.count
+            denominator += event.count
+    average = numerator / denominator if denominator > 0 else 0.0
+    return average, denominator, numerator
 
 
 def event_driven_display_series(
@@ -779,23 +839,24 @@ def event_driven_display_series(
     now: datetime | None = None,
     tz=None,
     display_bucket_minutes: int = WAIT_DISPLAY_BUCKET_MINUTES,
-) -> dict[str, list[tuple[datetime, float]]]:
+) -> dict[str, list[FiveMinuteWaitPoint]]:
     """
-    QUEUE-STATE / VIRTUAL-ARRIVAL WAIT: her `display_bucket_minutes`
-    noktasında "şu an bir yolcu gelse mevcut gerçek FIFO durumuna göre
-    kaç dakika beklerdi" sorusuna cevap verir (`virtual_arrival_wait`).
-    Tam gün için (24h/`display_bucket_minutes`) SABİT sayıda nokta
-    üretir - yeni arrival olmasa bile (boş bar YOK, carry-forward/
-    interpolasyon YOK); gerçek backlog/server availability her noktada
-    yeniden okunur. Bu, saatlik `predict_airport()`/`QueuePrediction`
-    semantics'ini DEĞİŞTİRMEZ - o hâlâ ayrı, arrival-weighted ortalama
-    kullanır (bkz. `_event_driven_queue_demand`/`_bucket_weighted_wait`).
+    CURRENT-QUEUE WEIGHTED REMAINING WAIT: her `display_bucket_minutes`
+    checkpoint'inde, o anda GERÇEKTEN kuyrukta bekleyen (`arrival_time
+    <= checkpoint < service_start_time`) yolcuların passenger-weighted
+    ortalama KALAN bekleme süresini verir (bkz. `_remaining_wait_at_
+    checkpoint`). Tam gün için (24h/`display_bucket_minutes`) SABİT
+    sayıda nokta üretir; hiç kimse beklemiyorsa (queue GERÇEKTEN boşsa)
+    `wait_minutes=0.0` - ama backlog varsa (yeni arrival gelmese bile)
+    değer sıfıra ANİDEN düşmez, kuyruk gerçekten boşalana kadar doğal
+    şekilde azalır. Saatlik `predict_airport()`/`QueuePrediction`
+    semantics'ini DEĞİŞTİRMEZ (ayrı, kendi hesabı, `_bucket_weighted_
+    wait` hâlâ arrival-window bazlı).
     """
     _now = now if now is not None else domain_now()
     coupling = _event_driven_queue_demand(
         flights, config, demand, window_minutes=window_minutes, now=_now
     )
-    schedules = coupling.get("dynamic_schedules", {})
 
     day_start, day_end = _display_day_bounds(_now, tz)
     probe_times: list[datetime] = []
@@ -805,39 +866,37 @@ def event_driven_display_series(
         probe_times.append(probe)
         probe += step
 
-    result: dict[str, list[tuple[datetime, float]]] = {}
+    series: dict[str, list[FiveMinuteWaitPoint]] = {}
     for process in DISPLAY_5M_PROCESSES:
         events = coupling["process_events"][process]
-        schedule, static_server_count, service_time_minutes = _resource_for_display_process(
-            process, config, schedules,
-        )
-        points: list[tuple[datetime, float]] = []
+        points: list[FiveMinuteWaitPoint] = []
         for probe_time in probe_times:
-            server_count = static_server_count
-            if schedule:
-                active = active_capacity_at(schedule, probe_time)
-                if active is not None:
-                    server_count = active
-            wait = virtual_arrival_wait(events, probe_time, server_count, service_time_minutes)
-            points.append((probe_time, wait))
-        result[process] = points
-    return result
+            wait, pax, numerator = _remaining_wait_at_checkpoint(events, probe_time)
+            points.append(FiveMinuteWaitPoint(
+                window_start=probe_time, wait_minutes=wait,
+                passenger_count=pax, wait_numerator=numerator,
+            ))
+        series[process] = points
+    return series
 
 
 def persist_display_series(
-    session, airport_iata: str, series: dict[str, list[tuple[datetime, float]]],
+    session, airport_iata: str, series: dict[str, list[FiveMinuteWaitPoint]],
 ) -> int:
     now = datetime.now(timezone.utc)
     session.query(QueueWaitDisplay5m).filter_by(airport_iata=airport_iata).delete()
     written = 0
     for process, points in series.items():
-        for window_start, wait_minutes in points:
+        for point in points:
             session.add(QueueWaitDisplay5m(
                 airport_iata=airport_iata,
                 process=process,
-                window_start=window_start,
-                estimated_wait_minutes=wait_minutes,
-                risk=risk_from_wait(wait_minutes),
+                window_start=point.window_start,
+                estimated_wait_minutes=point.wait_minutes,
+                wait_numerator=point.wait_numerator,
+                passenger_count=point.passenger_count,
+                aggregation_method="current_queue_weighted_remaining_wait",
+                risk=risk_from_wait(point.wait_minutes),
                 calculated_at=now,
             ))
             written += 1
@@ -1222,6 +1281,7 @@ def record_baseline_observations(
 def _record_calculation_audit(
     session, run_id: str, airport_iata: str, flights: list, config, demand, tz,
     predictions: list, coupling: dict, display_series: dict, calculation_date, now: datetime,
+    codeshare_records_removed: int = 0,
 ) -> None:
     """Zaten TAMAMLANMIŞ bir hesaplamanın (predictions/coupling/display_
     series) SQL'den izlenebilir bir kopyasını audit tablolarına yazar.
@@ -1240,6 +1300,7 @@ def _record_calculation_audit(
         _queue_audit.record_resource_config_audit(session, run_id, airport_iata, config)
         _queue_audit.record_routing_and_country_audit(
             session, run_id, airport_iata, flights, demand, country_by_iata, calculation_date,
+            codeshare_records_removed=codeshare_records_removed,
         )
         _queue_audit.record_flight_cohort_and_contribution_audit(
             session, run_id, airport_iata, flights, demand, tz, country_by_iata, coupling,
@@ -1248,9 +1309,12 @@ def _record_calculation_audit(
         _queue_audit.record_hourly_calculation_audit(
             session, run_id, airport_iata, config, tz, predictions, coupling, calculation_date,
         )
-        _queue_audit.record_dynamic_staffing_audit(session, run_id, airport_iata, coupling, tz)
+        _queue_audit.record_dynamic_staffing_audit(session, run_id, airport_iata, coupling, tz, config)
         for process, points in display_series.items():
             _queue_audit.record_graph_display_audit(session, run_id, airport_iata, process, points, tz, now)
+        _queue_audit.record_flight_resolution_audit(
+            session, run_id, airport_iata, flights, demand, country_by_iata,
+        )
         session.commit()
     except Exception:
         session.rollback()
@@ -1270,6 +1334,7 @@ def run_predictions(
     update_baseline: bool = True,
     now: datetime | None = None,
     apply_usage_horizon: bool = False,
+    codeshare_removed_by_airport: dict[str, int] | None = None,
 ) -> dict:
     from .ingestion.refresh import aircraft_changes_for_airport
     from . import audit as _queue_audit
@@ -1359,6 +1424,10 @@ def run_predictions(
                 config=configs[code], demand=demand_calculator, tz=tz,
                 predictions=predictions, coupling=coupling, display_series=display_series,
                 calculation_date=airport_operational_date, now=resolved_now,
+                codeshare_records_removed=(
+                    codeshare_removed_by_airport.get(code, 0)
+                    if codeshare_removed_by_airport else 0
+                ),
             )
         except Exception:
             session.rollback()

@@ -163,6 +163,12 @@ def make_arrival(
 class FakeCapacityResult:
     capacity: int
     counts_toward_passenger_total: bool = True
+    # ADIM (SQL Audit/Traceability Genişletme, Bölüm 1) - `DemandCalculator.
+    # capacity_result(flight).source/.confidence`'ı okuyan audit kodu için
+    # (bkz. `app.service.CapacityResult`) - varsayılanlar mevcut testlerin
+    # HİÇBİRİNİ etkilemez (hiçbiri bu iki alanı önceden set etmiyordu).
+    source: str = "test_fake"
+    confidence: str = "high"
 
 
 class FakeResolver:
