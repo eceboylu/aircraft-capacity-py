@@ -11,9 +11,10 @@ def test_default_config_mega_scale_exact_values():
     passport_arr ikisi de base=30/max=60 (kapasite/talep uyumsuzluğu
     tespiti sonrası 45/40'tan yükseltildi - kullanıcının SQL'den yaptığı
     güncelleme + Python varsayılanının senkronizasyonu), security_intl
-    dynamic base=20/max=40 (domestic security static kalıyor)."""
+    dynamic base=20/max=40 (domestic security static kalıyor, 30'dan
+    20'ye düşürüldü - kullanıcı talebi)."""
     cfg = default_config("IST", scale="mega")
-    assert cfg.domestic_security_lane_count == 30
+    assert cfg.domestic_security_lane_count == 20
     assert cfg.passport_departure_server_count == 30
     assert cfg.passport_departure_server_count_max == 60
     assert cfg.international_security_lane_count == 20
@@ -58,7 +59,7 @@ def test_get_config_reads_mega_scale_from_db(db_session):
     session.commit()
 
     cfg = get_config(session, "IST")
-    assert cfg.domestic_security_lane_count == 30
+    assert cfg.domestic_security_lane_count == 20
     assert cfg.passport_departure_server_count == 30
     assert cfg.passport_departure_server_count_max == 60
     assert cfg.passport_departure_dynamic is True

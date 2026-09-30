@@ -64,7 +64,8 @@ SCALE_RESOURCES: dict[str, dict[str, int]] = {
         "departure_passport_servers_max": 60,
         "arrival_passport_servers": 30,
         "arrival_passport_servers_max": 60,
-        "domestic_security_lanes": 30,
+        # ADIM (MEGA Domestic Security - 30'dan 20'ye) - kullanıcı talebi.
+        "domestic_security_lanes": 20,
         "international_security_lanes": 20,
         "international_security_lanes_max": 40,
         # ADIM (Editable Dynamic Staffing Config) - phpMyAdmin'den

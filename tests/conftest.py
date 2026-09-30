@@ -171,6 +171,23 @@ class FakeCapacityResult:
     confidence: str = "high"
 
 
+def rebuild_orm_row(stmt, row_values: dict):
+    """
+    `app/queue/audit.py:_bulk_add()` artık `session.execute(insert(model_cls),
+    values)` (gerçek çoklu-satır bulk INSERT) çağırıyor - eski `session.
+    add_all(model_instances)` DEĞİL. Bu dosyadaki `_FakeSession` test
+    double'ları `.added` listesini `type(row).__name__ == "QueueXyzAudit"`
+    şeklinde SINIF ADINA göre filtreliyor (bkz. test_queue_audit.py,
+    test_airport_departure_flow.py vb.) - bu yüzden burada `stmt.table`'dan
+    (Core Insert construct) GERÇEK ORM sınıfını bulup `cls(**row_values)`
+    ile GERÇEK bir instance kuruyoruz, generic bir `SimpleNamespace` DEĞİL.
+    """
+    for mapper in Base.registry.mappers:
+        if mapper.local_table is not None and mapper.local_table.name == stmt.table.name:
+            return mapper.class_(**row_values)
+    raise RuntimeError(f"rebuild_orm_row: {stmt.table} icin mapped sinif bulunamadi")
+
+
 class FakeResolver:
     """
     `DemandCalculator`'ın beklediği `.resolve(icao, airline_iata) ->

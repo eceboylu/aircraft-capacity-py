@@ -16,7 +16,7 @@ from app.queue import audit
 from app.queue.domain.demand import DemandCalculator, departure_show_up_events_detailed
 from app.queue.models import Flight
 
-from .conftest import FakeCapacityResult, FakeResolver
+from .conftest import FakeCapacityResult, FakeResolver, rebuild_orm_row
 
 
 class _FakeSession:
@@ -25,6 +25,10 @@ class _FakeSession:
 
     def add_all(self, rows):
         self.added.extend(rows)
+
+    def execute(self, stmt, values=None):
+        for row_values in (values or []):
+            self.added.append(rebuild_orm_row(stmt, row_values))
 
     def flush(self):
         pass

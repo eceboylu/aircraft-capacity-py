@@ -29,14 +29,14 @@ def test_large_domestic_security_lanes_is_15():
     assert cfg.domestic_security_lane_count == 15
 
 
-def test_security_service_time_is_50_seconds():
+def test_security_service_time_is_60_seconds():
     import pytest
-    assert SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES == pytest.approx(50.0 / 60.0)
+    assert SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES == pytest.approx(1.0)
 
 
-def test_large_international_capacity_is_1080_per_hour():
+def test_large_international_capacity_is_900_per_hour():
     cfg = default_config("XXX", scale="large")
-    assert round(international_security_capacity_rate(cfg) * 60, 6) == 1080  # 15 x 72
+    assert round(international_security_capacity_rate(cfg) * 60, 6) == 900  # 15 x 60
 
 
 def test_zrh_like_config_resolves_to_15_intl_lanes():

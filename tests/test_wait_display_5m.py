@@ -231,6 +231,13 @@ def _overloaded_scenario(process: str):
     elif process == PROCESS_PASSPORT_ARRIVAL:
         config.passport_arrival_server_count = 1
         flight = make_arrival(when=base, location="international", requires_passport=True, aircraft_icao="A321")
+        # ADIM (Arrival Landing Confirmation) - current/display queue
+        # (`event_driven_display_series`) SADECE `arr_actual_utc` ile
+        # inişi DOĞRULANMIŞ arrival'ları sayar (bkz. `test_arrival_
+        # landing_confirmation.py`) - bu senaryo "backlog üreten confirmed
+        # bir arrival" test ettiği için actual set edilmeli, yoksa
+        # (unconfirmed) current queue contribution KASITLI OLARAK 0 olur.
+        flight.arr_actual_utc = base
     else:
         raise AssertionError(process)
 
@@ -293,6 +300,7 @@ def test_no_hour_boundary_reset_for_any_event_driven_process(process):
     else:
         config.passport_arrival_server_count = 1
         flight = make_arrival(when=base, location="international", requires_passport=True, aircraft_icao="A321")
+        flight.arr_actual_utc = base  # bkz. Arrival Landing Confirmation notu yukarıda
 
     now = datetime(2026, 3, 10, 23, 0)
     series = event_driven_display_series([flight], config, demand, now=now)

@@ -18,7 +18,7 @@ def test_scales_are_exactly_four_tiers_in_precedence_order():
 
 def test_mega_resource_contract():
     resources = SCALE_RESOURCES[SCALE_MEGA]
-    assert resources["domestic_security_lanes"] == 30
+    assert resources["domestic_security_lanes"] == 20
     assert resources["departure_passport_servers"] == 30
     assert resources["departure_passport_servers_max"] == 60
     assert resources["international_security_lanes"] == 20

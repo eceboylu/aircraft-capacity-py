@@ -3,9 +3,9 @@ ADIM (SQL Audit/Traceability Genişletme) - "Bu sayı nereden geldi? Formül
 hangi girdileri kullandı? Sonuç ne çıktı?" sorularının SADECE SQL'den
 cevaplanabilmesi için eklenen `queue_flight_resolution_audit` tablosu +
 diğer tablolara eklenen ek kolonlar (Bölüm 1/16/18). Gerçek DB'ye ihtiyaç
-YOK - `_bulk_add()` sadece `session.add_all()`/`.flush()` çağırır (bkz.
-tests/test_queue_audit.py `_FakeSession` deseni), flight/config nesneleri
-de düz Python instance'ları.
+YOK - `_bulk_add()` sadece `session.execute(insert(...), values)`/`.flush()`
+çağırır (bkz. tests/test_queue_audit.py `_FakeSession` deseni), flight/
+config nesneleri de düz Python instance'ları.
 
 NOT (Passenger-Weighted Display Wait) - `queue_virtual_wait_trace_audit`
 ve onu test eden bölüm bu dosyadan KALDIRILDI - `virtual_arrival_wait()`
@@ -22,7 +22,7 @@ from app.queue.config import AirportConfigView
 from app.queue.domain.demand import DemandCalculator
 from app.queue.models import Flight
 
-from .conftest import FakeCapacityResult, FakeResolver
+from .conftest import FakeCapacityResult, FakeResolver, rebuild_orm_row
 
 
 class _FakeSession:
@@ -34,6 +34,10 @@ class _FakeSession:
 
     def add_all(self, rows):
         self.added.extend(rows)
+
+    def execute(self, stmt, values=None):
+        for row_values in (values or []):
+            self.added.append(rebuild_orm_row(stmt, row_values))
 
     def flush(self):
         pass

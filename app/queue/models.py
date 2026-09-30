@@ -595,6 +595,13 @@ class QueueResourceConfigAudit(Base):
 
     security_service_time_minutes: Mapped[float | None] = mapped_column(Float, nullable=True)
     passport_service_time_minutes: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # ADIM (Passport -> Security Transfer Time) - bu run'da security_intl
+    # handoff'una uygulanan sabit transfer/walking-time offset'i (dakika)
+    # - lineage: `security_arrival_time - passport_completion_time` bu
+    # değere eşit olmalı (SQL'den doğrulanabilir). Sadece GÖSTERİM/audit
+    # amaçlı - hesaplamanın KENDİSİ `engine.py:PASSPORT_TO_SECURITY_
+    # TRANSFER_MINUTES` sabitinden gelir.
+    passport_to_security_transfer_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     domestic_security_capacity_per_hour: Mapped[float | None] = mapped_column(Float, nullable=True)
     international_security_capacity_per_hour: Mapped[float | None] = mapped_column(Float, nullable=True)

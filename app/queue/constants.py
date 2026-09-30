@@ -1,19 +1,31 @@
 
 DEMAND_WINDOW_MINUTES = 60
 
-# ADIM (Security Service Time - 50 saniye/yolcu) - kullanıcı talebi: "1
-# passenger / 1 security lane = 50 seconds". TEK kaynak burası -
+# ADIM (Security Service Time - 60 saniye/yolcu) - kullanıcı talebi: "1
+# passenger / 1 security lane = 60 seconds" (önceki değer: 50 saniye/72
+# pax/saat - artık YAVAŞLATILDI). TEK kaynak burası -
 # `SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES` (dakika, `AirportOperational
 # Config.security_service_time_minutes`'in Python-taraflı varsayılanı,
-# bkz. models.py) bu sabitten TÜRETİLİYOR; hiçbir yerde "50" veya "0.8333"
-# ayrıca hardcode EDİLMEDİ. 3600/50=72 pax/saat/lane -> 60/72=0.8333...
+# bkz. models.py) bu sabitten TÜRETİLİYOR; hiçbir yerde "60" veya "1.0"
+# ayrıca hardcode EDİLMEDİ. 3600/60=60 pax/saat/lane -> 60/60=1.0
 # dakika/yolcu. Passport service time (`passport_service_time_minutes`,
 # ayrı bir alan) bu değişiklikten TAMAMEN BAĞIMSIZ, DOKUNULMADI.
-SECURITY_PASSENGERS_PER_HOUR_PER_LANE = 72
+SECURITY_PASSENGERS_PER_HOUR_PER_LANE = 60
 
 SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES = 60.0 / SECURITY_PASSENGERS_PER_HOUR_PER_LANE
 
 PASSPORT_RELEASE_BUFFER_MINUTES = 15
+
+# ADIM (Passport -> Security Transfer Time) - kullanıcı kararı: non-Schengen
+# international departure yolcusu passport_dep'ten security_intl'a GEÇERKEN
+# gerçek dünyada yürüme/transfer süresi var - passport completion anı
+# security_intl arrival anıyla AYNI DEĞİL. TEK global sabit (OPTION A -
+# event-level +5dk, batching YOK): her passport completion event'i KENDİ
+# exact timestamp'ini korur, sadece +5dk kayar. SADECE non-Schengen
+# passport_dep->security_intl handoff'una uygulanır - Schengen direct
+# security, security_dom, passport_arr HİÇ ETKİLENMEZ (bkz. engine.py
+# `_event_driven_queue_demand`, `security_intl_arrivals`).
+PASSPORT_TO_SECURITY_TRANSFER_MINUTES = 5
 
 DEPARTURE_PASSENGER_ARRIVAL_OFFSET_MINUTES = 120
 

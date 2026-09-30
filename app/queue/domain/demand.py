@@ -202,6 +202,20 @@ def _arrival_release_base(flight) -> datetime | None:
     )
 
 
+def is_arrival_landing_confirmed(flight) -> bool:
+    # ADIM (Arrival Landing Confirmation) - kullanıcı talebi: "status='active'
+    # + arr_actual_utc=NULL asla realized sayılmamalı". Tek trusted sinyal
+    # `arr_actual_utc IS NOT NULL` - `status` alanı (active/landed/scheduled)
+    # KASITLI OLARAK okunmuyor (provider'ın status string'i, actual
+    # timestamp'i doğrulanmış GERÇEK bir iniş garantisi vermiyor - bkz.
+    # gerçek DB örneği: status='landed' + arr_actual_utc=NULL). Bu, aynı
+    # zamanda `status='landed' + arr_actual_utc=NULL` edge-case'inin
+    # SEÇİLEN güvenli politikasıdır: actual olmadan "realized" denemez,
+    # bu flight forecast kalır (mevcut estimated/scheduled bazlı release
+    # timing'i KORUNUR, sadece "current/realized queue" sayılmaz).
+    return flight.arr_actual_utc is not None
+
+
 def _arrival_release_segments(flight) -> tuple[datetime, list[tuple[datetime, datetime, float]]] | tuple[None, None]:
     base = _arrival_release_base(flight)
     if base is None:

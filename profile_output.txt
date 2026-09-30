@@ -1,0 +1,133 @@
+=== PIPELINE SUMMARY ===
+{
+  "airports_loaded": 0,
+  "scales_imported": null,
+  "scale_resource_configs_seeded": 0,
+  "operational_configs_seeded": 0,
+  "operational_configs_resynced": 0,
+  "security_service_time_resynced": 0,
+  "capacity_seeded": false,
+  "flights_parsed": 3184,
+  "aircraft_match_rate": 0.544,
+  "inserted": 0,
+  "updated": 3184,
+  "events_written": 0,
+  "failed": 0,
+  "predictions": 1026,
+  "pruned": 0,
+  "airports_predicted": 3,
+  "failed_airports": [],
+  "duration_seconds": 179.11,
+  "retention_purged": null
+}
+
+=== WALL CLOCK ===
+Total wall time: 179.11s
+
+=== SQL QUERY COUNTS ===
+SELECT: 3058
+INSERT: 92883
+UPDATE: 19
+DELETE: 3
+OTHER: 0
+total_time: 123.91300119999687
+DESCRIBE: 24
+Total DB time (sum of query durations): 123.91s
+Total distinct query executions: 95987
+
+=== TOP 15 SLOWEST INDIVIDUAL QUERIES ===
+205.4ms  SELECT airport_operational_configs.airport_iata AS airport_operational_configs_airport_iata, airport_operational_configs
+200.2ms  SELECT airport_operational_configs.airport_iata AS airport_operational_configs_airport_iata, airport_operational_configs
+193.7ms  INSERT INTO queue_cohort_audit (run_id, airport_iata, process, flight_key, flight_iata, direction, profil_segmenti, prof
+188.3ms  SELECT airports.iata_code, airports.country_code 
+FROM airports 
+WHERE airports.country_code IS NOT NULL
+167.4ms  INSERT INTO queue_wait_display_5m (airport_iata, process, window_start, estimated_wait_minutes, wait_numerator, passenge
+163.9ms  SELECT airports.iata_code, airports.country_code 
+FROM airports 
+WHERE airports.country_code IS NOT NULL
+163.1ms  SELECT airports.iata_code, airports.country_code 
+FROM airports 
+WHERE airports.country_code IS NOT NULL
+162.3ms  SELECT airports.iata_code, airports.country_code 
+FROM airports 
+WHERE airports.country_code IS NOT NULL
+160.1ms  SELECT flights.id, flights.flight_key, flights.airport_iata, flights.direction, flights.location, flights.requires_passp
+122.1ms  SELECT airports.iata_code AS airports_iata_code, airports.icao_code AS airports_icao_code, airports.airport_name AS airp
+113.5ms  INSERT INTO queue_cohort_audit (run_id, airport_iata, process, flight_key, flight_iata, direction, profil_segmenti, prof
+105.2ms  INSERT INTO queue_cohort_audit (run_id, airport_iata, process, flight_key, flight_iata, direction, profil_segmenti, prof
+87.2ms  SELECT flights.id, flights.flight_key, flights.airport_iata, flights.direction, flights.location, flights.requires_passp
+85.9ms  SELECT flights.id, flights.flight_key, flights.airport_iata, flights.direction, flights.location, flights.requires_passp
+74.0ms  INSERT INTO queue_cohort_audit (run_id, airport_iata, process, flight_key, flight_iata, direction, profil_segmenti, prof
+
+=== CPROFILE TOP 25 BY CUMULATIVE TIME ===
+         90938822 function calls (90902000 primitive calls) in 177.356 seconds
+
+   Ordered by: cumulative time
+   List reduced from 1888 to 25 due to restriction <25>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.021    0.021  179.106  179.106 C:\Users\assistant\aircraft-capacity-server-deploy-2\app\queue\pipeline.py:320(run)
+        1    0.024    0.024  176.535  176.535 C:\Users\assistant\aircraft-capacity-server-deploy-2\app\queue\engine.py:1367(run_predictions)
+        3    0.141    0.047  153.566   51.189 C:\Users\assistant\aircraft-capacity-server-deploy-2\app\queue\engine.py:1319(_record_calculation_audit)
+    95963    0.249    0.000  138.983    0.001 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\engine\base.py:1377(execute)
+    95963    0.166    0.000  138.734    0.001 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\sql\elements.py:517(_execute_on_connection)
+    95963    1.251    0.000  138.568    0.001 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\engine\base.py:1593(_execute_clauseelement)
+     3282    0.010    0.000  137.499    0.042 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\orm\session.py:4323(flush)
+      211    0.111    0.001  137.483    0.652 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\orm\session.py:4372(_flush)
+      211    0.002    0.000  136.042    0.645 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py:440(execute)
+      214    0.003    0.000  136.005    0.636 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\orm\unitofwork.py:639(execute)
+      214    0.087    0.000  136.002    0.636 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\orm\persistence.py:41(save_obj)
+      214    1.632    0.008  135.071    0.631 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\orm\persistence.py:963(_emit_insert_statements)
+    95990    0.564    0.000  134.630    0.001 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\engine\base.py:1793(_execute_context)
+       36    0.004    0.000  134.290    3.730 C:\Users\assistant\aircraft-capacity-server-deploy-2\app\queue\audit.py:152(_bulk_add)
+    95990    1.274    0.000  128.923    0.001 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\engine\base.py:1852(_exec_single_context)
+    95984    0.105    0.000  121.188    0.001 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\engine\default.py:951(do_execute)
+    95999    0.199    0.000  121.099    0.001 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\pymysql\cursors.py:139(execute)
+        3    0.072    0.024  109.754   36.585 C:\Users\assistant\aircraft-capacity-server-deploy-2\app\queue\audit.py:239(record_flight_cohort_and_contribution_audit)
+    95999    0.283    0.000  109.384    0.001 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\pymysql\cursors.py:327(_query)
+    95999    0.353    0.000  108.946    0.001 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\pymysql\connections.py:576(query)
+    95999    0.275    0.000  100.680    0.001 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\pymysql\connections.py:841(_read_query_result)
+    95999    0.324    0.000  100.367    0.001 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\pymysql\connections.py:1243(read)
+   222303    1.497    0.000   98.475    0.000 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\pymysql\connections.py:763(_read_packet)
+   444606    0.789    0.000   95.489    0.000 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\pymysql\connections.py:806(_read_bytes)
+   444687    0.640    0.000   93.541    0.000 {method 'read' of '_io.BufferedReader' objects}
+
+
+
+
+=== CPROFILE TOP 25 BY SELF (TOTTIME) ===
+         90938822 function calls (90902000 primitive calls) in 177.356 seconds
+
+   Ordered by: internal time
+   List reduced from 1888 to 25 due to restriction <25>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    96454   91.633    0.001   91.633    0.001 {method 'read' of '_ssl._SSLSocket' objects}
+    96050    5.375    0.000    5.375    0.000 {method 'write' of '_ssl._SSLSocket' objects}
+       30    2.510    0.084    3.654    0.122 C:\Users\assistant\aircraft-capacity-server-deploy-2\app\queue\core\event_queue.py:124(_merge_adjacent_events)
+ 10244288    2.214    0.000    2.224    0.000 {method 'get' of 'dict' objects}
+    95963    2.020    0.000    5.098    0.000 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\engine\default.py:1313(_init_compiled)
+  1893421    1.891    0.000    8.322    0.000 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\pymysql\connections.py:530(escape)
+   444303    1.838    0.000    1.838    0.000 {method 'format' of 'str' objects}
+  1793742    1.794    0.000    3.327    0.000 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\orm\attributes.py:1271(set)
+      214    1.632    0.008  135.071    0.631 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\orm\persistence.py:963(_emit_insert_statements)
+       18    1.598    0.089    5.756    0.320 C:\Users\assistant\aircraft-capacity-server-deploy-2\app\queue\core\event_queue.py:69(simulate_fifo_queue)
+   540661    1.498    0.000    1.498    0.000 {method 'settimeout' of '_socket.socket' objects}
+   222303    1.497    0.000   98.475    0.000 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\pymysql\connections.py:763(_read_packet)
+    93097    1.495    0.000    2.270    0.000 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\orm\persistence.py:327(_collect_insert_commands)
+  1793742    1.322    0.000    4.648    0.000 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\orm\attributes.py:539(__set__)
+       12    1.321    0.110    5.947    0.496 C:\Users\assistant\aircraft-capacity-server-deploy-2\app\queue\core\event_queue.py:331(simulate_fifo_queue_dynamic)
+    95990    1.274    0.000  128.923    0.001 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\engine\base.py:1852(_exec_single_context)
+    95963    1.251    0.000  138.568    0.001 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\engine\base.py:1593(_execute_clauseelement)
+  6629502    1.228    0.000    1.228    0.000 {built-in method builtins.isinstance}
+  1053874    1.186    0.000    4.181    0.000 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\pymysql\converters.py:10(escape_item)
+    95996    1.158    0.000   10.466    0.000 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\pymysql\cursors.py:106(_escape_args)
+   987880    1.126    0.000    1.394    0.000 C:\Users\assistant\aircraft-capacity-server-deploy-2\app\queue\core\event_queue.py:35(_as_key_shares)
+    95969    1.074    0.000    1.122    0.000 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\sql\compiler.py:1860(construct_params)
+3545786/3542504    0.958    0.000    1.180    0.000 {built-in method builtins.hasattr}
+    92883    0.932    0.000    1.426    0.000 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\sqlalchemy\orm\mapper.py:3929(cascade_iterator)
+    95999    0.903    0.000   11.385    0.000 C:\Users\assistant\aircraft-capacity-server-deploy-2\venv\Lib\site-packages\pymysql\cursors.py:116(mogrify)
+
+
+

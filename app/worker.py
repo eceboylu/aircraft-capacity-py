@@ -12,47 +12,22 @@ from .queue.engine import domain_now
 from .queue.ingestion import airlabs_client
 from .queue.ingestion.airlabs_client import TrackedAirportsConfigError, tracked_airports_from_env
 
-try:
-    import fcntl
-except ImportError:
-    fcntl = None
-
 logger = logging.getLogger(__name__)
 
 REFRESH_INTERVAL_SECONDS = 5 * 60
 
-WORKER_LOCK_PATH = os.environ.get("WORKER_LOCK_PATH", "/run/airport-queue/worker.lock")
-
-
-class WorkerLockError(RuntimeError):
-    pass
-
-
-def _acquire_worker_lock(path: str = WORKER_LOCK_PATH):
-    if fcntl is None:
-        raise WorkerLockError(
-            "worker single-instance lock requires POSIX flock() (fcntl module) "
-            "- not available on this platform/interpreter."
-        )
-
-    try:
-        lock_dir = os.path.dirname(path)
-        if lock_dir:
-            os.makedirs(lock_dir, exist_ok=True)
-        lock_file = open(path, "a+")
-    except OSError as exc:
-        raise WorkerLockError(
-            f"worker lock file could not be opened at {path!r}: {exc}"
-        ) from exc
-
-    try:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        lock_file.close()
-        return None, "duplicate"
-
-    return lock_file, None
-
+# ADIM (Concurrency - Canonical Single-Writer Lock) - kullanıcı talebi:
+# eski `fcntl.flock()` tabanlı worker-process kilidi (SADECE POSIX'te
+# çalışıyordu, Windows'ta `WorkerLockError` fırlatıp worker'ı hiç
+# BAŞLATAMIYORDU) KALDIRILDI - dead/duplicate bir lock sistemi olarak
+# bırakılmadı. Artık TEK canonical write-lock `pipeline.py:
+# _pipeline_writer_lock()` (MySQL `GET_LOCK`/`RELEASE_LOCK`, cross-
+# platform) - `pipeline.run()`'ın KENDİSİNİN içinde, worker/manuel
+# çağrı/CLI/test FARK ETMEKSİZİN. İki worker instance'ı (veya bir worker
+# + manuel bir `pipeline.run()`) aynı anda çalışırsa, `run_forever()`'ın
+# zaten var olan `try/except Exception` döngüsü (aşağıda) ikinci
+# tarafın `PipelineLockError`'ını GÜVENLİ şekilde yakalayıp bir sonraki
+# interval'da tekrar dener - crash/duplicate write YOK.
 RETENTION_INTERVAL_SECONDS = 48 * 60 * 60
 
 
@@ -168,24 +143,10 @@ def main() -> int:
         )
         return 1
 
-    try:
-        lock_file, reason = _acquire_worker_lock()
-    except WorkerLockError:
-        logger.exception(
-            "worker lock could not be acquired at %s - refusing to start "
-            "unprotected (fail-safe)", WORKER_LOCK_PATH,
-        )
-        return 1
-
-    if lock_file is None:
-        logger.info("Another airport queue worker is already running; exiting.")
-        return 0
-
-    logger.info("worker lock acquired (%s)", WORKER_LOCK_PATH)
-    try:
-        run_forever(run_fn=production_run_fn)
-    finally:
-        lock_file.close()
+    # ADIM (Concurrency) - write-lock artık `pipeline.run()`'ın kendi
+    # içinde (bkz. `pipeline.py:_pipeline_writer_lock`) - burada ayrı bir
+    # worker-process kilidi YOK (kaldırıldı, yukarıdaki not).
+    run_forever(run_fn=production_run_fn)
     return 0
 
 

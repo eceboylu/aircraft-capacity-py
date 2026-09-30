@@ -17,6 +17,7 @@ from .constants import (
     PASSPORT_ARR_OPERATIONAL_LEVELS,
     PASSPORT_DEP_OPERATIONAL_LEVELS,
     PASSPORT_OVERLOAD_MESSAGE,
+    PASSPORT_TO_SECURITY_TRANSFER_MINUTES,
     SECURITY_INTL_OPERATIONAL_LEVELS,
     PROCESS_PASSPORT,
     PROCESS_PASSPORT_ARRIVAL,
@@ -519,21 +520,36 @@ def _event_driven_queue_demand(
     demand: DemandCalculator,
     window_minutes: int = DEMAND_WINDOW_MINUTES,
     now: datetime | None = None,
+    passport_arr_realized_only: bool = False,
 ) -> dict:
     from .domain.flows import (
         is_international_arrival,
         is_international_departure,
         is_schengen_departure_skipping_passport,
     )
+    from .domain.demand import is_arrival_landing_confirmed
 
     _now = now if now is not None else domain_now()
 
     def _arrival_release_arrivals(flight_list, predicate=None) -> list[tuple[datetime, float, str]]:
+        # ADIM (Arrival Landing Confirmation) - `passport_arr_realized_
+        # only=True` iken (SADECE `event_driven_display_series()`'ın
+        # current-queue-weighted-remaining-wait/`queue_wait_display_5m`
+        # hesabı için çağırdığı yol) henüz `arr_actual_utc` ile İNİŞİ
+        # DOĞRULANMAMIŞ flight'lar bu listeye HİÇ girmiyor - "current/
+        # realized queue" sadece GERÇEKLEŞMİŞ arrival'lardan oluşuyor.
+        # `passport_arr_realized_only=False` (varsayılan, `run_predictions()`
+        # ÇAĞRISI - saatlik `queue_predictions`/forecast tablosu) DAVRANIŞI
+        # DEĞİŞMEDİ - forecast (estimated/scheduled bazlı) demand hâlâ
+        # AYNEN üretiliyor, KAYBOLMUYOR. Departure tarafı (`_departure_
+        # show_up_arrivals`) bu parametreden HİÇ ETKİLENMİYOR.
         result = []
         for f in flight_list:
             if f.status in EXCLUDED_STATUSES:
                 continue
             if predicate is not None and not predicate(f):
+                continue
+            if passport_arr_realized_only and not is_arrival_landing_confirmed(f):
                 continue
             total = demand.passenger_demand(f)
             result.extend(
@@ -572,8 +588,20 @@ def _event_driven_queue_demand(
         arrival_dynamic=_dynamic_staffing_params_for(config, pool="arrival"),
     )
 
+    # ADIM (Passport -> Security Transfer Time) - SADECE non-Schengen
+    # passport_dep completion'ından security_intl'a handoff'ta +5dk
+    # (`PASSPORT_TO_SECURITY_TRANSFER_MINUTES`) uygulanıyor - OPTION A
+    # (event-level shift, batching YOK): her completion event'i KENDİ
+    # exact timestamp'ini (saniye hassasiyeti dahil) korur, sadece sabit
+    # bir offset kadar kayar. `schengen_direct_security_arrivals` (Schengen
+    # yolcu passport'tan hiç geçmiyor) BU TRANSFORM'A DAHİL DEĞİL - `+`
+    # ile SONRADAN, hiç değiştirilmeden ekleniyor.
     security_intl_arrivals = [
-        (event.completion_time, event.count, event.source_flight_keys)
+        (
+            event.completion_time + timedelta(minutes=PASSPORT_TO_SECURITY_TRANSFER_MINUTES),
+            event.count,
+            event.source_flight_keys,
+        )
         for event in passport_result["departure"]
     ] + schengen_direct_security_arrivals
     security_intl_dynamic_params = _dynamic_staffing_params_for(config, pool="security_intl")
@@ -852,10 +880,20 @@ def event_driven_display_series(
     şekilde azalır. Saatlik `predict_airport()`/`QueuePrediction`
     semantics'ini DEĞİŞTİRMEZ (ayrı, kendi hesabı, `_bucket_weighted_
     wait` hâlâ arrival-window bazlı).
+
+    ADIM (Arrival Landing Confirmation) - `passport_arr_realized_only=
+    True` ile çağrılıyor: passport_arr'ın CURRENT/display queue'su
+    SADECE `arr_actual_utc` ile inişi DOĞRULANMIŞ arrival'lardan oluşur
+    (henüz inmemiş active/scheduled flight'ların estimated/scheduled
+    bazlı cohort'ları bu current queue'ya YANLIŞLIKLA girmez - bkz.
+    `_event_driven_queue_demand`). Diğer 3 süreç (security_dom/
+    security_intl/passport_dep) ve departure tarafı bu parametreden HİÇ
+    ETKİLENMEZ (sadece passport_arr'ın arrival feed'i filtrelenir).
     """
     _now = now if now is not None else domain_now()
     coupling = _event_driven_queue_demand(
-        flights, config, demand, window_minutes=window_minutes, now=_now
+        flights, config, demand, window_minutes=window_minutes, now=_now,
+        passport_arr_realized_only=True,
     )
 
     day_start, day_end = _display_day_bounds(_now, tz)
@@ -883,25 +921,34 @@ def event_driven_display_series(
 def persist_display_series(
     session, airport_iata: str, series: dict[str, list[FiveMinuteWaitPoint]],
 ) -> int:
+    """ADIM (Performance - Gerçek Bulk INSERT) - eskiden HER nokta (288/
+    süreç/havalimanı, 4 süreç = 1152 satır/havalimanı) AYRI `session.add()`
+    ile ekleniyordu (hiç chunk bile YOK) - artık `insert(Model)` + dict
+    listesiyle (`insertmanyvalues`, bkz. `audit.py:_bulk_add` docstring'i
+    - AYNI teknik) TEK/birkaç multi-VALUES INSERT statement'ı üretiliyor.
+    Alan/değer semantics'i BİREBİR aynı - sadece round-trip sayısı azaldı."""
+    from sqlalchemy import insert as sa_insert
+
     now = datetime.now(timezone.utc)
     session.query(QueueWaitDisplay5m).filter_by(airport_iata=airport_iata).delete()
-    written = 0
+    values = []
     for process, points in series.items():
         for point in points:
-            session.add(QueueWaitDisplay5m(
-                airport_iata=airport_iata,
-                process=process,
-                window_start=point.window_start,
-                estimated_wait_minutes=point.wait_minutes,
-                wait_numerator=point.wait_numerator,
-                passenger_count=point.passenger_count,
-                aggregation_method="current_queue_weighted_remaining_wait",
-                risk=risk_from_wait(point.wait_minutes),
-                calculated_at=now,
-            ))
-            written += 1
+            values.append({
+                "airport_iata": airport_iata,
+                "process": process,
+                "window_start": point.window_start,
+                "estimated_wait_minutes": point.wait_minutes,
+                "wait_numerator": point.wait_numerator,
+                "passenger_count": point.passenger_count,
+                "aggregation_method": "current_queue_weighted_remaining_wait",
+                "risk": risk_from_wait(point.wait_minutes),
+                "calculated_at": now,
+            })
+    if values:
+        session.execute(sa_insert(QueueWaitDisplay5m), values)
     session.commit()
-    return written
+    return len(values)
 
 
 def predict_airport(
@@ -1282,21 +1329,27 @@ def _record_calculation_audit(
     session, run_id: str, airport_iata: str, flights: list, config, demand, tz,
     predictions: list, coupling: dict, display_series: dict, calculation_date, now: datetime,
     codeshare_records_removed: int = 0,
+    country_by_iata: dict[str, str] | None = None,
 ) -> None:
     """Zaten TAMAMLANMIŞ bir hesaplamanın (predictions/coupling/display_
     series) SQL'den izlenebilir bir kopyasını audit tablolarına yazar.
     Bkz. app/queue/audit.py modül docstring'i - bu fonksiyon `predictions`/
     `coupling`'i ASLA DEĞİŞTİRMEZ (sadece okur), ve herhangi bir hata
     burada YAKALANIP loglanır - çağıranın gerçek prediction/display
-    sonucunu ETKİLEMEZ (Bölüm 32 - transaction safety)."""
+    sonucunu ETKİLEMEZ (Bölüm 32 - transaction safety).
+
+    ADIM (Performance - country_lookup run-level cache) - `country_by_
+    iata` artık ÇAĞIRAN tarafından (run başına BİR KEZ hesaplanmış
+    olarak) geçiriliyor - `None` ise (geriye dönük uyumluluk/başka bir
+    çağıran varsa) eskisi gibi burada taze okunur, davranış DEĞİŞMEZ."""
     from . import audit as _queue_audit
 
     if not _queue_audit.audit_enabled():
         return
     try:
-        from .ingestion.airports_import import country_lookup
-
-        country_by_iata = country_lookup(session)
+        if country_by_iata is None:
+            from .ingestion.airports_import import country_lookup
+            country_by_iata = country_lookup(session)
         _queue_audit.record_resource_config_audit(session, run_id, airport_iata, config)
         _queue_audit.record_routing_and_country_audit(
             session, run_id, airport_iata, flights, demand, country_by_iata, calculation_date,
@@ -1346,6 +1399,29 @@ def run_predictions(
     configs = get_configs(session, codes)
     timezones = _airport_timezones(session, codes)
 
+    # ADIM (Performance - Run-Level Shared Caches) - kullanıcı talebi:
+    # ikisi de EN FAZLA bu run'ın ömrü kadar yaşar (global/sonsuz cache
+    # DEĞİL, her `run_predictions()` çağrısı kendi TAZE instance'ını
+    # üretir - bir sonraki run DB'den fresh okur, stale config riski
+    # YOK). Hesaplama SEMANTİĞİNE hiç dokunulmuyor, sadece TEKRAR EDEN
+    # DB okumaları run başına BİR KEZE indiriliyor:
+    #
+    # 1) `country_by_iata` - eskiden `_record_calculation_audit()` HER
+    #    havalimanı için `country_lookup(session)` (9766 satırlık TÜM
+    #    `airports` tablosu) çağırıyordu - artık run başına BİR KEZ.
+    # 2) `demand_calculator` (`DemandCalculator`) - eskiden per-airport
+    #    loop İÇİNDE, her havalimanı için SIFIRDAN oluşturuluyordu, bu
+    #    yüzden `_resolve()`'daki (aircraft_icao, airline) capacity
+    #    cache'i her havalimanında sıfırlanıyordu. `AircraftCapacityService.
+    #    resolve()` sonucu SADECE `(icao_code, airline_iata)`'a bağlı
+    #    (airport/route/date/country PARAMETRESİ YOK - bkz. `service.py:
+    #    resolve()` imzası) - bu yüzden run genelinde PAYLAŞILMASI
+    #    GÜVENLİ, capacity SONUÇLARI birebir AYNI kalır (sadece DB'ye
+    #    kaç kez gidildiği azalır).
+    from .ingestion.airports_import import country_lookup
+    country_by_iata = country_lookup(session)
+    demand_calculator = DemandCalculator(resolver)
+
     total: list[WindowPrediction] = []
     per_airport: dict[str, int] = {}
     failed_airports: list[str] = []
@@ -1390,7 +1466,6 @@ def run_predictions(
                 continue
 
             historical_cache = _load_historical_flight_count_cache(session, code)
-            demand_calculator = DemandCalculator(resolver)
             predictions, coupling = _predict_airport_with_coupling(
                 airport_iata=code,
                 flights=flights,
@@ -1428,6 +1503,7 @@ def run_predictions(
                     codeshare_removed_by_airport.get(code, 0)
                     if codeshare_removed_by_airport else 0
                 ),
+                country_by_iata=country_by_iata,
             )
         except Exception:
             session.rollback()

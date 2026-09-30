@@ -30,6 +30,7 @@ from .constants import (
     DIRECTION_DEPARTURE,
     EXCLUDED_STATUSES,
     LOCATION_DOMESTIC,
+    PASSPORT_TO_SECURITY_TRANSFER_MINUTES,
     PROCESS_PASSPORT_ARRIVAL,
     PROCESS_PASSPORT_DEPARTURE,
     PROCESS_SECURITY_DOMESTIC,
@@ -54,7 +55,10 @@ from .domain.flows import (
     is_schengen_departure_skipping_passport,
 )
 from .domain.schengen import is_schengen_country
+from sqlalchemy import func
+
 from .models import (
+    Flight,
     QueueAirportDepartureFlow5m,
     QueueCalculationHourlyAudit,
     QueueCohortAudit,
@@ -63,9 +67,11 @@ from .models import (
     QueueFlightHourContributionAudit,
     QueueFlightResolutionAudit,
     QueueGraphDisplayAudit,
+    QueuePrediction,
     QueueResourceConfigAudit,
     QueueRoutingSummaryAudit,
     QueueServiceEventAudit,
+    QueueWaitDisplay5m,
 )
 
 logger = logging.getLogger(__name__)
@@ -144,9 +150,62 @@ def _is_schengen_arrival_bypassing_passport(flight) -> bool:
 
 
 def _bulk_add(session, rows: list) -> None:
+    """ADIM (Performance - Gerçek Bulk INSERT) - kullanıcı talebi: eskiden
+    bu fonksiyon `session.add_all()` (ORM unit-of-work) kullanıyordu - bu,
+    500'lük "chunk"lar halinde flush etse bile SQLAlchemy/pymysql
+    tarafında HER SATIRI AYRI bir INSERT statement + AYRI bir network
+    round-trip olarak gönderiyordu (ölçülen: ~96.000 satır -> ~96.000
+    round-trip, toplam runtime'ın ~%75'i). Artık SQLAlchemy 2.0'ın
+    `insertmanyvalues` özelliğini kullanan `session.execute(insert(Model),
+    [dict, dict, ...])` formuna geçildi - bu, pymysql/MySQL dialect'inde
+    OTOMATİK olarak TEK (veya birkaç, `max_allowed_packet`'e göre)
+    multi-VALUES INSERT statement'ı üretir - round-trip sayısını
+    DRAMATİK şekilde azaltır.
+
+    ÇAĞIRAN KOD (call site'lar) DEĞİŞMEDİ - hâlâ normal ORM model
+    instance'larının (`QueueServiceEventAudit(...)` gibi) bir listesini
+    veriyor, bu fonksiyon İÇERİDE dict'e çeviriyor. Alan/değer/None/
+    precision semantics'i BİREBİR korunuyor - TEK istisna `created_at`
+    (Python-side `default=utcnow` taşıyan tek alan, bkz. models.py) -
+    instance'ta hiç set edilmemişse (None), ORM'un normalde flush
+    anında çağıracağı AYNI `utcnow()` fonksiyonu burada açıkça çağrılıyor
+    (davranış birebir aynı, sadece ORM'un arkada yaptığını expicit
+    yapıyoruz - diğer HİÇBİR alan için böyle bir varsayım YAPILMIYOR,
+    tüm audit record fonksiyonları zaten her alanı açıkça set ediyor)."""
+    if not rows:
+        return
+
+    from sqlalchemy import insert as sa_insert
+    from sqlalchemy import inspect as sa_inspect
+
+    model_cls = type(rows[0])
+    mapper = sa_inspect(model_cls)
+    pk_columns = set(mapper.primary_key)
+    # ADIM - `mapper.columns` üzerinden DEĞİL `mapper.column_attrs`
+    # üzerinden gidiyoruz: bazı modellerde DB kolon adı Python attribute
+    # adından FARKLI (`mapped_column("ulke_adi", ...)` gibi) - `column_
+    # attrs[i].key` HER ZAMAN Python-taraflı attribute adı (constructor'a
+    # verilen/`getattr` ile okunan isim), `mapper.columns[i].key` ise DB
+    # kolon adına düşebiliyor - ikisini KARIŞTIRMAK `AttributeError`'a
+    # yol açar (bu hata bir testte YAKALANDI ve burada düzeltildi).
+    column_keys = [
+        prop.key for prop in mapper.column_attrs
+        if not (len(prop.columns) == 1 and prop.columns[0] in pk_columns)
+    ]
+
     for start in range(0, len(rows), AUDIT_INSERT_CHUNK_SIZE):
-        session.add_all(rows[start:start + AUDIT_INSERT_CHUNK_SIZE])
-        session.flush()
+        chunk = rows[start:start + AUDIT_INSERT_CHUNK_SIZE]
+        values = []
+        for row in chunk:
+            row_values = {}
+            for key in column_keys:
+                value = getattr(row, key)
+                if key == "created_at" and value is None:
+                    value = datetime.now(timezone.utc)
+                row_values[key] = value
+            values.append(row_values)
+        session.execute(sa_insert(model_cls), values)
+    session.flush()
 
 
 # ---------------------------------------------------------------------------
@@ -200,6 +259,7 @@ def record_resource_config_audit(session, run_id: str, airport_iata: str, config
         security_intl_dynamic_enabled=config.security_intl_dynamic,
         passport_departure_dynamic_enabled=config.passport_departure_dynamic,
         passport_arrival_dynamic_enabled=config.passport_arrival_dynamic,
+        passport_to_security_transfer_minutes=PASSPORT_TO_SECURITY_TRANSFER_MINUTES,
     )
     session.add(row)
     session.flush()
@@ -965,6 +1025,74 @@ def purge_expired_audit_rows(session, retention_days: int | None = None) -> dict
     return deleted
 
 
+def operational_data_retention_days() -> int:
+    raw = os.environ.get("QUEUE_OPERATIONAL_DATA_RETENTION_DAYS", "2")
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 2
+
+
+def purge_stale_operational_data(
+    session, keep_days: int | None = None, today: date_type | None = None,
+) -> dict:
+    """ADIM (2 Günlük Rolling Retention) - kullanıcı talebi: "2 günde bir
+    2 gün öncekiler silinsin ama airport ölçekleri/gişe-lane/capacity-icao
+    belirleme kısmı kalacak". `keep_days` (varsayılan 2) gün TUTULUR - ör.
+    `keep_days=2` ve bugün 1 Ekim ise 30 Eylül+1 Ekim KALIR, 29 Eylül ve
+    ÖNCESİ SİLİNİR.
+
+    SADECE bu tablolara dokunur (hepsi flight/queue HESAPLAMA verisi):
+    `flights`, `queue_predictions`, `queue_wait_display_5m`, ve
+    `purge_expired_audit_rows()` üzerinden `_AUDIT_MODELS`'in 11 debug/
+    audit tablosu (created_at bazlı, AYNI keep_days ile).
+
+    ASLA DOKUNMAZ (referans/config tabloları - kullanıcının açıkça
+    KORUNMASINI istediği kısımlar): `airports` (ölçek ataması),
+    `airport_scale_configs` (gişe/lane sayıları), `airport_operational_
+    configs` (servis süresi/personel config), `aircraft_capacity`/
+    `aircraft_capacity_family` (ICAO->kapasite referans tablosu, ayrı
+    `app/models.py` modülünde - bu fonksiyon o modülü hiç import etmez).
+    """
+    days = operational_data_retention_days() if keep_days is None else keep_days
+    today_value = today if today is not None else datetime.now(timezone.utc).date()
+    cutoff_date = today_value - timedelta(days=days - 1)
+    cutoff_dt = datetime(cutoff_date.year, cutoff_date.month, cutoff_date.day)
+
+    deleted = {}
+
+    # `flights` - departure flight'lar KENDİ dep tarihine, arrival
+    # flight'lar KENDİ arr tarihine göre (hangisi mevcutsa) silinir.
+    flight_date = func.coalesce(
+        Flight.dep_actual_utc, Flight.dep_estimated_utc, Flight.dep_scheduled_utc,
+        Flight.arr_actual_utc, Flight.arr_estimated_utc, Flight.arr_scheduled_utc,
+    )
+    deleted["flights"] = session.query(Flight).filter(flight_date < cutoff_dt).delete(
+        synchronize_session=False
+    )
+
+    # `queue_predictions` - kendi `operational_date` alanı var, direkt kullan.
+    deleted["queue_predictions"] = session.query(QueuePrediction).filter(
+        QueuePrediction.operational_date < cutoff_date
+    ).delete(synchronize_session=False)
+
+    # `queue_wait_display_5m` - her pipeline run'ında zaten airport bazlı
+    # TAMAMEN silinip SADECE bugünün 288 noktasıyla yeniden yazılıyor
+    # (bkz. `engine.py:persist_display_series`) - bu satır sadece ek
+    # güvence, pratikte tetiklenmemeli.
+    deleted["queue_wait_display_5m"] = session.query(QueueWaitDisplay5m).filter(
+        QueueWaitDisplay5m.window_start < cutoff_dt
+    ).delete(synchronize_session=False)
+
+    session.commit()
+
+    # Kalan 11 debug/audit tablosu - mevcut `created_at` bazlı fonksiyonu
+    # AYNI keep_days ile reuse et (farklı bir silme mantığı İCAT ETME).
+    deleted.update(purge_expired_audit_rows(session, retention_days=days))
+
+    return deleted
+
+
 def main(argv: list[str] | None = None) -> None:
     import argparse
     import sys
@@ -982,9 +1110,19 @@ def main(argv: list[str] | None = None) -> None:
         help="QUEUE_AUDIT_RETENTION_DAYS'ten (varsayılan 7) eski audit satırlarını siler.",
     )
     parser.add_argument("--retention-days", type=int, default=None)
+    parser.add_argument(
+        "--purge-operational", action="store_true",
+        help=(
+            "flights/queue_predictions/queue_wait_display_5m + tüm audit "
+            "tablolarını QUEUE_OPERATIONAL_DATA_RETENTION_DAYS'ten (varsayılan "
+            "2) eski günler için siler. airport/scale/capacity referans "
+            "tablolarına DOKUNMAZ."
+        ),
+    )
+    parser.add_argument("--keep-days", type=int, default=None)
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
-    if not args.purge:
+    if not args.purge and not args.purge_operational:
         parser.print_help()
         return
 
@@ -994,7 +1132,10 @@ def main(argv: list[str] | None = None) -> None:
     configure_logging()
     session = get_session()
     try:
-        result = purge_expired_audit_rows(session, retention_days=args.retention_days)
+        if args.purge_operational:
+            result = purge_stale_operational_data(session, keep_days=args.keep_days)
+        else:
+            result = purge_expired_audit_rows(session, retention_days=args.retention_days)
     finally:
         session.close()
 

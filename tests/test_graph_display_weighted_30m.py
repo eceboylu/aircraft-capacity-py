@@ -15,6 +15,8 @@ from datetime import datetime, timedelta
 from app.queue import audit
 from app.queue.engine import FiveMinuteWaitPoint
 
+from .conftest import rebuild_orm_row
+
 
 class _FakeSession:
     def __init__(self):
@@ -22,6 +24,10 @@ class _FakeSession:
 
     def add_all(self, rows):
         self.added.extend(rows)
+
+    def execute(self, stmt, values=None):
+        for row_values in (values or []):
+            self.added.append(rebuild_orm_row(stmt, row_values))
 
     def flush(self):
         pass

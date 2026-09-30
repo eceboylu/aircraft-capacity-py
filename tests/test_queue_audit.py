@@ -18,7 +18,7 @@ from app.queue.constants import PROCESS_SECURITY_DOMESTIC
 from app.queue.core.event_queue import simulate_fifo_queue
 from app.queue.domain.demand import DemandCalculator
 
-from .conftest import FakeCapacityResult, FakeResolver, make_departure
+from .conftest import FakeCapacityResult, FakeResolver, make_departure, rebuild_orm_row
 
 
 # --------------------------------------------------------------------------
@@ -290,6 +290,10 @@ class _FakeSession:
 
     def add_all(self, rows):
         self.added.extend(rows)
+
+    def execute(self, stmt, values=None):
+        for row_values in (values or []):
+            self.added.append(rebuild_orm_row(stmt, row_values))
 
     def flush(self):
         pass

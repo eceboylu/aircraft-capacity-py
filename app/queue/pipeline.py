@@ -1,8 +1,12 @@
+import contextlib
 import logging
 import os
 import time
 from datetime import datetime, timedelta
 
+from sqlalchemy import text
+
+from ..db import engine as _db_engine
 from ..db import get_session, init_db
 from ..models import AircraftCapacity
 from ..seed import seed_curated_fallback, seed_family_and_ga, seed_verified_dataset
@@ -317,6 +321,73 @@ def load_flight_rows(
     return rows, codeshare_removed_by_airport
 
 
+# ADIM (Concurrency - Canonical Single-Writer Lock) - kullanıcı talebi:
+# "aynı anda sadece 1 writer", worker/manual pipeline.run()/CLI/test
+# harness FARK ETMEKSİZİN AYNI mekanizmayı kullanmalı, Windows+Linux
+# ikisinde de ÇALIŞMALI. Eski `worker.py` kilidi (`fcntl.flock`) SADECE
+# POSIX'te çalışıyordu VE sadece worker DAEMON'unun kendisini koruyordu -
+# `pipeline.run()` doğrudan (manuel/test/CLI'dan) çağrılırsa o kilidi HİÇ
+# GÖRMÜYORDU. MySQL zaten canonical paylaşılan kaynak olduğu için
+# `GET_LOCK()`/`RELEASE_LOCK()` (named advisory lock, cross-platform,
+# DB sunucusunda tutulur - Python tarafında POSIX/Windows farkı YOK)
+# TEK canonical mekanizma olarak seçildi. `worker.py`'daki eski fcntl
+# kilidi bu iş bitince KALDIRILDI (dead/duplicate lock sistemi
+# bırakılmadı - bkz. worker.py).
+PIPELINE_LOCK_NAME = "airport_queue_pipeline_writer"
+PIPELINE_LOCK_TIMEOUT_SECONDS = float(os.environ.get("PIPELINE_LOCK_TIMEOUT_SECONDS", "0"))
+
+
+class PipelineLockError(RuntimeError):
+    """İkinci bir pipeline.run() zaten aktifken (lock alınamadığında) fırlatılır."""
+
+
+@contextlib.contextmanager
+def _pipeline_writer_lock(timeout_seconds: float = PIPELINE_LOCK_TIMEOUT_SECONDS):
+    """`pipeline.run()`'ın TEK canonical write-lock noktası.
+
+    - `GET_LOCK(name, timeout)` SESSION-SCOPED'dır (MySQL) - bu yüzden
+      lock alınan connection, pipeline SÜRESİNCE (connection pool'a ERKEN
+      DÖNMEDEN) açık tutuluyor; `contextlib.contextmanager` + `yield`
+      bunu garanti eder (connection `finally`'de KAPATILANA kadar pool'a
+      geri VERİLMEZ).
+    - Timeout VARSAYILAN 0 (immediate fail) - "WAIT FOREVER YAPMA"
+      kuralı gereği; ikinci run kuyruğa alınmıyor, DOĞRUDAN
+      `PipelineLockError` ile başarısız oluyor (fail-fast, madde 17).
+    - `RELEASE_LOCK` + connection `close()` `finally` içinde - başarı,
+      exception, hatta `KeyboardInterrupt` durumunda bile GARANTİ
+      çalışır. Ayrıca process hard-kill/connection-drop durumunda
+      MySQL'in KENDİSİ session kapanınca lock'u OTOMATİK serbest bırakır
+      - stale/sonsuza kadar kilitli kalan bir lock oluşamaz.
+    """
+    connection = _db_engine.connect()
+    try:
+        acquired = connection.execute(
+            text("SELECT GET_LOCK(:name, :timeout)"),
+            {"name": PIPELINE_LOCK_NAME, "timeout": timeout_seconds},
+        ).scalar()
+    except Exception:
+        connection.close()
+        raise
+
+    if acquired != 1:
+        connection.close()
+        raise PipelineLockError(
+            f"another pipeline run already holds the {PIPELINE_LOCK_NAME!r} "
+            "write lock - refusing to start a second concurrent writer "
+            "(fail-fast, no queueing)."
+        )
+
+    logger.info("pipeline write lock acquired (%s)", PIPELINE_LOCK_NAME)
+    try:
+        yield
+    finally:
+        try:
+            connection.execute(text("SELECT RELEASE_LOCK(:name)"), {"name": PIPELINE_LOCK_NAME})
+            logger.info("pipeline write lock released (%s)", PIPELINE_LOCK_NAME)
+        finally:
+            connection.close()
+
+
 def run(
     data_dir: str = DATA_DIR,
     update_baseline: bool = True,
@@ -324,6 +395,27 @@ def run(
     source_b=None,
     now=None,
     apply_usage_horizon: bool = False,
+    purge_stale_data: bool = False,
+) -> dict:
+    """Canonical, tek-writer-korumalı pipeline entry point - worker, manuel
+    çağrı, CLI, test harness dahil HERKES bu fonksiyonu çağırır ve AYNI
+    `_pipeline_writer_lock()`'tan geçer (bkz. yukarıdaki not)."""
+    with _pipeline_writer_lock():
+        return _run_locked(
+            data_dir=data_dir, update_baseline=update_baseline,
+            source_a=source_a, source_b=source_b, now=now,
+            apply_usage_horizon=apply_usage_horizon, purge_stale_data=purge_stale_data,
+        )
+
+
+def _run_locked(
+    data_dir: str = DATA_DIR,
+    update_baseline: bool = True,
+    source_a=None,
+    source_b=None,
+    now=None,
+    apply_usage_horizon: bool = False,
+    purge_stale_data: bool = False,
 ) -> dict:
     start = time.monotonic()
     logger.info("pipeline run started")
@@ -368,6 +460,21 @@ def run(
                 "diğer havalimanları etkilenmedi): %s",
                 predicted["failed_airports"],
             )
+
+        # ADIM (2 Günlük Rolling Retention) - kullanıcı talebi: "pipeline'a
+        # ekle ama otomatik açma, manuelde kalsın" - bu adım pipeline'ın
+        # BİR PARÇASI ama VARSAYILAN OLARAK KAPALI (`purge_stale_data=
+        # False`); worker/scheduled run'lar bunu etkinleştirmeden çağırdığı
+        # sürece HİÇBİR ŞEY silinmez - sadece `pipeline.run(purge_stale_
+        # data=True)` ile (veya CLI'dan `python -m app.queue.audit
+        # --purge-operational`) BİLİNÇLİ olarak tetiklenir. Airport/scale/
+        # capacity referans tablolarına (bkz. `purge_stale_operational_
+        # data()`) bu adım da HİÇ dokunmaz.
+        retention_purged = None
+        if purge_stale_data:
+            from .audit import purge_stale_operational_data
+            retention_purged = purge_stale_operational_data(session)
+            logger.info("retention purge tamamlandı: %s", retention_purged)
     finally:
         session.close()
 
@@ -388,6 +495,7 @@ def run(
         "airports_predicted": len(predicted["airports"]),
         "failed_airports": predicted["failed_airports"],
         "duration_seconds": round(elapsed, 2),
+        "retention_purged": retention_purged,
     }
     logger.info("pipeline run completed duration=%.2fs", elapsed)
     return summary

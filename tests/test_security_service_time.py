@@ -1,9 +1,9 @@
 """
-Security service time FINAL CONTRACT: 50 saniye/yolcu/lane (=0.8333...
-dakika, 72 pax/saat/lane) - bkz. `constants.py: SECURITY_PASSENGERS_PER_
-HOUR_PER_LANE`. Bu değer önce 0.4 -> 1.5 -> 1.0'a, şimdi 1.0 -> 50sn'ye
-(72/saat) bilinçli olarak değiştirildi; BU DOSYA HER SEFERİNDE O ANKİ
-AKTİF/FINAL kontratı kilitler.
+Security service time FINAL CONTRACT: 60 saniye/yolcu/lane (=1.0
+dakika, 60 pax/saat/lane) - bkz. `constants.py: SECURITY_PASSENGERS_PER_
+HOUR_PER_LANE`. Bu değer önce 0.4 -> 1.5 -> 1.0 -> 50sn'ye (72/saat),
+şimdi 50sn -> 60sn'ye (60/saat) bilinçli olarak YAVAŞLATILDI; BU DOSYA
+HER SEFERİNDE O ANKİ AKTİF/FINAL kontratı kilitler.
 
 Passport service time (1.0 dk) ve passport FIFO davranışı bu görevde
 DEĞİŞMEDİ - burada sadece kilitlendi (regression guard).
@@ -18,23 +18,23 @@ from app.queue.core.event_queue import simulate_fifo_queue
 from app.queue.core.scoring import queue_capacity_rate, security_capacity_rate
 
 
-def test_security_service_time_is_50_seconds():
-    assert SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES == pytest.approx(50.0 / 60.0)
+def test_security_service_time_is_60_seconds():
+    assert SECURITY_EFFECTIVE_SERVICE_TIME_MINUTES == pytest.approx(1.0)
 
 
-def test_security_capacity_per_lane_is_72_per_hour():
+def test_security_capacity_per_lane_is_60_per_hour():
     cfg = default_config("XXX")
     rate_per_minute = queue_capacity_rate(1, cfg.security_service_time_minutes)
-    assert rate_per_minute * 60 == pytest.approx(72.0)
+    assert rate_per_minute * 60 == pytest.approx(60.0)
 
 
 def test_security_capacity_rate_scales_linearly_with_lane_count():
     cfg = default_config("XXX")
     cfg.security_lane_count = 7
-    assert round(security_capacity_rate(cfg) * 60, 6) == pytest.approx(504.0)  # 7 x 72
+    assert round(security_capacity_rate(cfg) * 60, 6) == pytest.approx(420.0)  # 7 x 60
 
     cfg.security_lane_count = 20
-    assert round(security_capacity_rate(cfg) * 60, 6) == pytest.approx(1440.0)  # 20 x 72
+    assert round(security_capacity_rate(cfg) * 60, 6) == pytest.approx(1200.0)  # 20 x 60
 
 
 def test_passport_service_time_unchanged_at_1_minute():

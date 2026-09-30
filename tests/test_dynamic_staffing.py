@@ -56,7 +56,7 @@ def test_mega_resource_dynamic_contract():
     assert cfg.passport_arrival_server_count == 30
     assert cfg.passport_arrival_server_count_max == 60
     assert cfg.passport_arrival_dynamic is True
-    assert cfg.domestic_security_lane_count == 30
+    assert cfg.domestic_security_lane_count == 20
     assert cfg.international_security_lane_count == 20
     assert cfg.international_security_lane_count_max == 40
     assert cfg.security_intl_dynamic is True
@@ -96,7 +96,7 @@ def test_domestic_security_never_dynamic_for_any_scale():
     """MEGA dynamic resource policy Bölüm 6 - domestic security HİÇBİR
     ölçekte dynamic olmuyor (sadece international_security_intl MEGA'da
     dynamic oldu - bkz. aşağıdaki test)."""
-    for scale, expected_dom in [("mega", 30), ("large", 15), ("medium", 6), ("small", 3)]:
+    for scale, expected_dom in [("mega", 20), ("large", 15), ("medium", 6), ("small", 3)]:
         cfg = default_config("XXX", scale=scale)
         assert cfg.domestic_security_lane_count == expected_dom
 

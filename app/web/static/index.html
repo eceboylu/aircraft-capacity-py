@@ -720,8 +720,21 @@
         setError(false);
         return null;
       }
-      return fetchJSON(predictionsUrl(state.selected)).then(function (data) {
-        state.predictionsByIata[state.selected] = data;
+      // ADIM (Airport Switch Race-Condition Fix) - Bölüm 5: bu periyodik
+      // refresh fetch'i BAŞLARKEN hangi airport seçiliyse (`requestedIata`)
+      // onu SABİTLE - fetch devam ederken kullanıcı `selectAirport()` ile
+      // BAŞKA bir airport'a geçerse, `state.selected` bu callback
+      // çalıştığında ARTIK DEĞİŞMİŞ olabilir. Eskiden kod `state.selected`'ı
+      // callback İÇİNDE tekrar okuyordu - bu, geç gelen bu response'un
+      // ESKİ airport'un (`requestedIata`) verisini YANLIŞLIKLA YENİ seçili
+      // airport'un cache anahtarına yazmasına (`predictionsByIata[yeni]
+      // = eski_data`) ve DOM'u YANLIŞ airport'un verisiyle render
+      // etmesine yol açabiliyordu. Artık SADECE fetch başladığındaki
+      // airport hâlâ seçiliyse yazılıyor/render ediliyor.
+      var requestedIata = state.selected;
+      return fetchJSON(predictionsUrl(requestedIata)).then(function (data) {
+        if (state.selected !== requestedIata) return;
+        state.predictionsByIata[requestedIata] = data;
         renderContent();
         setError(false);
       });
@@ -767,11 +780,27 @@
     if (iata === state.selected) return;
     state.selected = iata;
     renderSidebar();
-    if (!state.predictionsByIata[iata]) {
-      renderContent(); // yükleniyor durumu göster
-    }
+    // ADIM (Airport Switch Race-Condition Fix) - kullanıcı talebi: sidebar
+    // ZATEN yeni airport'u (ör. ZRH) gösterirken, önceki airport'un (ör.
+    // IST) chart/DOM'u fetch tamamlanana kadar ekranda KALMAMALI. Eskiden
+    // bu `renderContent()` çağrısı SADECE `predictionsByIata[iata]` HİÇ
+    // cache'lenmemişse yapılıyordu - ZRH bu oturumda daha önce ziyaret
+    // edilip cache'lenmişse bu interim adım ATLANIYORDU, yani `state.
+    // selected` zaten "ZRH" olduğu hâlde ekranda hâlâ ESKİ havalimanının
+    // (IST) render edilmiş chart'ı/başlığı kalabiliyordu. Artık HER
+    // switch'te KOŞULSUZ `renderContent()` çağrılıyor - `renderContent()`
+    // zaten (1) `state.charts`'taki TÜM eski chart instance'larını
+    // destroy ediyor, (2) `state.predictionsByIata[state.selected]`
+    // (= YENİ airport) cache'de VARSA onu HEMEN render ediyor, YOKSA
+    // "Loading..." gösteriyor - hiçbir durumda eski airport'un DOM'u bir
+    // sonraki frame'e bile taşınmıyor.
+    renderContent();
     fetchJSON(predictionsUrl(iata)).then(function (data) {
       state.predictionsByIata[iata] = data;
+      // Race safety (Bölüm 5) - DEĞİŞMEDİ: hızlı ardışık switch'lerde
+      // (IST->ZRH->SAW) geç gelen bir response, artık SEÇİLİ OLMAYAN bir
+      // airport'un DOM'unu asla overwrite etmez - sadece fetch'in
+      // BAŞLADIĞI airport hâlâ `state.selected` ise render edilir.
       if (state.selected === iata) renderContent();
     }).catch(function () {
       setError(true);
@@ -859,6 +888,13 @@
 
   // ------------- render: sağ panel -------------
 
+  // ADIM (ZRH/AMS/FRA - passporttan sonra ayrı security yok) - kullanıcı
+  // talebi: bu havalimanlarının GERÇEK layout'unda passport'tan sonra
+  // ayrı bir security checkpoint yok. SADECE görsel/frontend bir gizleme
+  // - backend/SQL/audit hesaplaması (security_intl) bu 3 havalimanı için
+  // de AYNEN üretilmeye devam ediyor, sadece grafik gösterilmiyor.
+  var SECURITY_SECTION_HIDDEN_AIRPORTS = { ZRH: true, AMS: true, FRA: true };
+
   function renderContent() {
     var root = document.getElementById("airport-content");
     Object.keys(state.charts).forEach(destroyChart);
@@ -888,18 +924,31 @@
     // "OVERALL AIRPORT CONGESTION" artık `data.overall` (eski wait/risk
     // merge, KALDIRILDI) DEĞİL, `data.departure_flow` kullanıyor - AYRI
     // bir "Departure Passenger Flow" bölümü YOK.
+    //
+    // ADIM (ZRH/AMS/FRA - passporttan sonra ayrı security yok) -
+    // kullanıcı talebi: bu 3 havalimanının GERÇEK operasyonel yapısında
+    // passport kontrolünden sonra AYRI bir security checkpoint YOK.
+    // HESAPLAMA/SQL/audit tarafı HİÇ DEĞİŞMEDİ (security_intl backend'de
+    // AYNEN üretilmeye devam ediyor - kullanıcının SEÇTİĞİ opsiyon buydu)
+    // - SADECE bu 3 havalimanı seçiliyken frontend'de "INTERNATIONAL
+    // DEPARTURE — SECURITY" bölümü/grafiği HİÇ RENDER EDİLMİYOR. Başka
+    // HİÇBİR havalimanını etkilemez.
+    var hideSecuritySection = !!SECURITY_SECTION_HIDDEN_AIRPORTS[state.selected];
+
     root.innerHTML =
       "<h2>" + escapeHtml(heading) + "</h2>" +
       overallCongestionSectionHtml(data.departure_flow) +
       graphSectionHtml("domestic_security", "DOMESTIC SECURITY", data.domestic_security) +
       graphSectionHtml("international_departure_passport", "INTERNATIONAL DEPARTURE — PASSPORT", data.international_departure.passport) +
-      graphSectionHtml("international_departure_security", "INTERNATIONAL DEPARTURE — SECURITY", data.international_departure.security) +
+      (hideSecuritySection ? "" : graphSectionHtml("international_departure_security", "INTERNATIONAL DEPARTURE — SECURITY", data.international_departure.security)) +
       graphSectionHtml("international_arrival", "INTERNATIONAL ARRIVAL", data.international_arrival);
 
     drawOverallCongestionChart(annotateFlowPointsWithRisk(to30MinuteFlowBuckets((data.departure_flow && data.departure_flow.points) || [])));
     drawChart(data.domestic_security, "chart-domestic_security", "domestic_security");
     drawChart(data.international_departure.passport, "chart-international_departure_passport", "international_departure_passport");
-    drawChart(data.international_departure.security, "chart-international_departure_security", "international_departure_security");
+    if (!hideSecuritySection) {
+      drawChart(data.international_departure.security, "chart-international_departure_security", "international_departure_security");
+    }
     drawChart(data.international_arrival, "chart-international_arrival", "international_arrival");
     renderRefreshInfo();
   }
