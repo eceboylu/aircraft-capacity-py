@@ -1,52 +1,185 @@
-# Havalimanı Security / Passport Yoğunluk Tahmin Sistemi
+<div align="center">
 
-Uçuş tarifesinden yola çıkarak, **her havalimanı için ayrı ayrı**,
-15 dakikalık pencerelerde security ve passport kuyruk yoğunluğunu
-tahmin eder; yoğunluğun **nedenini** de metin olarak üretir.
+# ✈️ Airport Queue Monitor
 
-Sistem üç madde halinde kurulmuştur:
+**Havalimanlarında security ve pasaport kuyruklarının yoğunluğunu uçuş tarifesinden tahmin eden sistem.**
 
-| Madde | Kapsam | Yer |
-|---|---|---|
-| 1 | Uçak tipi (ICAO) → yolcu kapasitesi çözümleyici | `app/models.py`, `app/db.py`, `app/seed.py`, `app/service.py` |
-| 2 | Veri birleştirme, talep, kuyruk modeli, neden tespiti | `app/queue/` |
-| 3 | Kalıcılık, çok-havalimanlı orkestrasyon, raporlama | `app/queue/engine.py`, `app/queue/reporting.py` |
+Her havalimanı için 15 dakikalık pencerelerde bekleme riskini hesaplar ve yoğunluğun **nedenini** de açıklar.
 
-Madde 1 kodu Madde 2/3 tarafından **import edilip kullanılır**,
-değiştirilmez.
+![Python](https://img.shields.io/badge/Python-3-3776AB?logo=python&logoColor=white)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-D71F00?logo=sqlalchemy&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-8-4479A1?logo=mysql&logoColor=white)
+![AirLabs](https://img.shields.io/badge/Data-AirLabs%20API-0A66C2)
+![pytest](https://img.shields.io/badge/tests-pytest-0A9EDC?logo=pytest&logoColor=white)
+![systemd](https://img.shields.io/badge/deploy-systemd-30D475?logo=linux&logoColor=white)
+
+</div>
 
 ---
 
-## Çalıştırma
+## Ne yapar?
+
+Bir havalimanındaki uçuş tarifesini alır ve şu soruları cevaplar:
+
+- Önümüzdeki saatlerde **security** ve **pasaport** kontrolünde ne kadar yoğunluk olacak?
+- Hangi 15 dakikalık pencere riskli, tahmini bekleme kaç dakika?
+- Yoğunluğun **sebebi** ne: aynı anda inen geniş gövdeli uçaklar mı, gecikmelerin üst üste binmesi mi, uluslararası yolcu dalgası mı?
+- Bu tahmine ne kadar **güvenilebilir**?
+
+Sonuçlar bir web arayüzünde havalimanı bazında grafiklerle gösterilir ve JSON API üzerinden de okunabilir.
+
+## Öne çıkanlar
+
+| | |
+|---|---|
+| 🛫 **Uçak tipi → kapasite** | ICAO uçak tipinden koltuk sayısını çözer (101 doğrulanmış tip, yedek varyantlar ve aile eşleşmeleri) |
+| 👥 **Yolcu talebi modeli** | Load factor, menzile göre havalimanına varış süresi ve gecikmelerle yolcuların kuyruğa ne zaman ulaşacağını hesaplar |
+| 🧮 **Kuyruk teorisi** | Pasaport için Erlang-C, olay tabanlı kuyruk simülasyonu ve birikmiş kuyruk (backlog) takibi |
+| 🛂 **4 ayrı kuyruk** | Pasaport giriş, pasaport çıkış, iç hat security ve dış hat security ayrı ayrı modellenir |
+| 🔍 **Neden tespiti** | 9 tespit kuralı: yığılma, geniş gövde, gecikme sıkışması, iptal, uçak değişikliği, diversion… |
+| 📊 **Confidence skoru** | Her tahminin ne kadar güvenilir olduğu, eksik veriye göre şeffafça düşürülür |
+| 🌍 **Çok havalimanlı** | Her havalimanı kendi ölçeği, gişe ve personel yapılandırması ve saat dilimiyle bağımsız hesaplanır |
+| 🔄 **Canlı veri** | AirLabs API entegrasyonu; worker 5 dakikada bir veriyi yenileyip tahminleri günceller |
+| 🧹 **Kontrollü veri saklama** | 48 saatlik operasyonel saklama, iki ayrı güvenlik anahtarıyla (varsayılan kapalı) |
+| ✅ **Kapsamlı testler** | 76 test dosyası: matematiksel doğrulama, gerçekçi uçuş senaryoları, uçtan uca ve arayüz testleri |
+
+## Mimari
+
+```mermaid
+flowchart LR
+    AL[AirLabs API<br/>schedules + flights] --> W
+    F[Kaynak dosyalar<br/>data/] --> W
+    W[Worker<br/>app.worker<br/>5 dk'da bir] --> P[Pipeline<br/>ingestion → refresh → tahmin]
+    P --> DB[(MySQL)]
+    DB --> API[Web sunucusu<br/>app.web.server<br/>salt okunur]
+    API --> UI[Airport Queue Monitor<br/>web arayüzü]
+```
+
+Worker ve web sunucusu **iki ayrı süreçtir**: biri çökerse diğeri etkilenmez. Web sunucusu yalnızca veritabanından okur; hesaplama her zaman worker tarafındadır. Worker bir turda hata alırsa son başarılı tahminler gösterilmeye devam eder.
+
+### Tahmin akışı
+
+```mermaid
+flowchart TD
+    A[Uçuş tarifesi] --> B[Normalize + uçak tipi eşleştirme]
+    B --> C[Uçak tipi → koltuk kapasitesi]
+    C --> D[Yolcu talebi<br/>load factor, varış süresi, gecikme]
+    D --> E[Akış kuralları<br/>iç hat / dış hat · kalkış / varış]
+    E --> F[15 dakikalık pencereler]
+    F --> G[Kuyruk modeli<br/>Erlang-C · olay tabanlı simülasyon]
+    G --> H[Risk + bekleme süresi]
+    G --> I[9 neden tespiti]
+    G --> J[Confidence skoru]
+    H & I & J --> K[(queue_predictions)]
+```
+
+## API
+
+Sunucu yalnızca `GET` isteklerini kabul eder.
+
+| Uç nokta | Döndürdüğü |
+|---|---|
+| `GET /` | Web arayüzü |
+| `GET /api/airports` | Takip edilen havalimanları (`["ADB", "IST", "SAW"]`) |
+| `GET /api/airports/directory` | Havalimanı adlarıyla liste |
+| `GET /api/airports/{iata}/predictions` | Genel durum, security, pasaport ve kırılımlar |
+
+## Hızlı başlangıç
+
+### Gereksinimler
+
+- Python 3
+- MySQL 8 (ya da PostgreSQL)
+- AirLabs API anahtarı (sadece canlı veri için)
+
+### Kurulum
 
 ```bash
-python -m venv venv
-venv\Scripts\pip install sqlalchemy pytest
+git clone https://github.com/eceboylu/aircraft-capacity-py.git
+cd aircraft-capacity-py
 
-# Madde 1 referans verisi (uçak tipi -> kapasite)
+python -m venv venv
+venv\Scripts\pip install -r requirements.txt -r requirements-dev.txt
+```
+
+`DATABASE_URL` **zorunludur**; tanımlı değilse uygulama açık bir hatayla durur, gizlice SQLite'a geçmez.
+
+```bash
+# Windows (PowerShell)
+$env:DATABASE_URL = "mysql+pymysql://kullanici:sifre@localhost:3306/airport_queue?charset=utf8mb4"
+```
+
+### Çalıştırma
+
+```bash
+# 1) Uçak tipi → kapasite referans verisi (ayrı bir süreçte çalıştırın)
 venv\Scripts\python -m app.seed
 
-# Uçtan uca: kaynak dosyalar -> veritabanı -> tahminler
+# 2) Tek seferlik: kaynak veri → veritabanı → tahminler
 venv\Scripts\python -m app.queue.pipeline
+
+# 3) Web arayüzü ve API  →  http://localhost:8000
+venv\Scripts\python -m app.web.server
+
+# 4) Sürekli güncelleme (5 dakikada bir)
+venv\Scripts\python -m app.worker
 
 # Testler
 venv\Scripts\python -m pytest -q
 ```
 
-`DATABASE_URL` ortam değişkeni tanımlıysa o kullanılır; yoksa proje
-kökünde `database.sqlite` açılır.
+### Ortam değişkenleri
 
-> **Not — `app.seed`:** Script üç kaynağı yükler: 101 doğrulanmış
-> tip (`yolcu_ucaklari.json`, ana kaynak), 11 yedek varyant
-> (`curated_fallback.json`) ve 65 aile/genel havacılık satırı.
->
-> `app.seed.run()` tabloları `drop_first=True` ile düşürür. Script
-> `app.queue.models`'i import etmediği için kuyruk tabloları bu
-> düşürmeye dahil olmaz; ancak aynı süreçte önce kuyruk modelleri
-> import edilirse uçuş ve tahmin tabloları da silinir. Seed'i her
-> zaman ayrı bir süreçte çalıştırın.
+| Değişken | Zorunlu | Açıklama |
+|---|---|---|
+| `DATABASE_URL` | Evet | `mysql+pymysql://…` ya da `postgresql://…` |
+| `AIRLABS_API_KEY` | Canlı veri için | AirLabs API anahtarı; koda ve loglara hiçbir zaman yazılmaz |
+| `RETENTION_ENABLED` | Hayır | `true` olursa eski kayıtlar temizlenir (varsayılan `false`) |
+| `RETENTION_DRY_RUN` | Hayır | `false` yapılmadan hiçbir şey silinmez, sadece raporlanır (varsayılan `true`) |
+| `LOG_LEVEL` | Hayır | Varsayılan `INFO` |
+
+Örnek dosya: [`deploy/systemd/aircraft-capacity.env.example`](deploy/systemd/aircraft-capacity.env.example). Gerçek değerler repoya **asla** eklenmez.
+
+## Production
+
+Linux sunucuda iki `systemd` servisi çalışır:
+
+| Servis | Görevi |
+|---|---|
+| `airport-queue-web.service` | Web arayüzü ve API (`app.web.server`) |
+| `airport-queue-worker.service` | 5 dakikada bir veri yenileme ve tahmin (`app.worker`), tek kopya kilidiyle |
+
+Kurulum adımları: [`deploy/systemd/README.md`](deploy/systemd/README.md)
+
+## Proje yapısı
+
+```
+app/
+├── models.py, service.py, seed.py   Uçak tipi → kapasite çözümleyici
+├── db.py                            Veritabanı bağlantısı (DATABASE_URL zorunlu)
+├── worker.py                        Arka plan yenileme süreci
+├── web/
+│   ├── server.py                    Salt okunur HTTP sunucusu + JSON API
+│   └── static/index.html            Web arayüzü
+└── queue/
+    ├── core/                        Erlang-C, olay tabanlı kuyruk, skorlama (saf matematik)
+    ├── domain/                      Talep, akış kuralları, havalimanı ölçeği, personel
+    ├── reasons/                     Neden tespit kuralları
+    ├── ingestion/                   AirLabs istemcisi, kaynak ayrıştırma, upsert
+    ├── engine.py                    Çok havalimanlı orkestrasyon
+    ├── pipeline.py                  Uçtan uca çalıştırıcı
+    ├── reporting.py, api.py         Raporlama ve API veri katmanı
+    └── retention.py                 Kontrollü veri saklama
+data/                                Örnek kaynak veriler, havalimanı ve uçak listeleri
+deploy/systemd/                      Servis ve timer dosyaları
+tests/                               Birim, senaryo, uçtan uca ve arayüz testleri
+```
 
 ---
+
+# Teknik dokümantasyon
+
+Aşağıdaki bölümler modelin temel tasarım kararlarını ve varsayımlarını anlatır. Proje geliştikçe bazı ayrıntılar değişmiştir; güncel davranışın kaynağı koddaki açıklamalar ve testlerdir.
 
 ## Veri akışı
 
